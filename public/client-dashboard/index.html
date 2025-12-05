@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Phone Bot - לוח בקרה</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Heebo', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card { transition: transform 0.2s ease; }
+        .card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Login -->
+    <div id="loginModal" class="fixed inset-0 bg-gradient-to-br from-purple-600 to-blue-500 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 gradient-bg rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">ברוכים הבאים</h1>
+                <p class="text-gray-500">התחברו לצפייה בנתוני העסק שלכם</p>
+            </div>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+                    <input type="email" id="loginEmail" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+                    <input type="password" id="loginPassword" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                </div>
+                <button type="submit" class="w-full gradient-bg text-white py-3 rounded-xl font-semibold hover:opacity-90 transition">
+                    כניסה
+                </button>
+                <p id="loginError" class="text-red-500 text-sm text-center hidden"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="hidden">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="container mx-auto px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4 space-x-reverse">
+                        <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold" id="businessName">העסק שלי</h1>
+                            <p class="text-white/70 text-sm" id="businessType">מסעדה</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4 space-x-reverse">
+                        <span class="text-white/80" id="userName">שלום, משתמש</span>
+                        <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                            יציאה
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Business Selector -->
+        <div class="container mx-auto px-6 py-4" id="businessSelector">
+            <select id="currentBusiness" onchange="switchBusiness()" class="px-4 py-2 border rounded-lg bg-white shadow-sm">
+            </select>
+        </div>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-6 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500 text-sm">שיחות החודש</p>
+                            <p class="text-3xl font-bold text-gray-800" id="statCalls">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm p-6 card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500 text-sm">דקות שיחה</p>
+                            <p class="text-3xl font-bold text-gray-800" id="statMinutes">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm p-6 card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500 text-sm">הזמנות</p>
+                            <p class="text-3xl font-bold text-gray-800" id="statReservations">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm p-6 card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-500 text-sm">סטטוס הבוט</p>
+                            <p class="text-lg font-bold" id="statStatus">
+                                <span class="text-green-600">● פעיל</span>
+                            </p>
+                        </div>
+                        <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Missing Info Alert -->
+            <div id="missingInfoAlert" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 rounded-lg">
+                <div class="flex items-start">
+                    <svg class="w-6 h-6 text-yellow-400 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <div>
+                        <h3 class="font-semibold text-yellow-800">יש מידע חסר שכדאי להוסיף</h3>
+                        <p class="text-yellow-700 text-sm" id="missingInfoText">לקוחות שאלו על מידע שלא קיים במערכת</p>
+                        <button onclick="showMissingInfo()" class="text-yellow-800 underline text-sm mt-1">צפה בהמלצות</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="bg-white rounded-xl shadow-sm mb-8">
+                <div class="border-b">
+                    <nav class="flex">
+                        <button onclick="showTab('reservations')" class="tab-btn px-6 py-4 text-gray-500 hover:text-purple-600 border-b-2 border-transparent" data-tab="reservations">
+                            📅 הזמנות היום
+                        </button>
+                        <button onclick="showTab('calls')" class="tab-btn px-6 py-4 text-gray-500 hover:text-purple-600 border-b-2 border-transparent" data-tab="calls">
+                            📞 שיחות אחרונות
+                        </button>
+                        <button onclick="showTab('errors')" class="tab-btn px-6 py-4 text-gray-500 hover:text-purple-600 border-b-2 border-transparent" data-tab="errors">
+                            ⚠️ התראות
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Reservations Tab -->
+                <div id="tabReservations" class="tab-content p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">הזמנות להיום</h3>
+                    <div id="reservationsList" class="space-y-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Calls Tab -->
+                <div id="tabCalls" class="tab-content hidden p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">שיחות אחרונות</h3>
+                    <div id="callsList" class="space-y-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Errors Tab -->
+                <div id="tabErrors" class="tab-content hidden p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">התראות ושגיאות</h3>
+                    <div id="errorsList" class="space-y-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">שיחות ב-30 יום אחרונים</h3>
+                <canvas id="callsChart" height="100"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = '';
+        let token = localStorage.getItem('clientToken');
+        let currentUser = null;
+        let currentBusinessId = null;
+        let businesses = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (token) {
+                checkAuth();
+            }
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+        });
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    document.getElementById('loginError').textContent = data.error;
+                    document.getElementById('loginError').classList.remove('hidden');
+                    return;
+                }
+
+                token = data.data.accessToken;
+                localStorage.setItem('clientToken', token);
+                currentUser = data.data.user;
+
+                showDashboard();
+
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('loginError').textContent = 'שגיאת התחברות';
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_URL}/api/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    logout();
+                    return;
+                }
+
+                currentUser = data.data;
+                showDashboard();
+
+            } catch (error) {
+                logout();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('clientToken');
+            token = null;
+            currentUser = null;
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+        }
+
+        async function showDashboard() {
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+
+            document.getElementById('userName').textContent = `שלום, ${currentUser.firstName}`;
+
+            await loadBusinesses();
+            showTab('reservations');
+        }
+
+        async function loadBusinesses() {
+            try {
+                const data = await api('/api/client/dashboard');
+                
+                if (data.success) {
+                    businesses = data.data.businesses;
+                    
+                    const select = document.getElementById('currentBusiness');
+                    select.innerHTML = businesses.map(b => 
+                        `<option value="${b.id}">${b.name}</option>`
+                    ).join('');
+
+                    if (businesses.length > 0) {
+                        currentBusinessId = businesses[0].id;
+                        await loadBusinessData();
+                    }
+
+                    // Update stats
+                    document.getElementById('statCalls').textContent = data.data.summary.totalCalls;
+                    document.getElementById('statMinutes').textContent = data.data.summary.totalMinutes;
+                    document.getElementById('statReservations').textContent = data.data.summary.totalReservations;
+                }
+            } catch (error) {
+                console.error('Load businesses error:', error);
+            }
+        }
+
+        async function loadBusinessData() {
+            try {
+                const data = await api(`/api/client/businesses/${currentBusinessId}`);
+                
+                if (data.success) {
+                    const b = data.data.business;
+                    document.getElementById('businessName').textContent = b.nameHebrew;
+                    document.getElementById('businessType').textContent = getBusinessType(b.type);
+                    
+                    document.getElementById('statStatus').innerHTML = b.isActive && !b.isPaused
+                        ? '<span class="text-green-600">● פעיל</span>'
+                        : '<span class="text-red-600">● מושהה</span>';
+
+                    // Check missing info
+                    if (data.data.missingInfoSuggestions?.length > 0) {
+                        document.getElementById('missingInfoAlert').classList.remove('hidden');
+                    }
+
+                    loadReservations();
+                    loadCalls();
+                    loadErrors();
+                    loadChart();
+                }
+            } catch (error) {
+                console.error('Load business error:', error);
+            }
+        }
+
+        async function loadReservations() {
+            try {
+                const data = await api(`/api/client/businesses/${currentBusinessId}/reservations/today`);
+                
+                if (data.success) {
+                    const list = document.getElementById('reservationsList');
+                    
+                    if (data.data.length === 0) {
+                        list.innerHTML = '<p class="text-gray-500 text-center py-8">אין הזמנות להיום</p>';
+                        return;
+                    }
+
+                    list.innerHTML = data.data.map(r => `
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div class="flex items-center space-x-4 space-x-reverse">
+                                <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold">
+                                    ${r.partySize}
+                                </div>
+                                <div>
+                                    <p class="font-semibold">${r.customerName}</p>
+                                    <p class="text-sm text-gray-500">${r.time} | ${r.customerPhone}</p>
+                                </div>
+                            </div>
+                            <span class="px-3 py-1 rounded-full text-sm ${getReservationStatusClass(r.status)}">
+                                ${getReservationStatusText(r.status)}
+                            </span>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Load reservations error:', error);
+            }
+        }
+
+        async function loadCalls() {
+            try {
+                const data = await api(`/api/client/businesses/${currentBusinessId}/calls?limit=10`);
+                
+                if (data.success) {
+                    const list = document.getElementById('callsList');
+                    
+                    if (data.data.calls.length === 0) {
+                        list.innerHTML = '<p class="text-gray-500 text-center py-8">אין שיחות אחרונות</p>';
+                        return;
+                    }
+
+                    list.innerHTML = data.data.calls.map(c => `
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <span class="text-sm text-gray-500">${new Date(c.startTime).toLocaleString('he-IL')}</span>
+                                    <span class="text-sm text-gray-500 mr-2">| ${formatDuration(c.duration)}</span>
+                                </div>
+                                <span class="px-2 py-1 rounded-full text-xs ${getIntentClass(c.primaryIntent)}">
+                                    ${getIntentText(c.primaryIntent)}
+                                </span>
+                            </div>
+                            <p class="text-gray-700">${c.summaryHebrew || 'אין סיכום'}</p>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Load calls error:', error);
+            }
+        }
+
+        async function loadErrors() {
+            try {
+                const data = await api(`/api/client/businesses/${currentBusinessId}/errors`);
+                
+                if (data.success) {
+                    const list = document.getElementById('errorsList');
+                    
+                    if (data.data.length === 0) {
+                        list.innerHTML = '<p class="text-gray-500 text-center py-8">🎉 אין שגיאות!</p>';
+                        return;
+                    }
+
+                    list.innerHTML = data.data.map(e => `
+                        <div class="p-4 bg-red-50 rounded-lg border-r-4 border-red-400">
+                            <div class="flex justify-between">
+                                <span class="font-semibold text-red-800">${e.category}</span>
+                                <span class="text-sm text-red-600">${new Date(e.createdAt).toLocaleString('he-IL')}</span>
+                            </div>
+                            <p class="text-red-700 mt-1">${e.message}</p>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Load errors error:', error);
+            }
+        }
+
+        async function loadChart() {
+            try {
+                const data = await api(`/api/client/businesses/${currentBusinessId}/analytics?days=30`);
+                
+                if (data.success && data.data.dailyStats) {
+                    const ctx = document.getElementById('callsChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: data.data.dailyStats.map(d => d._id),
+                            datasets: [{
+                                label: 'שיחות',
+                                data: data.data.dailyStats.map(d => d.calls),
+                                backgroundColor: 'rgba(102, 126, 234, 0.5)',
+                                borderColor: '#667eea',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Load chart error:', error);
+            }
+        }
+
+        function switchBusiness() {
+            currentBusinessId = document.getElementById('currentBusiness').value;
+            loadBusinessData();
+        }
+
+        function showTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('border-purple-600', 'text-purple-600');
+                b.classList.add('border-transparent', 'text-gray-500');
+            });
+
+            document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('border-purple-600', 'text-purple-600');
+        }
+
+        async function api(endpoint) {
+            const response = await fetch(`${API_URL}${endpoint}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            return response.json();
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function getBusinessType(type) {
+            const types = { restaurant: 'מסעדה', cafe: 'בית קפה', bar: 'בר', clinic: 'מרפאה', salon: 'מספרה' };
+            return types[type] || type;
+        }
+
+        function getReservationStatusClass(status) {
+            const classes = {
+                pending: 'bg-yellow-100 text-yellow-800',
+                confirmed: 'bg-green-100 text-green-800',
+                cancelled: 'bg-red-100 text-red-800',
+                completed: 'bg-blue-100 text-blue-800'
+            };
+            return classes[status] || 'bg-gray-100 text-gray-800';
+        }
+
+        function getReservationStatusText(status) {
+            const texts = { pending: 'ממתין', confirmed: 'מאושר', cancelled: 'בוטל', completed: 'הושלם' };
+            return texts[status] || status;
+        }
+
+        function getIntentClass(intent) {
+            const classes = {
+                reservation: 'bg-purple-100 text-purple-800',
+                menu: 'bg-blue-100 text-blue-800',
+                hours: 'bg-green-100 text-green-800',
+                general: 'bg-gray-100 text-gray-800'
+            };
+            return classes[intent] || 'bg-gray-100 text-gray-800';
+        }
+
+        function getIntentText(intent) {
+            const texts = { reservation: 'הזמנה', menu: 'תפריט', hours: 'שעות', location: 'מיקום', general: 'כללי' };
+            return texts[intent] || intent || 'כללי';
+        }
+    </script>
+</body>
+</html>

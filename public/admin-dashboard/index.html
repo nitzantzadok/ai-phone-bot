@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Phone Bot - Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Heebo', sans-serif; }
+        .sidebar { transition: width 0.3s ease; }
+        .card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 gradient-bg rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">AI Phone Bot</h2>
+                <p class="text-gray-500">Admin Dashboard</p>
+            </div>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+                    <input type="email" id="loginEmail" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="admin@example.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+                    <input type="password" id="loginPassword" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="••••••••">
+                </div>
+                <button type="submit"
+                    class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                    התחברות
+                </button>
+                <p id="loginError" class="text-red-500 text-sm text-center hidden"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="mainApp" class="hidden flex">
+        <!-- Sidebar -->
+        <aside class="sidebar w-64 bg-gray-900 min-h-screen fixed right-0 top-0">
+            <div class="p-6">
+                <div class="flex items-center space-x-3 space-x-reverse mb-8">
+                    <div class="w-10 h-10 gradient-bg rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                        </svg>
+                    </div>
+                    <span class="text-white font-bold text-lg">AI Phone Bot</span>
+                </div>
+
+                <nav class="space-y-2">
+                    <a href="#" onclick="showSection('dashboard')" class="nav-link flex items-center space-x-3 space-x-reverse px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition" data-section="dashboard">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                        </svg>
+                        <span>סקירה כללית</span>
+                    </a>
+                    <a href="#" onclick="showSection('businesses')" class="nav-link flex items-center space-x-3 space-x-reverse px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition" data-section="businesses">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                        <span>עסקים</span>
+                    </a>
+                    <a href="#" onclick="showSection('calls')" class="nav-link flex items-center space-x-3 space-x-reverse px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition" data-section="calls">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                        </svg>
+                        <span>שיחות</span>
+                        <span id="activeCallsBadge" class="hidden bg-green-500 text-white text-xs px-2 py-1 rounded-full pulse">0</span>
+                    </a>
+                    <a href="#" onclick="showSection('costs')" class="nav-link flex items-center space-x-3 space-x-reverse px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition" data-section="costs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span>עלויות</span>
+                    </a>
+                    <a href="#" onclick="showSection('errors')" class="nav-link flex items-center space-x-3 space-x-reverse px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition" data-section="errors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span>שגיאות</span>
+                        <span id="errorsBadge" class="hidden bg-red-500 text-white text-xs px-2 py-1 rounded-full">0</span>
+                    </a>
+                    <a href="#" onclick="showSection('users')" class="nav-link flex items-center space-x-3 space-x-reverse px-4 py-3 text-gray-300 hover:bg-gray-800 rounded-lg transition" data-section="users">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                        </svg>
+                        <span>משתמשים</span>
+                    </a>
+                </nav>
+            </div>
+
+            <div class="absolute bottom-0 right-0 left-0 p-6 border-t border-gray-800">
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-semibold" id="userAvatar">A</div>
+                    <div class="flex-1">
+                        <p class="text-white text-sm font-medium" id="userName">Admin</p>
+                        <p class="text-gray-500 text-xs" id="userEmail">admin@example.com</p>
+                    </div>
+                    <button onclick="logout()" class="text-gray-400 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 mr-64 p-8">
+            <!-- Dashboard Section -->
+            <section id="sectionDashboard" class="section">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">סקירה כללית</h1>
+                    <p class="text-gray-500">מבט על כל המערכת</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="card bg-white rounded-xl shadow-sm p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">עסקים פעילים</p>
+                                <p class="text-3xl font-bold text-gray-800" id="statActiveBusinesses">0</p>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card bg-white rounded-xl shadow-sm p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">שיחות היום</p>
+                                <p class="text-3xl font-bold text-gray-800" id="statTodayCalls">0</p>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="mt-2 flex items-center">
+                            <span class="text-green-500 text-sm font-medium" id="statActiveCalls">0 פעילות כעת</span>
+                        </div>
+                    </div>
+
+                    <div class="card bg-white rounded-xl shadow-sm p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">דקות החודש</p>
+                                <p class="text-3xl font-bold text-gray-800" id="statMonthMinutes">0</p>
+                            </div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card bg-white rounded-xl shadow-sm p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">עלות החודש</p>
+                                <p class="text-3xl font-bold text-gray-800">₪<span id="statMonthCost">0</span></p>
+                            </div>
+                            <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">שיחות לפי יום</h3>
+                        <canvas id="callsChart" height="200"></canvas>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">התפלגות כוונות</h3>
+                        <canvas id="intentsChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">שיחות אחרונות</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b">
+                                    <th class="text-right py-3 px-4 text-gray-500 text-sm font-medium">עסק</th>
+                                    <th class="text-right py-3 px-4 text-gray-500 text-sm font-medium">זמן</th>
+                                    <th class="text-right py-3 px-4 text-gray-500 text-sm font-medium">משך</th>
+                                    <th class="text-right py-3 px-4 text-gray-500 text-sm font-medium">סטטוס</th>
+                                    <th class="text-right py-3 px-4 text-gray-500 text-sm font-medium">עלות</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentCallsTable">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Businesses Section -->
+            <section id="sectionBusinesses" class="section hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800">עסקים</h1>
+                        <p class="text-gray-500">ניהול כל העסקים במערכת</p>
+                    </div>
+                    <button onclick="showAddBusinessModal()" class="gradient-bg text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center space-x-2 space-x-reverse">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        <span>הוסף עסק</span>
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">עסק</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">Bot ID</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">סטטוס</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">שיחות</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">דקות</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="businessesTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Calls Section -->
+            <section id="sectionCalls" class="section hidden">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">שיחות</h1>
+                    <p class="text-gray-500">היסטוריית כל השיחות</p>
+                </div>
+
+                <!-- Filters -->
+                <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">עסק</label>
+                            <select id="filterBusiness" class="w-full px-4 py-2 border rounded-lg">
+                                <option value="">כל העסקים</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">מתאריך</label>
+                            <input type="date" id="filterStartDate" class="w-full px-4 py-2 border rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">עד תאריך</label>
+                            <input type="date" id="filterEndDate" class="w-full px-4 py-2 border rounded-lg">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="loadCalls()" class="w-full bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition">
+                                סנן
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">עסק</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">מתקשר</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">זמן</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">משך</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">כוונה</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">עלות</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="callsTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Costs Section -->
+            <section id="sectionCosts" class="section hidden">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">עלויות</h1>
+                    <p class="text-gray-500">ניתוח עלויות המערכת</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">עלות כוללת החודש</h3>
+                        <p class="text-4xl font-bold text-purple-600">₪<span id="totalMonthCost">0</span></p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">עלות לדקה (ממוצע)</h3>
+                        <p class="text-4xl font-bold text-green-600">₪<span id="costPerMinute">0</span></p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">סה"כ דקות</h3>
+                        <p class="text-4xl font-bold text-blue-600"><span id="totalMinutes">0</span></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">עלויות לאורך זמן</h3>
+                        <canvas id="costTimelineChart" height="200"></canvas>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">התפלגות עלויות</h3>
+                        <canvas id="costBreakdownChart" height="200"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Errors Section -->
+            <section id="sectionErrors" class="section hidden">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">שגיאות</h1>
+                    <p class="text-gray-500">מעקב אחר שגיאות המערכת</p>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">זמן</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">קטגוריה</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">חומרה</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">הודעה</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">עסק</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">סטטוס</th>
+                            </tr>
+                        </thead>
+                        <tbody id="errorsTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Users Section -->
+            <section id="sectionUsers" class="section hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800">משתמשים</h1>
+                        <p class="text-gray-500">ניהול משתמשי המערכת</p>
+                    </div>
+                    <button onclick="showAddUserModal()" class="gradient-bg text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                        הוסף משתמש
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">שם</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">אימייל</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">תפקיד</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">עסקים</th>
+                                <th class="text-right py-4 px-6 text-gray-500 text-sm font-medium">התחברות אחרונה</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = '';  // Same origin
+        let token = localStorage.getItem('token');
+        let currentUser = null;
+        let socket = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            if (token) {
+                checkAuth();
+            }
+
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+        });
+
+        // Authentication
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    document.getElementById('loginError').textContent = data.error;
+                    document.getElementById('loginError').classList.remove('hidden');
+                    return;
+                }
+
+                // Check if admin
+                if (data.data.user.role !== 'admin') {
+                    document.getElementById('loginError').textContent = 'Admin access required';
+                    document.getElementById('loginError').classList.remove('hidden');
+                    return;
+                }
+
+                token = data.data.accessToken;
+                localStorage.setItem('token', token);
+                localStorage.setItem('refreshToken', data.data.refreshToken);
+                currentUser = data.data.user;
+
+                showDashboard();
+
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('loginError').textContent = 'Connection error';
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_URL}/api/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (!data.success || data.data.role !== 'admin') {
+                    logout();
+                    return;
+                }
+
+                currentUser = data.data;
+                showDashboard();
+
+            } catch (error) {
+                logout();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            token = null;
+            currentUser = null;
+            if (socket) socket.disconnect();
+            
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+
+            // Update user info
+            document.getElementById('userName').textContent = currentUser.fullName || currentUser.firstName;
+            document.getElementById('userEmail').textContent = currentUser.email;
+            document.getElementById('userAvatar').textContent = (currentUser.firstName || 'A')[0].toUpperCase();
+
+            // Connect socket
+            connectSocket();
+
+            // Load dashboard
+            showSection('dashboard');
+        }
+
+        // Socket.IO
+        function connectSocket() {
+            socket = io(API_URL);
+
+            socket.on('connect', () => {
+                console.log('Socket connected');
+                socket.emit('join-admin');
+            });
+
+            socket.on('call:started', (data) => {
+                updateActiveCalls();
+                showNotification('שיחה חדשה', `שיחה נכנסת לעסק`);
+            });
+
+            socket.on('call:ended', (data) => {
+                updateActiveCalls();
+                loadDashboard();
+            });
+
+            socket.on('call:turn', (data) => {
+                // Update real-time call info if viewing
+            });
+        }
+
+        // API Helper
+        async function api(endpoint, options = {}) {
+            const response = await fetch(`${API_URL}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    ...options.headers
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.status === 401) {
+                logout();
+                throw new Error('Unauthorized');
+            }
+
+            return data;
+        }
+
+        // Navigation
+        function showSection(section) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+            
+            // Show selected section
+            document.getElementById(`section${section.charAt(0).toUpperCase() + section.slice(1)}`).classList.remove('hidden');
+
+            // Update nav
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('bg-gray-800', 'text-white');
+                link.classList.add('text-gray-300');
+            });
+            document.querySelector(`[data-section="${section}"]`)?.classList.add('bg-gray-800', 'text-white');
+            document.querySelector(`[data-section="${section}"]`)?.classList.remove('text-gray-300');
+
+            // Load section data
+            switch(section) {
+                case 'dashboard': loadDashboard(); break;
+                case 'businesses': loadBusinesses(); break;
+                case 'calls': loadCalls(); break;
+                case 'costs': loadCosts(); break;
+                case 'errors': loadErrors(); break;
+                case 'users': loadUsers(); break;
+            }
+        }
+
+        // Dashboard
+        async function loadDashboard() {
+            try {
+                const data = await api('/api/admin/dashboard');
+                
+                if (data.success) {
+                    const d = data.data;
+                    document.getElementById('statActiveBusinesses').textContent = d.businesses.active;
+                    document.getElementById('statTodayCalls').textContent = d.calls.today;
+                    document.getElementById('statActiveCalls').textContent = `${d.calls.active} פעילות כעת`;
+                    document.getElementById('statMonthMinutes').textContent = d.costs.totalMinutes;
+                    document.getElementById('statMonthCost').textContent = d.costs.thisMonth.toFixed(2);
+
+                    // Update badges
+                    if (d.calls.active > 0) {
+                        document.getElementById('activeCallsBadge').textContent = d.calls.active;
+                        document.getElementById('activeCallsBadge').classList.remove('hidden');
+                    }
+
+                    if (d.errors.unresolvedLast24h > 0) {
+                        document.getElementById('errorsBadge').textContent = d.errors.unresolvedLast24h;
+                        document.getElementById('errorsBadge').classList.remove('hidden');
+                    }
+                }
+
+                // Load charts
+                loadDashboardCharts();
+                loadRecentCalls();
+
+            } catch (error) {
+                console.error('Dashboard error:', error);
+            }
+        }
+
+        async function loadDashboardCharts() {
+            try {
+                const analytics = await api('/api/analytics/system?days=30');
+                
+                if (analytics.success) {
+                    // Calls chart
+                    const callsCtx = document.getElementById('callsChart').getContext('2d');
+                    new Chart(callsCtx, {
+                        type: 'line',
+                        data: {
+                            labels: analytics.data.hourlyDistribution?.map(h => `${h._id}:00`) || [],
+                            datasets: [{
+                                label: 'שיחות',
+                                data: analytics.data.hourlyDistribution?.map(h => h.calls) || [],
+                                borderColor: '#667eea',
+                                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                                fill: true,
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+
+                    // Intents chart
+                    const intentsCtx = document.getElementById('intentsChart').getContext('2d');
+                    new Chart(intentsCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: analytics.data.intentDistribution?.map(i => i._id || 'לא ידוע') || [],
+                            datasets: [{
+                                data: analytics.data.intentDistribution?.map(i => i.count) || [],
+                                backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']
+                            }]
+                        },
+                        options: {
+                            responsive: true
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Charts error:', error);
+            }
+        }
+
+        async function loadRecentCalls() {
+            try {
+                const data = await api('/api/admin/calls?limit=10');
+                
+                if (data.success) {
+                    const tbody = document.getElementById('recentCallsTable');
+                    tbody.innerHTML = data.data.calls.map(call => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="py-3 px-4">${call.business?.nameHebrew || 'N/A'}</td>
+                            <td class="py-3 px-4">${new Date(call.startTime).toLocaleString('he-IL')}</td>
+                            <td class="py-3 px-4">${formatDuration(call.duration)}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-1 rounded-full text-xs ${getStatusClass(call.status)}">${call.status}</span>
+                            </td>
+                            <td class="py-3 px-4">₪${(call.costs?.total || 0).toFixed(2)}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Recent calls error:', error);
+            }
+        }
+
+        // Businesses
+        async function loadBusinesses() {
+            try {
+                const data = await api('/api/admin/businesses');
+                
+                if (data.success) {
+                    const tbody = document.getElementById('businessesTable');
+                    tbody.innerHTML = data.data.businesses.map(b => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="py-4 px-6">
+                                <div class="flex items-center space-x-3 space-x-reverse">
+                                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 font-semibold">
+                                        ${(b.nameHebrew || b.name)[0]}
+                                    </div>
+                                    <div>
+                                        <p class="font-medium">${b.nameHebrew}</p>
+                                        <p class="text-sm text-gray-500">${b.name}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-4 px-6 font-mono text-sm">${b.botId}</td>
+                            <td class="py-4 px-6">
+                                <span class="px-2 py-1 rounded-full text-xs ${b.isActive && !b.isPaused ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                    ${b.isActive && !b.isPaused ? 'פעיל' : 'מושהה'}
+                                </span>
+                            </td>
+                            <td class="py-4 px-6">${b.stats?.totalCalls || 0}</td>
+                            <td class="py-4 px-6">${b.stats?.totalMinutes || 0}</td>
+                            <td class="py-4 px-6">
+                                <button onclick="editBusiness('${b._id}')" class="text-blue-600 hover:text-blue-800 ml-2">ערוך</button>
+                                <button onclick="togglePause('${b._id}')" class="text-yellow-600 hover:text-yellow-800">${b.isPaused ? 'הפעל' : 'השהה'}</button>
+                            </td>
+                        </tr>
+                    `).join('');
+
+                    // Update filter dropdown
+                    const select = document.getElementById('filterBusiness');
+                    select.innerHTML = '<option value="">כל העסקים</option>' +
+                        data.data.businesses.map(b => `<option value="${b._id}">${b.nameHebrew}</option>`).join('');
+                }
+            } catch (error) {
+                console.error('Businesses error:', error);
+            }
+        }
+
+        // Calls
+        async function loadCalls() {
+            const businessId = document.getElementById('filterBusiness').value;
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+
+            let query = '?limit=50';
+            if (businessId) query += `&businessId=${businessId}`;
+            if (startDate) query += `&startDate=${startDate}`;
+            if (endDate) query += `&endDate=${endDate}`;
+
+            try {
+                const data = await api(`/api/admin/calls${query}`);
+                
+                if (data.success) {
+                    const tbody = document.getElementById('callsTable');
+                    tbody.innerHTML = data.data.calls.map(call => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="py-4 px-6">${call.business?.nameHebrew || 'N/A'}</td>
+                            <td class="py-4 px-6">${call.callerNumber}</td>
+                            <td class="py-4 px-6">${new Date(call.startTime).toLocaleString('he-IL')}</td>
+                            <td class="py-4 px-6">${formatDuration(call.duration)}</td>
+                            <td class="py-4 px-6">${call.primaryIntent || '-'}</td>
+                            <td class="py-4 px-6">₪${(call.costs?.total || 0).toFixed(2)}</td>
+                            <td class="py-4 px-6">
+                                <button onclick="viewCall('${call._id}')" class="text-blue-600 hover:text-blue-800">צפה</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Calls error:', error);
+            }
+        }
+
+        // Costs
+        async function loadCosts() {
+            try {
+                const data = await api('/api/analytics/costs?groupBy=day');
+                
+                if (data.success) {
+                    const totals = data.data.totals;
+                    document.getElementById('totalMonthCost').textContent = totals.totalCost.toFixed(2);
+                    document.getElementById('costPerMinute').textContent = totals.costPerMinute.toFixed(3);
+                    document.getElementById('totalMinutes').textContent = Math.round(totals.minutes);
+
+                    // Timeline chart
+                    const timelineCtx = document.getElementById('costTimelineChart').getContext('2d');
+                    new Chart(timelineCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.data.timeline.map(t => t._id),
+                            datasets: [{
+                                label: 'עלות יומית (₪)',
+                                data: data.data.timeline.map(t => t.totalCost),
+                                borderColor: '#667eea',
+                                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                                fill: true
+                            }]
+                        },
+                        options: { responsive: true }
+                    });
+
+                    // Breakdown chart
+                    const breakdownCtx = document.getElementById('costBreakdownChart').getContext('2d');
+                    new Chart(breakdownCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Twilio', 'Google STT', 'Google TTS', 'OpenAI'],
+                            datasets: [{
+                                data: [
+                                    totals.twilioCost,
+                                    totals.googleSTTCost,
+                                    totals.googleTTSCost,
+                                    totals.openAICost
+                                ],
+                                backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#4facfe']
+                            }]
+                        },
+                        options: { responsive: true }
+                    });
+                }
+            } catch (error) {
+                console.error('Costs error:', error);
+            }
+        }
+
+        // Errors
+        async function loadErrors() {
+            try {
+                const data = await api('/api/admin/errors');
+                
+                if (data.success) {
+                    const tbody = document.getElementById('errorsTable');
+                    tbody.innerHTML = data.data.errors.map(err => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="py-4 px-6">${new Date(err.createdAt).toLocaleString('he-IL')}</td>
+                            <td class="py-4 px-6">${err.category}</td>
+                            <td class="py-4 px-6">
+                                <span class="px-2 py-1 rounded-full text-xs ${getSeverityClass(err.severity)}">${err.severity}</span>
+                            </td>
+                            <td class="py-4 px-6 max-w-xs truncate">${err.message}</td>
+                            <td class="py-4 px-6">${err.business?.nameHebrew || '-'}</td>
+                            <td class="py-4 px-6">
+                                <span class="px-2 py-1 rounded-full text-xs ${err.status === 'resolved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${err.status}</span>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Errors error:', error);
+            }
+        }
+
+        // Users
+        async function loadUsers() {
+            try {
+                const data = await api('/api/admin/users');
+                
+                if (data.success) {
+                    const tbody = document.getElementById('usersTable');
+                    tbody.innerHTML = data.data.map(user => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="py-4 px-6">${user.firstName} ${user.lastName}</td>
+                            <td class="py-4 px-6">${user.email}</td>
+                            <td class="py-4 px-6">
+                                <span class="px-2 py-1 rounded-full text-xs ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">${user.role}</span>
+                            </td>
+                            <td class="py-4 px-6">${user.businesses?.length || 0}</td>
+                            <td class="py-4 px-6">${user.lastLogin ? new Date(user.lastLogin).toLocaleString('he-IL') : 'אף פעם'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Users error:', error);
+            }
+        }
+
+        // Helpers
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function getStatusClass(status) {
+            switch(status) {
+                case 'completed': return 'bg-green-100 text-green-800';
+                case 'failed': return 'bg-red-100 text-red-800';
+                case 'in-progress': return 'bg-blue-100 text-blue-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function getSeverityClass(severity) {
+            switch(severity) {
+                case 'critical': return 'bg-red-100 text-red-800';
+                case 'high': return 'bg-orange-100 text-orange-800';
+                case 'medium': return 'bg-yellow-100 text-yellow-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function showNotification(title, message) {
+            if (Notification.permission === 'granted') {
+                new Notification(title, { body: message });
+            }
+        }
+
+        async function updateActiveCalls() {
+            try {
+                const data = await api('/api/admin/active-calls');
+                if (data.success) {
+                    const count = data.data.count;
+                    document.getElementById('statActiveCalls').textContent = `${count} פעילות כעת`;
+                    if (count > 0) {
+                        document.getElementById('activeCallsBadge').textContent = count;
+                        document.getElementById('activeCallsBadge').classList.remove('hidden');
+                    } else {
+                        document.getElementById('activeCallsBadge').classList.add('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error('Active calls error:', error);
+            }
+        }
+
+        // Request notification permission
+        if (Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    </script>
+</body>
+</html>
