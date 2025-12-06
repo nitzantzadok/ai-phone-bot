@@ -154,7 +154,7 @@ async function startServer() {
     logger.info('✅ MongoDB connected successfully');
 
     // Start server
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📊 Admin Dashboard: ${process.env.API_URL}/dashboard`);
       logger.info(`👤 Client Dashboard: ${process.env.API_URL}/client-dashboard`);
