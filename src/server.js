@@ -102,7 +102,19 @@ app.post('/webhook/voice/incoming', (req, res) => {
 });
 
 app.use('/webhook', webhookRoutes);
+// Health check and root route
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'AI Phone Bot Server is running',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
 // Static files for dashboard
 app.use('/dashboard', express.static('public/admin-dashboard'));
 app.use('/client-dashboard', express.static('public/client-dashboard'));
