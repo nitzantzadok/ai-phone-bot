@@ -43,6 +43,11 @@ const BODY_PART_MAP = [
     exercises: ['דדליפט', 'deadlift', 'רומנית', 'סקוואט', 'חתירה', 'גב', 'היפ תרסט']
   },
   {
+    part: ['אכילס', 'שוק', 'תאומים', 'כף רגל'],
+    exercises: ['עליית עקבים', 'תאומים', 'קפיצ', 'ריצה', 'לאנג', 'lunge',
+      'מכרעים', 'סקוואט', 'squat']
+  },
+  {
     // Bare "יד" is deliberately absent - it is two letters and matches
     // unrelated words like "מיד"
     part: ['מרפק', 'שורש כף יד'],
@@ -97,9 +102,34 @@ function isLowerBody(exerciseName) {
  * body part; a caution note without a body part applies to everything.
  * @returns {Array<string>} the applicable caution notes
  */
+const NEGATORS = ['ללא', 'אין', 'בלי', 'לא'];
+
+/**
+ * Is every occurrence of a caution word in this note negated?
+ * "ללא כאב כתפיים" reports the absence of a problem, so reading it as a
+ * limitation would freeze the exercise for the opposite reason.
+ */
+function isNegatedCaution(note) {
+  const text = String(note || '');
+  const hits = CAUTION_KEYWORDS.filter((kw) => text.includes(kw));
+  if (!hits.length) return false;
+
+  return hits.every((kw) => {
+    let from = 0;
+    for (;;) {
+      const at = text.indexOf(kw, from);
+      if (at === -1) return true;
+      const before = text.slice(Math.max(0, at - 12), at);
+      if (!NEGATORS.some((n) => new RegExp(`${n}\\s+\\S*$`).test(before))) return false;
+      from = at + kw.length;
+    }
+  });
+}
+
 function relevantCautionNotes(exerciseName, notes = []) {
   return notes.filter((note) => {
     if (!containsAny(note, CAUTION_KEYWORDS)) return false;
+    if (isNegatedCaution(note)) return false;
 
     const mentionedParts = BODY_PART_MAP.filter((entry) =>
       entry.part.some((p) => matchesTerm(note, p))
@@ -119,10 +149,19 @@ function progressionStep(exerciseName, currentWeight) {
   const base = isLowerBody(exerciseName) ? DEFAULT_INCREMENT_LOWER : DEFAULT_INCREMENT_UPPER;
   if (!Number.isFinite(currentWeight) || currentWeight <= 0) return base;
 
+  // Light accessory work moves in 1kg dumbbell steps. Without this a 1kg
+  // exercise would be pushed to 2.5kg, a 150% jump.
+  if (currentWeight < 10) return 1;
+
   if (base <= currentWeight * 0.1) return base;
 
   const scaled = roundToIncrement(currentWeight * 0.05, 1.25);
   return Math.max(scaled, 1.25);
+}
+
+/** Smallest plate step that makes sense at this load */
+function roundingFor(weight) {
+  return Number.isFinite(weight) && weight < 10 ? 0.5 : 1.25;
 }
 
 function roundToIncrement(value, increment) {
@@ -204,7 +243,9 @@ function analyzeExercise(entries) {
   }
 
   const allNotes = entries.map((e) => e.notes).filter(Boolean);
-  const caution = allNotes.some((n) => containsAny(n, CAUTION_KEYWORDS));
+  const caution = allNotes.some(
+    (n) => containsAny(n, CAUTION_KEYWORDS) && !isNegatedCaution(n)
+  );
 
   return {
     name: latest.name,
@@ -221,6 +262,10 @@ function analyzeExercise(entries) {
     stalled,
     caution,
     notes: allNotes,
+    // The note that actually triggered the hold, so the explanation quotes
+    // the real reason rather than whatever note happened to come last
+    cautionNote:
+      allNotes.find((n) => containsAny(n, CAUTION_KEYWORDS) && !isNegatedCaution(n)) || '',
     latestNote: latest.notes || ''
   };
 }
@@ -244,18 +289,26 @@ function prescribe(analysis, traineeNotes = []) {
   };
 
   if (analysis.bodyweight || !Number.isFinite(analysis.lastWeight)) {
+    // Surface the limitation here too. Without this an exercise with no
+    // recorded weight silently drops the one note that matters most.
+    const caution = applicableNotes.length
+      ? ` שים לב: "${applicableNotes[0]}"`
+      : '';
+
     return {
       ...base,
       weight: null,
+      caution: Boolean(applicableNotes.length),
       display: analysis.bodyweight ? 'משקל גוף' : '-',
-      rationale: analysis.bodyweight
-        ? `משקל גוף - להוסיף חזרה אחת לסט מעבר לשבוע שעבר`
-        : 'לא נרשם משקל עבודה בחודשים הקודמים - לקבוע משקל במקום'
+      rationale:
+        (analysis.bodyweight
+          ? 'משקל גוף - להוסיף חזרה אחת לסט מעבר לשבוע שעבר'
+          : 'לא נרשם משקל עבודה - לקבוע משקל במקום') + caution
     };
   }
 
   if (analysis.caution || applicableNotes.length) {
-    const reason = analysis.caution ? analysis.latestNote : applicableNotes[0];
+    const reason = analysis.cautionNote || applicableNotes[0] || analysis.latestNote;
     return {
       ...base,
       display: `${analysis.lastWeight} ק"ג`,
@@ -282,7 +335,10 @@ function prescribe(analysis, traineeNotes = []) {
   }
 
   const step = progressionStep(analysis.name, analysis.lastWeight);
-  const nextWeight = roundToIncrement(analysis.lastWeight + step, 1.25);
+  const nextWeight = roundToIncrement(
+    analysis.lastWeight + step,
+    roundingFor(analysis.lastWeight)
+  );
 
   return {
     ...base,
@@ -290,7 +346,7 @@ function prescribe(analysis, traineeNotes = []) {
     change: Number((nextWeight - analysis.lastWeight).toFixed(2)),
     display: `${nextWeight} ק"ג`,
     rationale:
-      analysis.trend === 'up'
+      analysis.trend === 'up' && Number.isFinite(analysis.prevWeight)
         ? `מגמת עלייה מ-${analysis.prevWeight} ל-${analysis.lastWeight} ק"ג - להמשיך עם +${formatNumber(nextWeight - analysis.lastWeight)} ק"ג`
         : `עלייה מדורגת מ-${analysis.lastWeight} ק"ג לפי הביצוע האחרון`
   };
@@ -301,9 +357,29 @@ function prescribe(analysis, traineeNotes = []) {
  * @param {Object} trainee - output of parseTraineeTab
  * @returns {Object} plan
  */
-function generateWeeklyPlan(trainee) {
+/**
+ * Which period to model next week on.
+ *
+ * The most recent block is often a week still in progress, holding only the
+ * first workout. Copying it would hand back a partial week, so prefer the
+ * latest block that is as complete as the recent norm.
+ */
+function pickBasePeriod(months, lookback = 4) {
+  if (!months.length) return null;
+
+  const recent = months.slice(-lookback);
+  const fullest = Math.max(...recent.map((m) => m.workouts.length));
+
+  for (let i = months.length - 1; i >= 0 && i >= months.length - lookback; i -= 1) {
+    if (months[i].workouts.length >= fullest) return months[i];
+  }
+
+  return months[months.length - 1];
+}
+
+function generateWeeklyPlan(trainee, options = {}) {
   const months = sortMonths(trainee.months);
-  const latestMonth = months[months.length - 1];
+  const latestMonth = options.basePeriod || pickBasePeriod(months);
 
   if (!latestMonth || !latestMonth.workouts.length) {
     return {
@@ -477,10 +553,13 @@ module.exports = {
   planToGrid,
   analyzeExercise,
   buildExerciseHistory,
+  pickBasePeriod,
   prescribe,
   relevantCautionNotes,
   matchesTerm,
   progressionStep,
+  isNegatedCaution,
+  roundingFor,
   isLowerBody,
   roundToIncrement,
   CAUTION_KEYWORDS,

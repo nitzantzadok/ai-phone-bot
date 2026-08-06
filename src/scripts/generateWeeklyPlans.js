@@ -23,7 +23,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const sheetsService = require('../services/sheets.service');
-const { parseTraineeTab } = require('../services/trainingPlan.parser');
+const { parseCoachTab, toGeneratorShape } = require('../services/trainingPlan.coachSheet');
 const {
   generateWeeklyPlan,
   summarizePlan,
@@ -117,8 +117,9 @@ async function main() {
 
   for (const tab of traineeTabs) {
     const grid = await sheetsService.readTab(tab.title, args.sheetId);
-    const trainee = parseTraineeTab(tab.title, grid);
-    const plan = generateWeeklyPlan(trainee);
+    const trainee = parseCoachTab(tab.title, grid);
+    const plan = generateWeeklyPlan(toGeneratorShape(trainee));
+    plan.profile = trainee.profile;
     const summary = await summarizePlan(plan);
 
     printPlan(plan, summary);
