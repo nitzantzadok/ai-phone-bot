@@ -43,11 +43,35 @@ const BODY_PART_MAP = [
     exercises: ['דדליפט', 'deadlift', 'רומנית', 'סקוואט', 'חתירה', 'גב', 'היפ תרסט']
   },
   {
-    part: ['מרפק', 'שורש כף יד', 'יד'],
+    // Bare "יד" is deliberately absent - it is two letters and matches
+    // unrelated words like "מיד"
+    part: ['מרפק', 'שורש כף יד'],
     exercises: ['כפיפת מרפק', 'פשיטת מרפק', 'יד קדמית', 'יד אחורית', 'בייספס',
       'טרייספס', 'curl', 'extension']
   }
 ];
+
+// Hebrew one-letter prefixes that attach to a noun, and the suffixes that
+// inflect it. Used to match a body part as a whole word.
+const HEBREW_PREFIXES = '(?:[בלהומשכ]|כש|מה|שה|וה)?';
+const HEBREW_SUFFIXES = '(?:יים|ים|ות|יה|י|ה|ך|ו)?';
+const WORD_EDGE = '(?:^|$|[\\s,.;:!?()"\'\\-–—/|])';
+
+/**
+ * Does `text` contain `term` as a whole word?
+ *
+ * Plain substring matching is unsafe for short Hebrew body parts: "גב" sits
+ * inside "מגבלות", so a note about a limitation was being read as a note
+ * about the back. JavaScript's \b is ASCII-only and cannot help here, so the
+ * boundaries are spelled out explicitly.
+ */
+function matchesTerm(text, term) {
+  const escaped = String(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(
+    `${WORD_EDGE}${HEBREW_PREFIXES}${escaped}${HEBREW_SUFFIXES}${WORD_EDGE}`
+  );
+  return pattern.test(String(text || ''));
+}
 
 // Multi-joint lower body work tolerates bigger jumps
 const LOWER_BODY_KEYWORDS = [
@@ -77,7 +101,9 @@ function relevantCautionNotes(exerciseName, notes = []) {
   return notes.filter((note) => {
     if (!containsAny(note, CAUTION_KEYWORDS)) return false;
 
-    const mentionedParts = BODY_PART_MAP.filter((entry) => containsAny(note, entry.part));
+    const mentionedParts = BODY_PART_MAP.filter((entry) =>
+      entry.part.some((p) => matchesTerm(note, p))
+    );
     if (!mentionedParts.length) return true;
 
     return mentionedParts.some((entry) => containsAny(exerciseName, entry.exercises));
@@ -453,6 +479,7 @@ module.exports = {
   buildExerciseHistory,
   prescribe,
   relevantCautionNotes,
+  matchesTerm,
   progressionStep,
   isLowerBody,
   roundToIncrement,

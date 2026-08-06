@@ -19,6 +19,7 @@ const {
   isLowerBody,
   planToGrid,
   relevantCautionNotes,
+  matchesTerm,
   progressionStep
 } = require('../src/services/trainingPlan.generator');
 
@@ -340,6 +341,49 @@ describe('relevantCautionNotes', () => {
     test('does not freeze squats', () => {
       expect(relevantCautionNotes('סקוואט', shoulderNote)).toHaveLength(0);
     });
+  });
+});
+
+describe('matchesTerm', () => {
+  test('matches a bare word', () => {
+    expect(matchesTerm('כאב בגב תחתון', 'גב')).toBe(true);
+  });
+
+  test('matches a word with a Hebrew prefix', () => {
+    expect(matchesTerm('כאב בכתף ימין', 'כתף')).toBe(true);
+  });
+
+  test('matches an inflected form', () => {
+    expect(matchesTerm('חולשה ברגליים', 'רגל')).toBe(true);
+  });
+
+  // Regression: "גב" sits inside "מגבלות"
+  test('does not match a substring inside another word', () => {
+    expect(matchesTerm('לכתוב כאן מגבלות ודגשים', 'גב')).toBe(false);
+  });
+
+  test('does not read "מגבלת" as a back note', () => {
+    expect(matchesTerm('מגבלת תנועה בכתף', 'גב')).toBe(false);
+  });
+
+  test('matches at the end of a sentence', () => {
+    expect(matchesTerm('להיזהר עם הכתף', 'כתף')).toBe(true);
+  });
+});
+
+describe('relevantCautionNotes with a generic limitation note', () => {
+  // "מגבלות" contains "גב" but says nothing about the back
+  const note = ['יש מגבלות שצריך לקחת בחשבון'];
+
+  test('does not single out back exercises', () => {
+    const rowing = relevantCautionNotes('חתירה בהטיה', note);
+    const press = relevantCautionNotes('לחיצת כתפיים', note);
+    expect(rowing).toEqual(press);
+  });
+
+  test('applies to every exercise, since no body part is named', () => {
+    expect(relevantCautionNotes('חתירה בהטיה', note)).toHaveLength(1);
+    expect(relevantCautionNotes('לחיצת כתפיים', note)).toHaveLength(1);
   });
 });
 
