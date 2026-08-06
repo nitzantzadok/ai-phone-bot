@@ -12,10 +12,52 @@ const logger = require('../utils/logger');
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
+const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_ATTEMPTS = 5;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Google allows 60 read requests per minute per user. A sheet with a tab
+ * per trainee blows through that, so back off and retry rather than
+ * dropping trainees from the run.
+ */
+async function withRetry(label, fn) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = err.code || err.status || err.response?.status;
+      if (!RETRY_STATUSES.has(Number(status)) || attempt === MAX_ATTEMPTS) throw err;
+
+      const wait = Math.min(2 ** attempt * 1000, 32000);
+      logger.warn('Sheets request throttled, backing off', { label, status, attempt, wait });
+      lastError = err;
+      await sleep(wait);
+    }
+  }
+
+  throw lastError;
+}
+
 class SheetsService {
   constructor() {
     this.sheets = null;
     this.spreadsheetId = process.env.TRAINING_SHEET_ID || null;
+    // Spacing between calls keeps a full run under the per-minute quota
+    this.minIntervalMs = Number(process.env.TRAINING_SHEET_MIN_INTERVAL_MS || 1100);
+    this.lastCallAt = 0;
+  }
+
+  /** Space out consecutive API calls */
+  async throttle() {
+    const wait = this.lastCallAt + this.minIntervalMs - Date.now();
+    if (wait > 0) await sleep(wait);
+    this.lastCallAt = Date.now();
   }
 
   /**
@@ -76,10 +118,11 @@ class SheetsService {
     const sheets = await this.getClient();
     const id = this.resolveSpreadsheetId(spreadsheetId);
 
-    const res = await sheets.spreadsheets.get({
+    await this.throttle();
+    const res = await withRetry(`listTabs`, () => sheets.spreadsheets.get({
       spreadsheetId: id,
       fields: 'sheets.properties(sheetId,title,index)'
-    });
+    }));
 
     return (res.data.sheets || []).map((s) => ({
       title: s.properties.title,
@@ -97,12 +140,13 @@ class SheetsService {
     const sheets = await this.getClient();
     const id = this.resolveSpreadsheetId(spreadsheetId);
 
-    const res = await sheets.spreadsheets.values.get({
+    await this.throttle();
+    const res = await withRetry(`readTab:${tabTitle}`, () => sheets.spreadsheets.values.get({
       spreadsheetId: id,
       range: `'${tabTitle.replace(/'/g, "''")}'`,
       valueRenderOption: 'FORMATTED_VALUE',
       majorDimension: 'ROWS'
-    });
+    }));
 
     const rows = res.data.values || [];
     const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
@@ -131,12 +175,13 @@ class SheetsService {
       return match.sheetId;
     }
 
-    const res = await sheets.spreadsheets.batchUpdate({
+    await this.throttle();
+    const res = await withRetry(`addSheet:${tabTitle}`, () => sheets.spreadsheets.batchUpdate({
       spreadsheetId: id,
       requestBody: {
         requests: [{ addSheet: { properties: { title: tabTitle, rightToLeft: true } } }]
       }
-    });
+    }));
 
     const sheetId = res.data.replies[0].addSheet.properties.sheetId;
     logger.info('Created tab', { tabTitle, sheetId });
@@ -154,12 +199,13 @@ class SheetsService {
 
     await this.ensureTab(tabTitle, id);
 
-    await sheets.spreadsheets.values.update({
+    await this.throttle();
+    await withRetry(`writeTab:${tabTitle}`, () => sheets.spreadsheets.values.update({
       spreadsheetId: id,
       range: `'${tabTitle.replace(/'/g, "''")}'!A1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values }
-    });
+    }));
 
     logger.info('Wrote plan to tab', { tabTitle, rows: values.length });
     return { tabTitle, rows: values.length };
