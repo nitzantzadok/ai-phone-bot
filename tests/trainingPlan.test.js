@@ -316,6 +316,31 @@ describe('relevantCautionNotes', () => {
   test('ignores notes that carry no caution', () => {
     expect(relevantCautionNotes('סקוואט', ['להגיע 10 דקות לפני האימון'])).toHaveLength(0);
   });
+
+  describe('a shoulder note', () => {
+    const shoulderNote = ['כאב בכתף ימין בלחיצות מעל הראש'];
+
+    test('freezes overhead pressing', () => {
+      expect(relevantCautionNotes('לחיצת כתפיים בישיבה', shoulderNote)).toHaveLength(1);
+    });
+
+    test('freezes bench press', () => {
+      expect(relevantCautionNotes('לחיצת חזה במוט', shoulderNote)).toHaveLength(1);
+    });
+
+    // Regression: "פולי" is a machine, not a muscle group
+    test('does not freeze a triceps pushdown', () => {
+      expect(relevantCautionNotes('פשיטת מרפק בפולי', shoulderNote)).toHaveLength(0);
+    });
+
+    test('does not freeze a lat pulldown', () => {
+      expect(relevantCautionNotes('פולי עליון', shoulderNote)).toHaveLength(0);
+    });
+
+    test('does not freeze squats', () => {
+      expect(relevantCautionNotes('סקוואט', shoulderNote)).toHaveLength(0);
+    });
+  });
 });
 
 describe('progressionStep', () => {

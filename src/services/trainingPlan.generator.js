@@ -31,9 +31,12 @@ const BODY_PART_MAP = [
       'רגליים', 'ברך', 'עגלה', 'דדליפט', 'רומנית', 'היפ תרסט']
   },
   {
+    // Pressing and overhead work only. "פולי" is deliberately absent: it is
+    // a machine, not a muscle, and it would swallow lat pulldowns and
+    // triceps pushdowns that a shoulder note should not freeze.
     part: ['כתף', 'כתפיים'],
     exercises: ['לחיצת חזה', 'לחיצת כתפיים', 'חזה', 'כתפיים', 'הרחקה', 'מקבילים',
-      'שכיבות סמיכה', 'מתח', 'פולי', 'bench', 'press']
+      'שכיבות סמיכה', 'bench', 'press']
   },
   {
     part: ['גב תחתון', 'גב', 'עמוד שדרה'],
