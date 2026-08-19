@@ -24,9 +24,47 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12))
 
-  packages/agent: {}
+  packages/agent:
+    dependencies:
+      '@autopilot/crawler':
+        specifier: workspace:*
+        version: link:../crawler
+      '@autopilot/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@autopilot/measurement':
+        specifier: workspace:*
+        version: link:../measurement
+      '@autopilot/optimization':
+        specifier: workspace:*
+        version: link:../optimization
+      '@autopilot/prompts':
+        specifier: workspace:*
+        version: link:../prompts
+      '@autopilot/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@autopilot/scoring':
+        specifier: workspace:*
+        version: link:../scoring
+      '@autopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@autopilot/website':
+        specifier: workspace:*
+        version: link:../website
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
-  packages/billing: {}
+  packages/billing:
+    dependencies:
+      '@autopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/crawler:
     dependencies:
@@ -65,9 +103,26 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
-  packages/integrations: {}
+  packages/integrations:
+    dependencies:
+      '@autopilot/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@autopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
-  packages/jobs: {}
+  packages/jobs:
+    dependencies:
+      '@autopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/knowledge:
     dependencies:

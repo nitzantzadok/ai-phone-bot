@@ -11,5 +11,17 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*",
+    "@autopilot/providers": "workspace:*",
+    "@autopilot/knowledge": "workspace:*",
+    "@autopilot/prompts": "workspace:*",
+    "@autopilot/measurement": "workspace:*",
+    "@autopilot/scoring": "workspace:*",
+    "@autopilot/optimization": "workspace:*",
+    "@autopilot/website": "workspace:*",
+    "@autopilot/crawler": "workspace:*",
+    "zod": "^4.4.3"
   }
 }
