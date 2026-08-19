@@ -66,8 +66,15 @@ export interface GenerationInput {
   readonly neighborhoods?: readonly string[]
   readonly country: string
   readonly languages: readonly LanguageCode[]
+  /**
+   * The city name per language. A Hebrew speaker asks about "תל אביב", not "Tel Aviv", and
+   * measuring the English string in a Hebrew query measures a question nobody asks.
+   */
+  readonly cityNames?: Partial<Record<LanguageCode, string>>
   /** What the business actually is, e.g. "Italian" for a restaurant. */
   readonly qualifiers?: readonly string[]
+  /** The same qualifiers per language, e.g. { he: ['איטלקית'], en: ['Italian'] }. */
+  readonly qualifierNames?: Partial<Record<LanguageCode, readonly string[]>>
   /** Attributes the owner has confirmed. Only these seed constraint prompts. */
   readonly confirmedAttributes?: readonly string[]
   /** Hard cap. The measurement budget is finite and this is where it is spent. */
@@ -298,17 +305,21 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
 
   for (const language of input.languages) {
     const service = serviceTerm(vertical, language)
-    const city = input.city
+    // The question is asked in one language throughout: city, qualifier and phrasing.
+    const city = input.cityNames?.[language] ?? input.city
+    const localizedQualifiers = input.qualifierNames?.[language] ?? qualifiers
 
-    for (const qualifier of qualifiers) {
-      const qualifierKey = qualifier ?? 'any'
+    for (const [qualifierIndex, qualifier] of localizedQualifiers.entries()) {
+      // The canonical intent stays language-independent, so Hebrew and English variants
+      // of the same question still pair up.
+      const qualifierKey = qualifiers[qualifierIndex] ?? qualifier ?? 'any'
 
       push('DISCOVERY', language, render('DISCOVERY', language, { service, qualifier, city }), {
-        canonicalIntent: `discovery:${vertical.id}:${qualifierKey}:${city}`,
-        dimensions: { service, city, ...(qualifier ? { qualifier } : {}) },
+        canonicalIntent: `discovery:${vertical.id}:${qualifierKey}:${input.city}`,
+        dimensions: { service, city: input.city, ...(qualifier ? { qualifier } : {}) },
         requiredAttributes: [],
         specificity: qualifier ? 0.35 : 0.15,
-        city,
+        city: input.city,
       })
 
       push(
@@ -316,11 +327,11 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
         language,
         render('TRANSACTIONAL', language, { service, qualifier, city }),
         {
-          canonicalIntent: `transactional:${vertical.id}:${qualifierKey}:${city}`,
-          dimensions: { service, city, action: 'book', ...(qualifier ? { qualifier } : {}) },
+          canonicalIntent: `transactional:${vertical.id}:${qualifierKey}:${input.city}`,
+          dimensions: { service, city: input.city, action: 'book', ...(qualifier ? { qualifier } : {}) },
           requiredAttributes: [],
           specificity: 0.45,
-          city,
+          city: input.city,
         },
       )
 
@@ -329,11 +340,11 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
         language,
         render('INFORMATIONAL', language, { service, qualifier, city }),
         {
-          canonicalIntent: `informational:${vertical.id}:${qualifierKey}:${city}:price`,
-          dimensions: { service, city, topic: 'price', ...(qualifier ? { qualifier } : {}) },
+          canonicalIntent: `informational:${vertical.id}:${qualifierKey}:${input.city}:price`,
+          dimensions: { service, city: input.city, topic: 'price', ...(qualifier ? { qualifier } : {}) },
           requiredAttributes: [],
           specificity: 0.4,
-          city,
+          city: input.city,
         },
       )
 
@@ -344,11 +355,11 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
           language,
           render('OCCASION', language, { service, qualifier, city, occasion: occasionText }),
           {
-            canonicalIntent: `occasion:${vertical.id}:${occasion.key}:${city}`,
-            dimensions: { service, city, occasion: occasion.key },
+            canonicalIntent: `occasion:${vertical.id}:${occasion.key}:${input.city}`,
+            dimensions: { service, city: input.city, occasion: occasion.key },
             requiredAttributes: [...occasion.attributes],
             specificity: 0.6,
-            city,
+            city: input.city,
           },
         )
 
@@ -357,11 +368,11 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
           language,
           render('COMPARISON', language, { service, qualifier, city, occasion: occasionText }),
           {
-            canonicalIntent: `comparison:${vertical.id}:${occasion.key}:${city}`,
-            dimensions: { service, city, occasion: occasion.key, mode: 'comparison' },
+            canonicalIntent: `comparison:${vertical.id}:${occasion.key}:${input.city}`,
+            dimensions: { service, city: input.city, occasion: occasion.key, mode: 'comparison' },
             requiredAttributes: [...occasion.attributes],
             specificity: 0.7,
-            city,
+            city: input.city,
           },
         )
       }
@@ -373,11 +384,11 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
           language,
           render('AUDIENCE', language, { service, qualifier, city, audience: audienceText }),
           {
-            canonicalIntent: `audience:${vertical.id}:${audience.key}:${city}`,
-            dimensions: { service, city, audience: audience.key },
+            canonicalIntent: `audience:${vertical.id}:${audience.key}:${input.city}`,
+            dimensions: { service, city: input.city, audience: audience.key },
             requiredAttributes: [],
             specificity: 0.55,
-            city,
+            city: input.city,
           },
         )
       }
@@ -393,11 +404,11 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
           language,
           render('CONSTRAINT', language, { service, qualifier, city, attribute: label }),
           {
-            canonicalIntent: `constraint:${vertical.id}:${attributeKey}:${city}`,
-            dimensions: { service, city, constraint: attributeKey },
+            canonicalIntent: `constraint:${vertical.id}:${attributeKey}:${input.city}`,
+            dimensions: { service, city: input.city, constraint: attributeKey },
             requiredAttributes: [attributeKey],
             specificity: 0.75,
-            city,
+            city: input.city,
           },
         )
       }
@@ -409,10 +420,10 @@ export const generatePrompts = (input: GenerationInput): GeneratedPrompt[] => {
           render('PROXIMITY', language, { service, qualifier, city, neighborhood }),
           {
             canonicalIntent: `proximity:${vertical.id}:${qualifierKey}:${neighborhood}`,
-            dimensions: { service, city, neighborhood },
+            dimensions: { service, city: input.city, neighborhood },
             requiredAttributes: [],
             specificity: 0.8,
-            city,
+            city: input.city,
             neighborhood,
           },
         )

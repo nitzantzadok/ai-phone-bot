@@ -266,7 +266,9 @@ describe('explainScore', () => {
       input([observation('TOP_1', { promptId: 'a' }), observation('NOT_PRESENT', { promptId: 'b' })]),
     )
     const english = explainScore(result, 'en')
-    expect(english).toContain('2 monitored questions')
+    // Questions and checks are different numbers and must never be conflated.
+    expect(english).toContain('2 questions')
+    expect(english).toContain('2 checks in total')
     expect(english).toContain('recommended in 1')
     expect(english).not.toMatch(/entity|semantic|schema/i)
   })

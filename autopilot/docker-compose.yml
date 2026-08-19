@@ -1,0 +1,44 @@
+# Local infrastructure.
+#
+#   docker compose up -d
+#
+# Only Postgres and Redis run here. The application and worker run on the host
+# with hot reload, because a container round-trip on every edit is a tax on the
+# thing developers do most.
+#
+# You do not need this to run the test suite or the demo: tests use in-process
+# Postgres (PGlite) and the queue runs in-process.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: autopilot
+      POSTGRES_PASSWORD: autopilot
+      POSTGRES_DB: autopilot
+    ports:
+      - '5432:5432'
+    volumes:
+      - autopilot-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U autopilot']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # Persistence on: a queue that loses jobs on restart loses customer work.
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - autopilot-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  autopilot-pgdata:
+  autopilot-redisdata:

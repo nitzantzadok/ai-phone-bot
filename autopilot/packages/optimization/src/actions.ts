@@ -197,7 +197,7 @@ export const planAction = (
         actionType: 'CREATE_PAGE',
         category: 'CONTENT',
         riskTier: risk,
-        summary: `Create a ${pageType} page`,
+        summary: `Create ${article(pageType)} ${pageType} page`,
         rationale: opportunity.explanation,
         expectedImpact: opportunity.expectedLift,
         targetUrl: `${context.homeUrl.replace(/\/$/, '')}/${pageType}`,
@@ -221,6 +221,9 @@ const pickTarget = (opportunity: Opportunity, context: PlanningContext): string 
   if (Array.isArray(urls) && typeof urls[0] === 'string') return urls[0]
   return context.pages.find((p) => p.pageType === 'home')?.url ?? context.homeUrl
 }
+
+/** English article agreement, so generated copy does not read as machine output. */
+const article = (word: string): string => (/^[aeiou]/i.test(word) ? 'an' : 'a')
 
 const shortUrl = (url: string): string => {
   try {

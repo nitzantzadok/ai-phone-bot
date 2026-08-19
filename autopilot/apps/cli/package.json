@@ -1,0 +1,30 @@
+{
+  "name": "@autopilot/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*",
+    "@autopilot/database": "workspace:*",
+    "@autopilot/providers": "workspace:*",
+    "@autopilot/crawler": "workspace:*",
+    "@autopilot/knowledge": "workspace:*",
+    "@autopilot/prompts": "workspace:*",
+    "@autopilot/measurement": "workspace:*",
+    "@autopilot/scoring": "workspace:*",
+    "@autopilot/optimization": "workspace:*",
+    "@autopilot/website": "workspace:*",
+    "@autopilot/billing": "workspace:*",
+    "@autopilot/integrations": "workspace:*",
+    "@autopilot/agent": "workspace:*",
+    "@autopilot/jobs": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/pipeline.ts",
+    "./*.ts": "./src/*.ts"
+  }
+}

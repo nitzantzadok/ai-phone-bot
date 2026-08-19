@@ -252,6 +252,13 @@ export const runAgent = async (options: AgentRunOptions): Promise<AgentRunResult
   }
 
   let stopReason: StopReason = 'COMPLETED'
+  /**
+   * Guards against applying the same kind of change to the same page twice in one run.
+   * Two different findings (a missing summary and an over-long title) legitimately both
+   * suggest FIX_METADATA on the home page; writing to the customer's site twice for that
+   * is wasteful and makes the change history harder to read.
+   */
+  const appliedTargets = new Set<string>()
 
   await record({
     stepType: 'DECISION',
@@ -309,6 +316,16 @@ export const runAgent = async (options: AgentRunOptions): Promise<AgentRunResult
         continue
       }
 
+      const targetKey = `${action.actionType}:${action.targetUrl ?? ''}`
+      if (appliedTargets.has(targetKey)) {
+        await record({
+          stepType: 'DECISION',
+          reason: `Already applied ${action.actionType} to this page in this run; skipping the duplicate.`,
+          costMinor: 0,
+        })
+        continue
+      }
+
       const gate = evaluateGates(action, opportunity, options.context)
       await record({
         stepType: 'GATE',
@@ -352,6 +369,7 @@ export const runAgent = async (options: AgentRunOptions): Promise<AgentRunResult
       try {
         const result = await options.applier(action, true)
         budget.recordToolCall({ published: result.published })
+        appliedTargets.add(targetKey)
 
         appliedActions.push({
           actionType: action.actionType,

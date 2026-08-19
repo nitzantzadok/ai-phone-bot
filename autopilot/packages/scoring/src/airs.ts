@@ -327,22 +327,28 @@ export const compareScores = (
  */
 export const explainScore = (result: AirsResult, language: 'en' | 'he' = 'en'): string => {
   const recommended = result.inputs.recommended ?? 0
-  const total = result.inputs.observations ?? 0
+  const checks = result.inputs.observations ?? 0
+  const questions = result.inputs.distinctPrompts ?? 0
+  const engines = result.engines.length
 
-  if (total === 0) {
+  if (checks === 0) {
     return language === 'he'
       ? 'עוד לא ביצענו מדידות עבור העסק הזה.'
       : 'We have not measured this business yet.'
   }
 
+  // Every question is asked on every engine, so the denominator is checks, not questions.
+  // Conflating the two is the fastest way to make a customer distrust the number, because
+  // it will not reconcile with the question list they can see for themselves.
   if (language === 'he') {
     return (
-      `מתוך ${total} שאלות שנבדקו, העסק שלך הומלץ ב-${recommended}. ` +
-      `הציון הנוכחי הוא ${result.score} מתוך 100.`
+      `שאלנו ${questions} שאלות ב-${engines} מנועי AI (${checks} בדיקות בסך הכל). ` +
+      `העסק שלך הומלץ ב-${recommended} מהן. הציון הנוכחי הוא ${result.score} מתוך 100.`
     )
   }
   return (
-    `Across ${total} monitored questions, your business was recommended in ${recommended}. ` +
-    `Your current score is ${result.score} out of 100.`
+    `We asked ${questions} question${questions === 1 ? '' : 's'} on ${engines} AI ` +
+    `engine${engines === 1 ? '' : 's'} (${checks} checks in total). Your business was ` +
+    `recommended in ${recommended} of them. Your current score is ${result.score} out of 100.`
   )
 }

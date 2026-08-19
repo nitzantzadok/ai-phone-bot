@@ -1,0 +1,37 @@
+{
+  "name": "@autopilot/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*",
+    "@autopilot/database": "workspace:*",
+    "@autopilot/providers": "workspace:*",
+    "@autopilot/crawler": "workspace:*",
+    "@autopilot/knowledge": "workspace:*",
+    "@autopilot/prompts": "workspace:*",
+    "@autopilot/measurement": "workspace:*",
+    "@autopilot/scoring": "workspace:*",
+    "@autopilot/optimization": "workspace:*",
+    "@autopilot/website": "workspace:*",
+    "@autopilot/billing": "workspace:*",
+    "@autopilot/integrations": "workspace:*",
+    "@autopilot/agent": "workspace:*",
+    "@autopilot/jobs": "workspace:*",
+    "next": "^16.3.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "@autopilot/cli": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.3"
+  }
+}

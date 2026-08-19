@@ -22,15 +22,24 @@ export interface AgentLimits {
   readonly maxPublishOperations: number
 }
 
+/**
+ * Calibrated so that one ordinary optimization cycle completes rather than tripping a
+ * ceiling, while every runaway is still caught.
+ *
+ * An iteration is one opportunity considered, and considering one is nearly free — planning
+ * is deterministic — so the iteration ceiling is generous. The ceilings that actually
+ * protect the customer and the margin are spend and publish operations, and those stay
+ * tight: a first onboarding cycle legitimately makes a handful of technical fixes, but an
+ * agent trying to make thirty changes at once has misunderstood something, and finding that
+ * out slowly is cheap.
+ */
 export const DEFAULT_LIMITS: AgentLimits = {
-  maxIterations: 12,
-  maxToolCalls: 40,
+  maxIterations: 25,
+  maxToolCalls: 60,
   maxSpendMinor: 1_500,
   maxTokens: 400_000,
   maxWallClockMs: 10 * 60 * 1000,
-  // Deliberately small. An agent that wants to make nine changes in one run has
-  // misunderstood something, and the cost of finding that out slowly is low.
-  maxPublishOperations: 8,
+  maxPublishOperations: 12,
 }
 
 export type StopReason =

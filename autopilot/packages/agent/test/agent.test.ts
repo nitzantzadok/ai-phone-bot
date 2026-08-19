@@ -28,7 +28,7 @@ const context = (overrides: Partial<AgentRunContext> = {}): AgentRunContext => (
   ...overrides,
 })
 
-const opportunity = (o: Partial<Opportunity> = {}): Opportunity => ({
+const opportunity = (o: Partial<Opportunity & { dismissed: boolean }> = {}): Opportunity & { dismissed?: boolean } => ({
   dedupeKey: 'attribute-gap:romantic',
   title: 'AI does not associate you with Romantic',
   explanation: 'Twelve monitored questions depend on it.',
@@ -108,9 +108,13 @@ describe('AgentBudget', () => {
     expect(budget.canAfford({ spendMinor: 10 })).toBeNull()
   })
 
-  it('ships a conservative default publish ceiling', () => {
-    expect(DEFAULT_LIMITS.maxPublishOperations).toBeLessThanOrEqual(10)
-    expect(DEFAULT_LIMITS.maxIterations).toBeLessThanOrEqual(20)
+  it('ships ceilings tight enough to catch a runaway on every axis', () => {
+    // Publishes and spend are the ceilings that protect the customer and the margin.
+    expect(DEFAULT_LIMITS.maxPublishOperations).toBeLessThanOrEqual(15)
+    expect(DEFAULT_LIMITS.maxIterations).toBeLessThanOrEqual(30)
+    expect(DEFAULT_LIMITS.maxToolCalls).toBeLessThanOrEqual(100)
+    expect(DEFAULT_LIMITS.maxWallClockMs).toBeLessThanOrEqual(15 * 60 * 1000)
+    expect(DEFAULT_LIMITS.maxSpendMinor).toBeLessThanOrEqual(5000)
   })
 })
 
@@ -256,7 +260,7 @@ describe('runAgent', () => {
         opportunity(),
         opportunity({ dedupeKey: 'external', controllability: 'NOT_CONTROLLED', autoFixable: false }),
       ],
-      planner: () => action(),
+      planner: (o) => action({ targetUrl: `https://rosa.example.com/${o.dedupeKey}` }),
       applier,
       clock: clock(),
     })
@@ -285,7 +289,7 @@ describe('runAgent', () => {
     const result = await runAgent({
       context: context(),
       opportunities: Array.from({ length: 20 }, (_, i) => opportunity({ dedupeKey: `o-${i}` })),
-      planner: () => action(),
+      planner: (o) => action({ targetUrl: `https://rosa.example.com/${o.dedupeKey}` }),
       applier,
       limits: { ...DEFAULT_LIMITS, maxIterations: 3 },
       clock: clock(),
@@ -301,7 +305,8 @@ describe('runAgent', () => {
     const result = await runAgent({
       context: context(),
       opportunities: Array.from({ length: 10 }, (_, i) => opportunity({ dedupeKey: `o-${i}` })),
-      planner: () => action(),
+      // Distinct pages, so the duplicate-write guard does not mask the ceiling.
+      planner: (o) => action({ targetUrl: `https://rosa.example.com/${o.dedupeKey}` }),
       applier,
       limits: { ...DEFAULT_LIMITS, maxPublishOperations: 2 },
       clock: clock(),
@@ -310,12 +315,27 @@ describe('runAgent', () => {
     expect(result.stopReason).toBe('MAX_PUBLISHES')
   })
 
+  it('does not write the same change to the same page twice in one run', async () => {
+    const spy = vi.fn(async () => ({ versionId: 'v', published: true }))
+    const result = await runAgent({
+      context: context(),
+      // Two findings that both suggest the same fix on the same page.
+      opportunities: [opportunity({ dedupeKey: 'missing-summary' }), opportunity({ dedupeKey: 'long-title' })],
+      planner: () => action({ actionType: 'FIX_METADATA', targetUrl: 'https://rosa.example.com/' }),
+      applier: spy,
+      clock: clock(),
+    })
+    expect(spy).toHaveBeenCalledOnce()
+    expect(result.appliedActions).toHaveLength(1)
+    expect(result.steps.some((s) => s.reason?.includes('skipping the duplicate'))).toBe(true)
+  })
+
   it('applies nothing in MONITOR mode, however attractive the opportunities', async () => {
     const spy = vi.fn(async () => ({ versionId: 'v', published: true }))
     const result = await runAgent({
       context: context({ autonomyMode: 'MONITOR' }),
       opportunities: [opportunity(), opportunity({ dedupeKey: 'b' })],
-      planner: () => action(),
+      planner: (o) => action({ targetUrl: `https://rosa.example.com/${o.dedupeKey}` }),
       applier: spy,
       clock: clock(),
     })
