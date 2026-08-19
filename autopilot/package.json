@@ -1,0 +1,35 @@
+{
+  "name": "ai-recommendation-autopilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Autonomous AI Recommendation Optimization SaaS (Israel-first)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "oxlint packages apps --deny-warnings",
+    "db:generate": "pnpm --filter @autopilot/database exec drizzle-kit generate",
+    "db:migrate": "pnpm --filter @autopilot/database run migrate",
+    "demo": "pnpm --filter @autopilot/cli run demo",
+    "worker": "pnpm --filter @autopilot/worker run start",
+    "web": "pnpm --filter @autopilot/web run dev",
+    "build": "pnpm --filter @autopilot/web run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "oxlint": "^1.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
