@@ -11,5 +11,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*",
+    "@autopilot/knowledge": "workspace:*",
+    "zod": "^4.4.3"
   }
 }

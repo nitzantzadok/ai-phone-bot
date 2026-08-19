@@ -11,5 +11,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*",
+    "@autopilot/providers": "workspace:*",
+    "@autopilot/prompts": "workspace:*",
+    "@autopilot/knowledge": "workspace:*",
+    "@autopilot/crawler": "workspace:*",
+    "zod": "^4.4.3"
   }
 }

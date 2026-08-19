@@ -29,7 +29,6 @@ const id = () =>
     .$defaultFn(() => uuidv7())
 /** Named timestamp helper — each field gets its own column, never a shared alias. */
 const ts = (name: string) => timestamp(name, { withTimezone: true }).notNull().defaultNow()
-const createdAt = () => ts('created_at')
 
 export const airsScores = pgTable(
   'airs_scores',

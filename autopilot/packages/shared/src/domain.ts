@@ -17,6 +17,7 @@ export const SOURCE_TYPES = [
   'SEARCH_EVIDENCE', // official grounding/web-search result attached to a response
   'INFERRED', // derived by our own analysis from other stored data
   'HISTORICAL', // a previously observed value being reused
+  'OWN_PROPERTY', // read from a property the business controls (its site, its profile)
   'THIRD_PARTY', // supplied by an external dataset or connected profile
   'CUSTOMER_PROVIDED', // stated by the business owner
   'SYNTHETIC', // mock/simulated — never shown as a real observation
@@ -62,6 +63,7 @@ export const SOURCE_CONFIDENCE: Record<SourceType, ConfidenceLevel> = {
   SEARCH_EVIDENCE: 'MEDIUM',
   INFERRED: 'LOW',
   HISTORICAL: 'LOW',
+  OWN_PROPERTY: 'HIGH',
   THIRD_PARTY: 'MEDIUM',
   CUSTOMER_PROVIDED: 'HIGH',
   SYNTHETIC: 'UNKNOWN',

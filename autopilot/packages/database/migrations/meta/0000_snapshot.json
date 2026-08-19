@@ -1,5 +1,5 @@
 {
-  "id": "d211732e-9775-423f-bc7f-d9eb2e8a09c2",
+  "id": "372a6d31-45e3-47d6-9050-e6d5693474da",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -9246,6 +9246,7 @@
         "SEARCH_EVIDENCE",
         "INFERRED",
         "HISTORICAL",
+        "OWN_PROPERTY",
         "THIRD_PARTY",
         "CUSTOMER_PROVIDED",
         "SYNTHETIC"

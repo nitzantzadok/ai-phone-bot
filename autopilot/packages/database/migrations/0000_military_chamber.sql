@@ -17,7 +17,7 @@ CREATE TYPE "public"."provider_id" AS ENUM('openai', 'gemini', 'anthropic');--> 
 CREATE TYPE "public"."recommendation_class" AS ENUM('NOT_PRESENT', 'MENTIONED', 'RELEVANT_RECOMMENDATION', 'TOP_3', 'TOP_1', 'STRONGLY_RECOMMENDED');--> statement-breakpoint
 CREATE TYPE "public"."risk_tier" AS ENUM('LOW', 'MEDIUM', 'HIGH');--> statement-breakpoint
 CREATE TYPE "public"."member_role" AS ENUM('OWNER', 'ADMIN', 'EDITOR', 'VIEWER');--> statement-breakpoint
-CREATE TYPE "public"."source_type" AS ENUM('OBSERVED_API', 'SEARCH_EVIDENCE', 'INFERRED', 'HISTORICAL', 'THIRD_PARTY', 'CUSTOMER_PROVIDED', 'SYNTHETIC');--> statement-breakpoint
+CREATE TYPE "public"."source_type" AS ENUM('OBSERVED_API', 'SEARCH_EVIDENCE', 'INFERRED', 'HISTORICAL', 'OWN_PROPERTY', 'THIRD_PARTY', 'CUSTOMER_PROVIDED', 'SYNTHETIC');--> statement-breakpoint
 CREATE TYPE "public"."subscription_status" AS ENUM('TRIALING', 'ACTIVE', 'PAST_DUE', 'GRACE', 'PAUSED', 'CANCELED', 'EXPIRED');--> statement-breakpoint
 CREATE TABLE "business_locations" (
 	"id" uuid PRIMARY KEY NOT NULL,

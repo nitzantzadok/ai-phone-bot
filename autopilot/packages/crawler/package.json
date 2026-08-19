@@ -11,5 +11,11 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*",
+    "cheerio": "^1.2.0",
+    "undici": "^8.10.0",
+    "zod": "^4.4.3"
   }
 }
