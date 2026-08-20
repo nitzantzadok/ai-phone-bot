@@ -55,5 +55,19 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "jest": {
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/tests",
+      "<rootDir>/src"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/autopilot/"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js"
+    ]
+  }
 }

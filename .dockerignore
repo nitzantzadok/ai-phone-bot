@@ -1,0 +1,30 @@
+# Build context for the phone-bot image (Dockerfile does COPY . .).
+#
+# Without this, the image would pull in the autopilot monorepo, ~50MB of ngrok
+# binaries and the project zip - none of which the phone bot runs.
+
+.git
+.gitignore
+node_modules
+npm-debug.log*
+
+# The autopilot monorepo is a separate application with its own deployment.
+autopilot
+
+# Local tooling and archives that were never meant to ship.
+ngrok
+ngrok-v3-stable-darwin-*.zip
+ai-phone-bot-project.zip
+fix_route.js
+fix_server.js
+temp_route.txt
+*.backup
+*.bak
+
+# Tests, docs and dashboards are not needed at runtime.
+tests
+docs
+coverage
+.env
+.env.*
+!.env.example
