@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="מודדים כמה פעמים העסק שלכם מופיע בתשובות של ChatGPT, Gemini ו-Claude, מסבירים למה, ומתקנים את מה שבשליטתכם.">
+<title>AI Recommendation Autopilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Assistant:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ---------------------------------------------------------------- tokens --- */
+:root {
+  --paper: #FBFBF8;
+  --surface: #FFFFFF;
+  --ink: #16181A;
+  --muted: #63676B;
+  --line: #E6E5DF;
+  --accent: #14484F;
+  --accent-soft: #14484F14;
+  --amber: #A9660F;
+  --amber-soft: #D98C2B22;
+  --shadow: 0 1px 2px rgba(20,24,26,.05), 0 8px 24px -16px rgba(20,24,26,.18);
+
+  --display: 'Frank Ruhl Libre', 'Times New Roman', serif;
+  --body: 'Assistant', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', 'SF Mono', Menlo, monospace;
+
+  --measure: 62ch;
+  --radius: 10px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1113;
+    --surface: #171A1D;
+    --ink: #F0F0EC;
+    --muted: #9BA0A5;
+    --line: #272B2F;
+    --accent: #5FB8C4;
+    --accent-soft: #5FB8C41F;
+    --amber: #E2A552;
+    --amber-soft: #E2A5522E;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0E1113;
+  --surface: #171A1D;
+  --ink: #F0F0EC;
+  --muted: #9BA0A5;
+  --line: #272B2F;
+  --accent: #5FB8C4;
+  --accent-soft: #5FB8C41F;
+  --amber: #E2A552;
+  --amber-soft: #E2A5522E;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ base --- */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.65;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--display);
+  font-weight: 700;
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: clamp(2rem, 5vw, 3.15rem); font-weight: 900; }
+h2 { font-size: clamp(1.5rem, 3vw, 2.05rem); }
+h3 { font-size: 1.12rem; font-weight: 700; font-family: var(--body); letter-spacing: 0; }
+p { margin: 0; }
+a { color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.wrap { max-width: 940px; margin: 0 auto; padding-inline: 24px; }
+.narrow { max-width: var(--measure); }
+.stack { display: flex; flex-direction: column; }
+.g8 { gap: 8px; } .g12 { gap: 12px; } .g16 { gap: 16px; }
+.g24 { gap: 24px; } .g32 { gap: 32px; } .g48 { gap: 48px; }
+
+section { padding-block: clamp(48px, 8vw, 84px); }
+section + section { border-top: 1px solid var(--line); }
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.lede { font-size: clamp(1.05rem, 2vw, 1.2rem); color: var(--muted); font-weight: 300; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; }
+
+/* ---------------------------------------------------------------- header --- */
+header {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in oklab, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 13px; }
+.brand { font-family: var(--display); font-weight: 900; font-size: 16px; letter-spacing: -0.01em; }
+.bar nav { display: flex; align-items: center; gap: 6px; }
+
+.btn {
+  font: inherit; font-size: 14px; font-weight: 600;
+  border: 1px solid transparent; border-radius: 8px;
+  padding: 9px 15px; cursor: pointer;
+  background: none; color: var(--ink);
+  text-decoration: none; display: inline-block;
+  transition: background .15s ease, border-color .15s ease;
+}
+.btn:hover { background: var(--accent-soft); }
+.btn-primary { background: var(--accent); color: var(--paper); }
+.btn-primary:hover { background: var(--accent); filter: brightness(1.12); }
+.btn-ghost { border-color: var(--line); }
+.btn-lg { font-size: 15px; padding: 13px 24px; }
+
+/* ------------------------------------------------------------ answer box --- */
+.answer {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.answer-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px; color: var(--muted);
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .45; }
+.answer-q {
+  padding: 14px 16px 6px;
+  font-family: var(--mono); font-size: 13.5px; color: var(--muted);
+}
+.answer-body { padding: 4px 16px 18px; }
+.answer-body ol { margin: 0; padding-inline-start: 22px; }
+.answer-body li { padding-block: 5px; font-size: 15px; }
+.answer-body li span { color: var(--muted); font-size: 14px; }
+.you {
+  background: var(--amber-soft);
+  box-shadow: 0 0 0 4px var(--amber-soft);
+  border-radius: 3px;
+  font-weight: 700;
+  color: var(--amber);
+}
+.absent {
+  margin-top: 12px; padding: 10px 12px;
+  border-radius: 8px; background: var(--accent-soft);
+  font-size: 13.5px; color: var(--muted);
+}
+
+.toggle-row { display: flex; gap: 6px; margin-top: 14px; }
+.toggle-row button {
+  font: inherit; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  border-radius: 999px; padding: 6px 14px; cursor: pointer;
+  transition: all .15s ease;
+}
+.toggle-row button[aria-pressed="true"] {
+  background: var(--accent); border-color: var(--accent); color: var(--paper);
+}
+
+/* ------------------------------------------------------------------ grid --- */
+.grid { display: grid; gap: 18px; }
+@media (min-width: 720px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 860px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.card-accent { border-color: var(--accent); box-shadow: var(--shadow); }
+
+/* --------------------------------------------------------------- numbers --- */
+.numbered { list-style: none; margin: 0; padding: 0; }
+.numbered > li { display: flex; gap: 14px; padding-block: 11px; }
+.num {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); color: var(--paper);
+  font-size: 12.5px; font-weight: 700;
+  display: grid; place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.num-quiet { background: var(--accent-soft); color: var(--accent); }
+
+.ticks { list-style: none; margin: 0; padding: 0; }
+.ticks li { display: flex; gap: 10px; padding-block: 4px; font-size: 15px; }
+.ticks li::before {
+  content: ""; flex: none; margin-top: 9px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+}
+
+/* ------------------------------------------------------------- platforms --- */
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill {
+  font: inherit; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 999px; padding: 8px 16px; cursor: pointer;
+  transition: all .15s ease;
+}
+.pill:hover { border-color: var(--accent); }
+.pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+
+.badge {
+  display: inline-block; border-radius: 999px;
+  padding: 3px 10px; font-size: 11.5px; font-weight: 700;
+  letter-spacing: .02em;
+}
+.badge-auto { background: var(--accent-soft); color: var(--accent); }
+.badge-guided { background: var(--amber-soft); color: var(--amber); }
+.badge-planned { background: var(--line); color: var(--muted); }
+
+.where {
+  font-family: var(--mono); font-size: 12px;
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 5px; padding: 2px 7px;
+  display: inline-block; margin-top: 4px;
+}
+
+.note {
+  border-inline-start: 3px solid var(--amber);
+  background: var(--amber-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 13px 16px; font-size: 14.5px;
+}
+[dir="rtl"] .note { border-radius: var(--radius) 0 0 var(--radius); }
+
+.honest {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  background: var(--surface);
+}
+
+/* --------------------------------------------------------------- pricing --- */
+.price { font-family: var(--display); font-size: 2.4rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.price-unit { font-family: var(--body); font-size: 14px; font-weight: 400; color: var(--muted); }
+
+/* ----------------------------------------------------------------- forms --- */
+label { font-size: 14px; font-weight: 600; display: block; margin-bottom: 5px; }
+input, select, textarea {
+  font: inherit; font-size: 15px; width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--ink);
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; }
+
+.result {
+  margin-top: 18px; padding: 18px;
+  border: 1px solid var(--accent); border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+details { border-bottom: 1px solid var(--line); }
+summary {
+  cursor: pointer; padding-block: 15px;
+  font-weight: 600; font-size: 16px;
+  list-style: none; display: flex; justify-content: space-between; gap: 12px;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; color: var(--accent); font-weight: 700; }
+details[open] summary::after { content: "\2212"; }
+details > div { padding-bottom: 16px; color: var(--muted); font-size: 15.5px; }
+
+footer { border-top: 1px solid var(--line); padding-block: 32px; }
+
+[hidden] { display: none !important; }
+.lang-en, [dir="ltr"] .lang-he { display: none; }
+[dir="ltr"] .lang-en { display: revert; }
+
+/* ------------------------------------------------------------ narrow bar --- */
+.bar nav { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 660px) {
+  .bar nav a[href="#how"], .bar nav a[href="#platforms"] { display: none; }
+  .brand { font-size: 14px; }
+  .bar .btn { padding: 8px 12px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+.reveal { animation: rise .5s ease both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<script>document.documentElement.lang="he";document.documentElement.dir="rtl";</script>
+
+
+<header>
+  <div class="wrap bar">
+    <span class="brand">
+      <span class="lang-he">אוטופיילוט המלצות AI</span>
+      <span class="lang-en">AI Recommendation Autopilot</span>
+    </span>
+    <nav>
+      <a class="btn" href="#how">
+        <span class="lang-he">איך זה עובד</span><span class="lang-en">How it works</span>
+      </a>
+      <a class="btn" href="#platforms">
+        <span class="lang-he">הצטרפות</span><span class="lang-en">Get started</span>
+      </a>
+      <button class="btn btn-ghost" id="lang" type="button">
+        <span class="lang-he">English</span><span class="lang-en">עברית</span>
+      </button>
+      <a class="btn btn-primary" href="#join">
+        <span class="lang-he">סריקה חינם</span><span class="lang-en">Free scan</span>
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================================================== hero === -->
+<section>
+  <div class="wrap stack g32">
+    <div class="stack g16 narrow">
+      <span class="eyebrow">
+        <span class="lang-he">לעסקים בישראל</span><span class="lang-en">For businesses in Israel</span>
+      </span>
+      <h1>
+        <span class="lang-he">כשלקוח שואל את ChatGPT על עסק כמו שלכם &mdash; אתם בתשובה?</span>
+        <span class="lang-en">When a customer asks ChatGPT for a business like yours, are you in the answer?</span>
+      </h1>
+      <p class="lede">
+        <span class="lang-he">היום לקוחות כבר לא עוברים על רשימת תוצאות. הם שואלים שאלה ומקבלים שלושה שמות. אנחנו מודדים כמה פעמים אתם אחד מהם, מסבירים בדיוק למה לא &mdash; ומתקנים את מה שנמצא באתר שלכם.</span>
+        <span class="lang-en">Customers no longer scan a list of results. They ask a question and get three names. We measure how often you are one of them, explain exactly why not, and fix what lives on your own site.</span>
+      </p>
+    </div>
+
+    <!-- The device the whole page rests on: one question, answered twice. -->
+    <div class="stack g12">
+      <div class="answer" id="answerBox">
+        <div class="answer-head">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span style="margin-inline-start:6px">
+            <span class="lang-he">עוזר AI</span><span class="lang-en">AI assistant</span>
+          </span>
+        </div>
+        <div class="answer-q" dir="auto" id="answerQ"></div>
+        <div class="answer-body" id="answerA"></div>
+      </div>
+
+      <div class="toggle-row" role="group">
+        <button type="button" id="tBefore" aria-pressed="true">
+          <span class="lang-he">לפני</span><span class="lang-en">Before</span>
+        </button>
+        <button type="button" id="tAfter" aria-pressed="false">
+          <span class="lang-he">אחרי</span><span class="lang-en">After</span>
+        </button>
+      </div>
+      <p class="tiny muted">
+        <span class="lang-he">הדגמה. שום דבר כאן אינו תשובה אמיתית מ-ChatGPT, ואנחנו לא נציג סימולציה כאילו הייתה אמיתית.</span>
+        <span class="lang-en">An illustration. Nothing here is a real ChatGPT answer, and we will not present a simulation as though it were one.</span>
+      </p>
+    </div>
+
+    <div class="stack g12">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <a class="btn btn-primary btn-lg" href="#join">
+          <span class="lang-he">קבלו סריקה חינם</span><span class="lang-en">Get a free scan</span>
+        </a>
+        <span class="small muted">
+          <span class="lang-he">בלי כרטיס אשראי &middot; תוצאה תוך כדקה</span>
+          <span class="lang-en">No credit card &middot; result in about a minute</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== free === -->
+<section id="how">
+  <div class="wrap stack g24">
+    <div class="stack g12 narrow">
+      <span class="eyebrow">
+        <span class="lang-he">חינם, בלי להירשם</span><span class="lang-en">Free, no signup</span>
+      </span>
+      <h2>
+        <span class="lang-he">ארבעה דברים שתוכלו לעשות היום בעצמכם</span>
+        <span class="lang-en">Four things you can do yourself today</span>
+      </h2>
+      <p class="muted">
+        <span class="lang-he">אלה הדברים עם ההשפעה הגדולה ביותר, והם נכונים בין אם תהיו לקוחות שלנו ובין אם לא. מה שאנחנו מוכרים זה לעשות את זה ברציפות ולמדוד אם זה עבד.</span>
+        <span class="lang-en">These carry the most weight, and they hold whether or not you become a customer. What we sell is doing it continuously and measuring whether it worked.</span>
+      </p>
+    </div>
+
+    <div class="grid grid-2">
+      <article class="card stack g12">
+        <h3><span class="lang-he">1. שיהיה ברור מי אתם ומה אתם עושים</span><span class="lang-en">1. Make it unmistakable who you are</span></h3>
+        <p class="small muted"><span class="lang-he">לפני שמערכת תמליץ עליכם, היא צריכה להיות בטוחה שהיא מדברת על העסק הנכון. במקרה של ספק, היא בוחרת מישהו אחר.</span><span class="lang-en">Before a system recommends you it must be sure it is talking about the right business. In doubt, it picks someone else.</span></p>
+        <ul class="ticks">
+          <li><span class="lang-he">בכותרת הדף הראשי: שם העסק &mdash; התחום &mdash; העיר.</span><span class="lang-en">In your home page title: business name &mdash; what you are &mdash; city.</span></li>
+          <li><span class="lang-he">בפסקה הראשונה, משפט אחד פשוט בלי סופרלטיבים.</span><span class="lang-en">In the first paragraph, one plain sentence with no superlatives.</span></li>
+          <li><span class="lang-he">שהעיר תופיע בטקסט עצמו, לא רק בתמונה או בפוטר.</span><span class="lang-en">Put the city in the text itself, not only in an image or the footer.</span></li>
+        </ul>
+      </article>
+
+      <article class="card stack g12">
+        <h3><span class="lang-he">2. תכתבו במפורש למה אתם מתאימים</span><span class="lang-en">2. Say plainly what you are good for</span></h3>
+        <p class="small muted"><span class="lang-he">זו הסיבה הנפוצה ביותר שעסקים טובים לא מומלצים. אם האתר לא אומר את המילה &ldquo;רומנטי&rdquo; באף מקום, אף מערכת לא תמציא אותה &mdash; גם אם זה נכון לחלוטין.</span><span class="lang-en">The most common reason a good business is not recommended. If your site never says the word &ldquo;romantic&rdquo;, no system will invent it, however true it is.</span></p>
+        <ul class="ticks">
+          <li><span class="lang-he">רשמו 5 סיבות אמיתיות שלקוחות בוחרים בכם.</span><span class="lang-en">Write down 5 real reasons customers choose you.</span></li>
+          <li><span class="lang-he">לכל אחת, משפט ישיר באתר. &ldquo;החדר שקט ומתאים לזוגות&rdquo; עדיף על &ldquo;אווירה ייחודית&rdquo;.</span><span class="lang-en">For each, a direct sentence. &ldquo;The room is quiet and suits couples&rdquo; beats &ldquo;a unique atmosphere&rdquo;.</span></li>
+          <li><span class="lang-he">אל תכתבו משהו שאינו נכון. תקבלו לקוחות מאוכזבים וביקורות רעות.</span><span class="lang-en">Never write what is untrue. It brings disappointed customers and bad reviews.</span></li>
+        </ul>
+      </article>
+
+      <article class="card stack g12">
+        <h3><span class="lang-he">3. שכל הפרטים יהיו זהים בכל מקום</span><span class="lang-en">3. Make every detail agree everywhere</span></h3>
+        <p class="small muted"><span class="lang-he">טלפון אחד באתר ואחר בגוגל &mdash; כל סתירה מורידה את הביטחון שמדובר באותו עסק. עסק שהמערכת לא בטוחה לגביו, היא לא מזכירה.</span><span class="lang-en">One phone number on the site, another on Google: every contradiction lowers confidence that these are the same business. One it is unsure about, it does not mention.</span></p>
+        <ul class="ticks">
+          <li><span class="lang-he">פתחו את האתר, פרופיל Google ופייסבוק זה לצד זה.</span><span class="lang-en">Open your site, Google profile and Facebook side by side.</span></li>
+          <li><span class="lang-he">השוו שם, טלפון, כתובת, שעות. תקנו כל הבדל &mdash; גם בפורמט.</span><span class="lang-en">Compare name, phone, address, hours. Fix every difference, including formatting.</span></li>
+          <li><span class="lang-he">עדכנו שעות בחגים. מידע שגוי עולה לכם בלקוחות מיידית.</span><span class="lang-en">Update holiday hours. Wrong hours cost you customers immediately.</span></li>
+        </ul>
+      </article>
+
+      <article class="card stack g12">
+        <h3><span class="lang-he">4. תענו על השאלות שבאמת שואלים אתכם</span><span class="lang-en">4. Answer the questions you actually get</span></h3>
+        <p class="small muted"><span class="lang-he">אם באתר אין תשובה ל&ldquo;יש חניה?&rdquo; &mdash; המערכת תיקח את התשובה ממישהו אחר, ותמליץ עליו.</span><span class="lang-en">If your site does not answer &ldquo;is there parking?&rdquo;, a system takes the answer from someone else and recommends them.</span></p>
+        <ul class="ticks">
+          <li><span class="lang-he">רשמו את 10 השאלות שהכי שואלים אתכם בטלפון.</span><span class="lang-en">Write down the 10 questions you are asked most on the phone.</span></li>
+          <li><span class="lang-he">הוסיפו עמוד שאלות ותשובות עם תשובה קצרה לכל אחת.</span><span class="lang-en">Add a questions page with a short answer to each.</span></li>
+          <li><span class="lang-he">תכתבו כמו שאתם עונים בטלפון, לא כמו פרסומת.</span><span class="lang-en">Write it the way you answer on the phone, not like an advert.</span></li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+
+<!-- ========================================================= how to join === -->
+<section id="platforms">
+  <div class="wrap stack g24">
+    <div class="stack g12 narrow">
+      <span class="eyebrow">
+        <span class="lang-he">ההצטרפות</span><span class="lang-en">Getting started</span>
+      </span>
+      <h2>
+        <span class="lang-he">איך מצטרפים, שלב אחר שלב</span>
+        <span class="lang-en">How to join, step by step</span>
+      </h2>
+      <p class="muted">
+        <span class="lang-he">הסריקה עצמה לא דורשת מכם כלום &mdash; רק כתובת אתר. חיבור נדרש רק אם תרצו שנתקן דברים עבורכם.</span>
+        <span class="lang-en">The scan itself asks nothing of you but a web address. A connection is needed only if you want us to fix things for you.</span>
+      </p>
+    </div>
+
+    <ol class="numbered narrow">
+      <li>
+        <span class="num">1</span>
+        <div>
+          <strong><span class="lang-he">מזינים כתובת אתר</span><span class="lang-en">Enter your website address</span></strong>
+          <p class="small muted"><span class="lang-he">זה הכל. בלי סיסמה, בלי הרשאה, בלי כרטיס אשראי. אנחנו קוראים רק עמודים ציבוריים ומכבדים את robots.txt.</span><span class="lang-en">That is all. No password, no permission, no credit card. We read only public pages and respect robots.txt.</span></p>
+        </div>
+      </li>
+      <li>
+        <span class="num">2</span>
+        <div>
+          <strong><span class="lang-he">מקבלים ציון ורשימת בעיות</span><span class="lang-en">Get a score and a list of problems</span></strong>
+          <p class="small muted"><span class="lang-he">תוך כדקה: מה שבור באתר. תוך כחמש: באילו שאלות אתם מופיעים, מי מופיע במקומכם, ולמה.</span><span class="lang-en">Within a minute: what is broken on the site. Within five: which questions you appear in, who appears instead of you, and why.</span></p>
+        </div>
+      </li>
+      <li>
+        <span class="num">3</span>
+        <div>
+          <strong><span class="lang-he">מאשרים מה נכון על העסק</span><span class="lang-en">Confirm what is true about you</span></strong>
+          <p class="small muted"><span class="lang-he">החלק החשוב ביותר. לעולם לא נכתוב עליכם משהו שלא אישרתם &mdash; גם אם זה נשמע נכון. מה שתסמנו הוא בדיוק מה שמותר לנו לומר.</span><span class="lang-en">The most important part. We never write anything you have not confirmed, however true it sounds. What you tick is exactly what we may say.</span></p>
+        </div>
+      </li>
+      <li>
+        <span class="num">4</span>
+        <div>
+          <strong><span class="lang-he">בוחרים כמה חופש לתת לנו</span><span class="lang-en">Choose how much we do on our own</span></strong>
+          <p class="small muted"><span class="lang-he">מהמלצות בלבד ועד תיקון אוטומטי. אפשר לשנות מתי שתרצו, וכל שינוי ניתן לביטול בלחיצה.</span><span class="lang-en">From recommendations only to automatic fixes. Changeable any time, and every change is one click to undo.</span></p>
+        </div>
+      </li>
+    </ol>
+
+    <!-- Platform picker. Content is rendered from PLATFORMS in the script below. -->
+    <div class="stack g16" style="margin-top:12px">
+      <h3><span class="lang-he">בחרו על מה האתר שלכם בנוי</span><span class="lang-en">Pick what your site is built on</span></h3>
+      <div class="pills" id="platformPills"></div>
+      <div id="platformPanel"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ honesty === -->
+<section>
+  <div class="wrap stack g24">
+    <div class="stack g12 narrow">
+      <span class="eyebrow">
+        <span class="lang-he">בכנות</span><span class="lang-en">Plainly</span>
+      </span>
+      <h2>
+        <span class="lang-he">מה אנחנו יכולים לעשות, ומה לא</span>
+        <span class="lang-en">What we can do, and what we cannot</span>
+      </h2>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card stack g12">
+        <h3 style="color:var(--accent)"><span class="lang-he">מה שבשליטתנו</span><span class="lang-en">What is in our control</span></h3>
+        <ul class="ticks">
+          <li><span class="lang-he">התוכן והכותרות באתר שלכם</span><span class="lang-en">The content and titles on your site</span></li>
+          <li><span class="lang-he">המידע המובנה שמכונות קוראות</span><span class="lang-en">The machine-readable information</span></li>
+          <li><span class="lang-he">עקביות הפרטים בין האתר לפרופילים</span><span class="lang-en">Consistency between site and profiles</span></li>
+          <li><span class="lang-he">תקינות טכנית: מה שאפשר לקרוא ומה לא</span><span class="lang-en">Technical health: what can be read and what cannot</span></li>
+          <li><span class="lang-he">שדות בפרופיל Google, אם תאשרו</span><span class="lang-en">Google profile fields, if you allow it</span></li>
+        </ul>
+      </div>
+
+      <div class="honest stack g12">
+        <h3 style="color:var(--amber)"><span class="lang-he">מה שלא בשליטתנו</span><span class="lang-en">What is not</span></h3>
+        <ul class="ticks">
+          <li><span class="lang-he">מה ש-ChatGPT, Gemini או Claude יגידו בפועל</span><span class="lang-en">What ChatGPT, Gemini or Claude actually say</span></li>
+          <li><span class="lang-he">כתבות ואזכורים של גורמים עצמאיים</span><span class="lang-en">Articles and mentions by independent parties</span></li>
+          <li><span class="lang-he">ביקורות ודירוגים של צד שלישי</span><span class="lang-en">Third-party reviews and ratings</span></li>
+          <li><span class="lang-he">מה שהמתחרים שלכם עושים</span><span class="lang-en">What your competitors do</span></li>
+        </ul>
+        <p class="small muted"><span class="lang-he">אנחנו לא מייצרים ביקורות, אזכורים או פרסים. מי שמוכר לכם &ldquo;אזכורים&rdquo; בתשלום מוכר לכם בעיה עתידית.</span><span class="lang-en">We do not manufacture reviews, mentions or awards. Anyone selling you paid &ldquo;mentions&rdquo; is selling you a future problem.</span></p>
+      </div>
+    </div>
+
+    <div class="note narrow">
+      <span class="lang-he"><strong>אנחנו לא מבטיחים מקום ראשון, ואף אחד לא יכול.</strong> הציון שאנחנו נותנים הוא מדידה של ביצועים בפועל על קבוצת שאלות מוגדרת, במנועים ובמיקומים מוגדרים, בחלון זמן מוגדר. הוא לא הבטחה לתשובה מסוימת לכל משתמש.</span>
+      <span class="lang-en"><strong>We do not guarantee first place, and nobody can.</strong> The score we give is a measurement of observed performance across a declared set of questions, engines and locations, over a declared window. It is not a guarantee of a particular answer for every user.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ pricing === -->
+<section id="pricing">
+  <div class="wrap stack g24">
+    <div class="stack g12 narrow">
+      <span class="eyebrow"><span class="lang-he">מחירים</span><span class="lang-en">Pricing</span></span>
+      <h2><span class="lang-he">התחלה חינם, בלי כרטיס אשראי</span><span class="lang-en">Start free, no credit card</span></h2>
+    </div>
+
+    <div class="grid grid-3">
+      <article class="card stack g12">
+        <h3><span class="lang-he">סריקה חינם</span><span class="lang-en">Free scan</span></h3>
+        <div><span class="price">0</span> <span class="price-unit">&#8362;</span></div>
+        <ul class="ticks small">
+          <li><span class="lang-he">ציון ואבחון מלא</span><span class="lang-en">Score and full diagnosis</span></li>
+          <li><span class="lang-he">10 התיקונים החשובים ביותר</span><span class="lang-en">The 10 most important fixes</span></li>
+          <li><span class="lang-he">רשימת המתחרים שמופיעים במקומכם</span><span class="lang-en">The competitors appearing instead of you</span></li>
+        </ul>
+      </article>
+
+      <article class="card card-accent stack g12">
+        <span class="badge badge-auto"><span class="lang-he">הנפוץ ביותר</span><span class="lang-en">Most popular</span></span>
+        <h3><span class="lang-he">צמיחה</span><span class="lang-en">Growth</span></h3>
+        <div><span class="price">699</span> <span class="price-unit"><span class="lang-he">&#8362; לחודש + מע&quot;מ</span><span class="lang-en">&#8362; / month + VAT</span></span></div>
+        <p class="tiny muted"><span class="lang-he">כולל מע&quot;מ 18%: 824.82 &#8362; &middot; 14 ימי ניסיון</span><span class="lang-en">Including 18% VAT: 824.82 &#8362; &middot; 14-day trial</span></p>
+        <ul class="ticks small">
+          <li><span class="lang-he">80 שאלות במעקב מתמשך, עברית ואנגלית</span><span class="lang-en">80 questions monitored continuously, Hebrew and English</span></li>
+          <li><span class="lang-he">תיקונים אוטומטיים באתר, הפיכים בלחיצה</span><span class="lang-en">Automatic fixes on your site, one click to undo</span></li>
+          <li><span class="lang-he">מעקב מתחרים ודוח שבועי</span><span class="lang-en">Competitor tracking and a weekly report</span></li>
+          <li><span class="lang-he">חיבור לפרופיל Google</span><span class="lang-en">Google profile connection</span></li>
+        </ul>
+      </article>
+
+      <article class="card stack g12">
+        <h3><span class="lang-he">שנתי</span><span class="lang-en">Annual</span></h3>
+        <div><span class="price">6,990</span> <span class="price-unit"><span class="lang-he">&#8362; לשנה + מע&quot;מ</span><span class="lang-en">&#8362; / year + VAT</span></span></div>
+        <p class="tiny muted"><span class="lang-he">חיסכון של חודשיים</span><span class="lang-en">Two months free</span></p>
+        <ul class="ticks small">
+          <li><span class="lang-he">כל מה שבתוכנית צמיחה</span><span class="lang-en">Everything in Growth</span></li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+
+<!-- =============================================================== join === -->
+<section id="join">
+  <div class="wrap stack g24">
+    <div class="stack g12 narrow">
+      <span class="eyebrow"><span class="lang-he">הצטרפות</span><span class="lang-en">Join</span></span>
+      <h2><span class="lang-he">קבלו סריקה חינם של העסק שלכם</span><span class="lang-en">Get a free scan of your business</span></h2>
+      <p class="muted">
+        <span class="lang-he">מלאו את הפרטים, ונחזור אליכם עם הציון והתיקונים. אין התחייבות ואין צורך בכרטיס אשראי.</span>
+        <span class="lang-en">Fill in your details and we will come back with your score and the fixes. No commitment, no credit card.</span>
+      </p>
+    </div>
+
+    <form class="stack g16 narrow" id="joinForm" novalidate>
+      <div class="grid grid-2">
+        <div>
+          <label for="fBiz"><span class="lang-he">שם העסק</span><span class="lang-en">Business name</span></label>
+          <input id="fBiz" name="business" required autocomplete="organization">
+        </div>
+        <div>
+          <label for="fSite"><span class="lang-he">כתובת האתר</span><span class="lang-en">Website address</span></label>
+          <input id="fSite" name="website" type="url" dir="ltr" placeholder="https://" autocomplete="url">
+        </div>
+        <div>
+          <label for="fCity"><span class="lang-he">עיר</span><span class="lang-en">City</span></label>
+          <input id="fCity" name="city" required autocomplete="address-level2">
+        </div>
+        <div>
+          <label for="fField"><span class="lang-he">תחום</span><span class="lang-en">Field</span></label>
+          <select id="fField" name="field"></select>
+        </div>
+        <div>
+          <label for="fName"><span class="lang-he">איש קשר</span><span class="lang-en">Contact name</span></label>
+          <input id="fName" name="contact" required autocomplete="name">
+        </div>
+        <div>
+          <label for="fPhone"><span class="lang-he">טלפון</span><span class="lang-en">Phone</span></label>
+          <input id="fPhone" name="phone" type="tel" dir="ltr" required autocomplete="tel">
+        </div>
+      </div>
+
+      <div>
+        <label for="fEmail"><span class="lang-he">אימייל</span><span class="lang-en">Email</span></label>
+        <input id="fEmail" name="email" type="email" dir="ltr" required autocomplete="email">
+      </div>
+
+      <button class="btn btn-primary btn-lg" type="submit" style="align-self:flex-start">
+        <span class="lang-he">שלחו וקבלו סריקה</span><span class="lang-en">Send and get my scan</span>
+      </button>
+
+      <p class="tiny muted">
+        <span class="lang-he">הפרטים משמשים אך ורק ליצירת קשר בנוגע לסריקה. לא נמכור אותם ולא נעביר אותם לאף אחד.</span>
+        <span class="lang-en">Your details are used only to contact you about the scan. We will not sell or pass them on.</span>
+      </p>
+    </form>
+
+    <div class="result narrow" id="joinResult" hidden>
+      <h3><span class="lang-he">כמעט סיימנו &mdash; נשארה לחיצה אחת</span><span class="lang-en">Almost done &mdash; one click left</span></h3>
+      <p class="small muted" style="margin-top:6px">
+        <span class="lang-he">בחרו איך לשלוח לנו את הפרטים. הכל כבר מוכן, רק ללחוץ ולשלוח.</span>
+        <span class="lang-en">Choose how to send us your details. Everything is prepared; just click and send.</span>
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px">
+        <a class="btn btn-primary" id="sendMail" href="#">
+          <span class="lang-he">שליחה במייל</span><span class="lang-en">Send by email</span>
+        </a>
+        <a class="btn btn-ghost" id="sendWa" href="#" target="_blank" rel="noopener">
+          <span class="lang-he">שליחה בוואטסאפ</span><span class="lang-en">Send on WhatsApp</span>
+        </a>
+        <button class="btn btn-ghost" id="copyDetails" type="button">
+          <span class="lang-he">העתקת הפרטים</span><span class="lang-en">Copy details</span>
+        </button>
+      </div>
+      <pre id="detailsBlock" style="margin-top:14px;padding:12px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;overflow-x:auto"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ faq === -->
+<section>
+  <div class="wrap stack g16 narrow">
+    <h2><span class="lang-he">שאלות נפוצות</span><span class="lang-en">Common questions</span></h2>
+
+    <div>
+      <details>
+        <summary><span class="lang-he">אתם משנים לי את האתר בלי שאדע?</span><span class="lang-en">Do you change my site without telling me?</span></summary>
+        <div><span class="lang-he">לא. ברירת המחדל היא המלצות בלבד &mdash; אנחנו מראים בדיוק מה לתקן ואתם מחליטים. אם תפעילו תיקון אוטומטי, זה חל רק על תיקונים טכניים קטנים, אתם רואים כל שינוי, וכל שינוי ניתן לביטול בלחיצה. שינויים רגישים &mdash; מחירים, הצהרות משפטיות או רפואיות, מחיקת עמודים &mdash; תמיד דורשים אישור מפורש, בכל מצב.</span><span class="lang-en">No. The default is recommendations only: we show you exactly what to fix and you decide. If you switch on automatic fixes, that covers small technical corrections, you see every change, and every change is one click to undo. Sensitive changes &mdash; prices, legal or medical claims, deleting pages &mdash; always require explicit approval, in every mode.</span></div>
+      </details>
+
+      <details>
+        <summary><span class="lang-he">מה אם אין לי אתר?</span><span class="lang-en">What if I have no website?</span></summary>
+        <div><span class="lang-he">אפשר להתחיל גם ככה. פרופיל עסקי מאומת בגוגל לבדו כבר נותן נוכחות אמיתית, ואנחנו נעקוב אחרי איך מערכות AI מתארות אתכם ונתריע כשמידע שגוי מופיע. עם זאת, בלי אתר היכולת שלנו לשפר מוגבלת &mdash; אפילו עמוד אחד משנה משמעותית.</span><span class="lang-en">You can still start. A verified Google Business Profile alone already gives you real presence, and we track how AI systems describe you and alert you when wrong information appears. That said, without a site our ability to improve things is limited &mdash; even a single page changes this substantially.</span></div>
+      </details>
+
+      <details>
+        <summary><span class="lang-he">איך אתם מודדים? אתם נכנסים ל-ChatGPT שלי?</span><span class="lang-en">How do you measure? Do you use my ChatGPT?</span></summary>
+        <div><span class="lang-he">לא, ולעולם לא. אנחנו משתמשים בממשקים הרשמיים של הספקים בלבד, ולא ניגשים לחשבון האישי שלכם באף מערכת. אנחנו מייצרים שאלות שלקוחות אמיתיים שואלים בתחום שלכם, שואלים אותן בכמה מנועים, וסופרים כמה פעמים אתם מופיעים.</span><span class="lang-en">No, and never. We use the providers&#39; official interfaces only, and never touch your personal account in any system. We generate the questions real customers ask in your field, ask them across several engines, and count how often you appear.</span></div>
+      </details>
+
+      <details>
+        <summary><span class="lang-he">כמה זמן עד שרואים שינוי?</span><span class="lang-en">How long until I see a change?</span></summary>
+        <div><span class="lang-he">תיקונים טכניים משפיעים תוך ימים עד שבועות, תלוי באיזו תדירות המערכות קוראות את האתר. שינויי תוכן לוקחים יותר. אנחנו מודדים מחדש ומראים לכם את המספרים &mdash; וכשהתנועה קטנה מכדי להיות משמעותית סטטיסטית, נגיד לכם את זה במקום להציג אותה כהצלחה.</span><span class="lang-en">Technical fixes take days to weeks, depending on how often the systems re-read your site. Content changes take longer. We re-measure and show you the numbers &mdash; and when a movement is too small to be statistically meaningful we say so, rather than presenting it as a win.</span></div>
+      </details>
+
+      <details>
+        <summary><span class="lang-he">ומה אם אבטל?</span><span class="lang-en">And if I cancel?</span></summary>
+        <div><span class="lang-he">הכל נשאר כפי שהוא. כל שינוי שביצענו באתר שלכם נשאר שלכם, ואפשר לבטל כל שינוי בלחיצה גם אחרי הביטול. אם תשלום נכשל &mdash; נמשיך למדוד עוד שבוע ולא נשנה כלום עד שיעבור. לא נחסום לכם את הנתונים בגלל כרטיס שפג תוקפו.</span><span class="lang-en">Everything stays as it is. Every change we made remains yours, and any change is still one click to undo after you cancel. If a payment fails we keep measuring for another week and change nothing until it goes through. We will not lock you out of your own data over an expired card.</span></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap stack g12">
+    <p class="small muted">
+      <span class="lang-he">אנחנו לא שולטים במה שמערכות AI אומרות, ולא נטען אחרת. מה שאנחנו כן עושים: מודדים איפה אתם מופיעים, מסבירים למה, ומתקנים את מה שבאמת בשליטתכם.</span>
+      <span class="lang-en">We do not control what AI systems say, and will not claim otherwise. What we do: measure where you appear, explain why, and fix what is genuinely within your control.</span>
+    </p>
+    <p class="tiny muted">
+      <span class="lang-he">אוטופיילוט המלצות AI &middot; ישראל</span>
+      <span class="lang-en">AI Recommendation Autopilot &middot; Israel</span>
+    </p>
+  </div>
+</footer>
+
+<script>
+/* =============================================================================
+ * AI Recommendation Autopilot — join page
+ *
+ * Everything here runs in the visitor's browser with no backend. Two reasons:
+ * the page must work for a stranger who was sent the link, and a stranger has
+ * no write access to it, so nothing can be persisted on their behalf. The form
+ * therefore prepares a message and hands it to the visitor's own mail or
+ * WhatsApp client, where they remain in control of what gets sent.
+ * ========================================================================== */
+
+/* --- OWNER: fill these two in before sharing the link ---------------------- */
+const OWNER = {
+  email: 'REPLACE-WITH-YOUR-EMAIL@example.com',
+  whatsapp: '9725XXXXXXXX',            // international format, digits only
+};
+const OWNER_READY =
+  !OWNER.email.startsWith('REPLACE-') && !OWNER.whatsapp.includes('X');
+/* -------------------------------------------------------------------------- */
+
+const T = (he, en) => ({ he, en });
+let LANG = 'he';
+const t = (pair) => (LANG === 'he' ? pair.he : pair.en);
+
+/* ---------------------------------------------------------------- platforms */
+const PLATFORMS = [
+  {
+    id: 'wordpress', name: 'WordPress', hebrewName: 'וורדפרס',
+    support: 'AUTOMATIC', minutes: 3,
+    summary: T(
+      'החיבור המלא ביותר. אחרי החיבור אנחנו יכולים לתקן דברים באתר בעצמנו, ואתם רואים ומאשרים כל שינוי.',
+      'The most complete connection. Once connected we can fix things on the site ourselves, and you see and approve every change.'),
+    steps: [
+      { text: T('היכנסו לאזור הניהול של האתר שלכם (בדרך כלל הכתובת שלכם עם ‎/wp-admin בסוף).',
+                'Sign in to your site’s admin area (usually your address with /wp-admin at the end).') },
+      { text: T('בתפריט הצדדי לחצו "משתמשים", ואז על המשתמש שלכם.',
+                'In the side menu click "Users", then your own user.'),
+        where: T('משתמשים ← הפרופיל שלי', 'Users → Your Profile') },
+      { text: T('גללו למטה עד "סיסמאות יישומים" (Application Passwords). כתבו שם: Autopilot, ולחצו "הוסף".',
+                'Scroll down to "Application Passwords". Type the name: Autopilot, and click "Add".'),
+        where: T('בתחתית עמוד הפרופיל', 'At the bottom of the profile page') },
+      { text: T('יוצג לכם קוד באותיות ומספרים. העתיקו אותו — הוא מוצג פעם אחת בלבד.',
+                'A code of letters and numbers appears. Copy it — it is shown only once.') },
+      { text: T('הדביקו אותו אצלנו יחד עם שם המשתמש. זהו.',
+                'Paste it with us along with your username. That is it.') },
+    ],
+    whatYouGet: T('תיקונים אוטומטיים של כותרות, תיאורים ומידע מובנה, והוספת תוכן חדש כטיוטה לאישורכם.',
+                  'Automatic fixes to titles, descriptions and structured information, plus new content added as a draft for your approval.'),
+    limitation: T('עמודים חדשים תמיד נוצרים כטיוטה. שום דבר לא עולה לאוויר בלי שתאשרו.',
+                  'New pages are always created as drafts. Nothing goes live without your approval.'),
+  },
+  {
+    id: 'wix', name: 'Wix', hebrewName: 'ויקס',
+    support: 'GUIDED', minutes: 1,
+    summary: T('נסרוק את האתר בלי שתצטרכו לעשות כלום. את התיקונים נראה לכם בדיוק איפה ומה לשנות — לחיצה-לחיצה.',
+               'We scan the site with nothing for you to do. For fixes, we show you exactly where and what to change, click by click.'),
+    steps: [
+      { text: T('פשוט הזינו את כתובת האתר שלכם. אין צורך בשום חיבור, סיסמה או הרשאה.',
+                'Just enter your website address. No connection, password or permission needed.') },
+      { text: T('תוך דקה תקבלו את הציון והרשימה של מה שחסר.',
+                'Within a minute you get your score and the list of what is missing.') },
+      { text: T('לכל תיקון נראה לכם צילום מסך של המקום המדויק ב-Wix ואת הטקסט המוכן להעתקה.',
+                'For each fix we show you a screenshot of the exact place in Wix and the ready-made text to paste.'),
+        where: T('לוח הבקרה של Wix ← עמודים ו-SEO', 'Wix dashboard → Pages & SEO') },
+    ],
+    whatYouGet: T('אבחון מלא, וטקסטים מוכנים להדבקה — כולל הכותרות, התיאורים והסעיפים החסרים.',
+                  'A full diagnosis, and ready-made text to paste, including the titles, descriptions and missing sections.'),
+    limitation: T('ל-Wix אין כרגע ממשק שמאפשר לנו לשנות את האתר עבורכם. אנחנו מכינים לכם הכל, ואתם מדביקים — בדרך כלל דקה לכל תיקון.',
+                  'Wix has no interface that lets us change the site for you today. We prepare everything and you paste it, usually a minute per fix.'),
+  },
+  {
+    id: 'shopify', name: 'Shopify', hebrewName: 'שופיפיי',
+    support: 'PLANNED', minutes: 1,
+    summary: T('סריקה ואבחון מלאים כבר עכשיו. חיבור לכתיבה אוטומטית בפיתוח.',
+               'Full scanning and diagnosis available now. An automatic write connection is in development.'),
+    steps: [
+      { text: T('הזינו את כתובת החנות. הסריקה מתחילה מיד.', 'Enter your store address. The scan starts immediately.') },
+      { text: T('קבלו את הרשימה של מה לתקן, עם הטקסטים המוכנים.', 'Get the list of what to fix, with the text prepared.') },
+    ],
+    whatYouGet: T('אבחון מלא של החנות והמלצות מוכנות ליישום.', 'A full diagnosis of the store and recommendations ready to apply.'),
+    limitation: T('כתיבה אוטומטית ל-Shopify עדיין לא נתמכת. נעדכן אתכם כשתהיה.',
+                  'Automatic writing to Shopify is not supported yet. We will tell you when it is.'),
+  },
+  {
+    id: 'webflow', name: 'Webflow', hebrewName: 'וובפלואו',
+    support: 'PLANNED', minutes: 1,
+    summary: T('סריקה ואבחון מלאים כבר עכשיו. חיבור לכתיבה אוטומטית בפיתוח.',
+               'Full scanning and diagnosis available now. An automatic write connection is in development.'),
+    steps: [
+      { text: T('הזינו את כתובת האתר.', 'Enter your website address.') },
+      { text: T('קבלו אבחון מלא ורשימת תיקונים עם הטקסטים.', 'Get a full diagnosis and a list of fixes with the text.') },
+    ],
+    whatYouGet: T('אבחון מלא והמלצות מוכנות ליישום ב-Webflow.', 'A full diagnosis and recommendations ready to apply in Webflow.'),
+    limitation: T('כתיבה אוטומטית עדיין לא נתמכת.', 'Automatic writing is not supported yet.'),
+  },
+  {
+    id: 'squarespace', name: 'Squarespace', hebrewName: 'סקוורספייס',
+    support: 'GUIDED', minutes: 1,
+    summary: T('סריקה בלי חיבור, ותיקונים מודרכים צעד אחר צעד.', 'Scanning with no connection, and guided fixes step by step.'),
+    steps: [
+      { text: T('הזינו את כתובת האתר.', 'Enter your website address.') },
+      { text: T('לכל תיקון נראה לכם היכן בדיוק ב-Squarespace ומה להדביק.',
+                'For each fix we show you exactly where in Squarespace and what to paste.') },
+    ],
+    whatYouGet: T('אבחון מלא וטקסטים מוכנים.', 'A full diagnosis and ready-made text.'),
+  },
+  {
+    id: 'custom', name: 'Custom site', hebrewName: 'אתר בפיתוח עצמאי',
+    support: 'GUIDED', minutes: 2,
+    summary: T('סריקה מלאה מיד. אם יש לכם מפתח, נוכל לתת לו בדיוק מה לשנות — או להתחבר ישירות.',
+               'Full scanning immediately. If you have a developer, we can give them exactly what to change, or connect directly.'),
+    steps: [
+      { text: T('הזינו את כתובת האתר.', 'Enter your website address.') },
+      { text: T('קבלו אבחון מלא, כולל את הקוד המדויק להוספה (מידע מובנה, כותרות, תיאורים).',
+                'Get a full diagnosis, including the exact code to add (structured data, titles, descriptions).') },
+      { text: T('שלחו למפתח שלכם, או דברו איתנו על חיבור ישיר למערכת שלכם.',
+                'Send it to your developer, or talk to us about connecting directly to your system.') },
+    ],
+    whatYouGet: T('אבחון מלא וקוד מוכן להדבקה, כולל מידע מובנה תקני.',
+                  'A full diagnosis and ready-to-paste code, including standards-compliant structured data.'),
+  },
+  {
+    id: 'none', name: 'No website yet', hebrewName: 'אין עדיין אתר',
+    support: 'GUIDED', minutes: 5,
+    summary: T('אפשר להתחיל גם בלי אתר. פרופיל Google לבדו כבר נותן נוכחות אמיתית.',
+               'You can start without a website. A Google profile alone already gives you real presence.'),
+    steps: [
+      { text: T('ודאו שיש לכם פרופיל עסקי ב-Google ושהוא מאומת.',
+                'Make sure you have a Google Business Profile and that it is verified.') },
+      { text: T('מלאו בו קטגוריה, שעות, טלפון וכתובת במדויק.',
+                'Fill in the category, hours, phone and address accurately.') },
+      { text: T('חברו אותו אלינו — נעקוב אחרי איך ה-AI מתאר אתכם ונתריע על טעויות.',
+                'Connect it to us. We track how AI describes you and alert you to errors.') },
+    ],
+    whatYouGet: T('מעקב אחרי איך מערכות AI מתארות אתכם, והתראה כשמידע שגוי מופיע.',
+                  'Tracking of how AI systems describe you, and an alert when wrong information appears.'),
+    limitation: T('בלי אתר, היכולת שלנו לשפר מוגבלת. אתר בסיסי, אפילו עמוד אחד, משנה משמעותית.',
+                  'Without a website our ability to improve things is limited. A basic site, even one page, changes this substantially.'),
+  },
+  {
+    id: 'google', name: 'Google Business Profile', hebrewName: 'פרופיל עסקי בגוגל',
+    support: 'AUTOMATIC', minutes: 2,
+    summary: T('החיבור מתבצע דרך Google עצמה. אנחנו לעולם לא מבקשים את הסיסמה שלכם, ומתחילים במצב קריאה בלבד.',
+               'The connection goes through Google itself. We never ask for your password, and we start in read-only mode.'),
+    steps: [
+      { text: T('לחצו "חבר את פרופיל Google" אצלנו.', 'Click "Connect your Google profile" with us.') },
+      { text: T('תועברו למסך של Google. התחברו כרגיל ואשרו את הבקשה.',
+                'You are taken to a Google screen. Sign in as usual and approve the request.'),
+        where: T('מסך ההרשאות של Google', 'Google’s permissions screen') },
+      { text: T('בחרו את העסק שלכם מהרשימה, אם יש לכם יותר מאחד.',
+                'Pick your business from the list, if you have more than one.') },
+      { text: T('זהו. כברירת מחדל אנחנו רק קוראים. אם תרצו שנעדכן פרטים עבורכם — תפעילו את זה בהגדרות, מתי שתחליטו.',
+                'Done. By default we only read. If you want us to update details for you, switch that on in settings whenever you decide.') },
+    ],
+    whatYouGet: T('זיהוי מיידי של סתירות בין האתר לפרופיל, מעקב אחרי דיוק המידע, וניתוח נושאים חוזרים בביקורות.',
+                  'Immediate detection of contradictions between your site and profile, accuracy tracking, and analysis of recurring themes in reviews.'),
+    limitation: T('מענה אוטומטי לביקורות כבוי כברירת מחדל ודורש הפעלה מפורשת ונפרדת.',
+                  'Automatic review replies are off by default and require separate, explicit activation.'),
+  },
+];
+
+const SUPPORT_LABEL = {
+  AUTOMATIC: T('אנחנו מתקנים עבורכם', 'We fix it for you'),
+  GUIDED:    T('מודרך, אתם מדביקים', 'Guided, you paste'),
+  PLANNED:   T('סריקה בלבד כרגע', 'Scanning only for now'),
+};
+const SUPPORT_CLASS = { AUTOMATIC: 'badge-auto', GUIDED: 'badge-guided', PLANNED: 'badge-planned' };
+
+const FIELDS = [
+  T('מרפאת שיניים', 'Dental clinic'),
+  T('עורך דין', 'Lawyer'),
+  T('רואה חשבון', 'Accountant'),
+  T('מספרה או מכון יופי', 'Hair or beauty salon'),
+  T('מסעדה או בית קפה', 'Restaurant or cafe'),
+  T('מוסך', 'Garage'),
+  T('אינסטלטור, חשמלאי או מנעולן', 'Plumber, electrician or locksmith'),
+  T('סטודיו לכושר או יוגה', 'Fitness or yoga studio'),
+  T('חנות מקומית', 'Local shop'),
+  T('קליניקה או טיפול', 'Clinic or therapy'),
+  T('אחר', 'Other'),
+];
+
+/* --------------------------------------------------------------- the answer */
+const ANSWER = {
+  question: T('מרפאת שיניים בפתח תקווה שמקבלת ילדים אחרי הצהריים?',
+              'A dental clinic in Petah Tikva that sees children in the afternoon?'),
+  before: [
+    { name: T('מרפאה א׳', 'Clinic A'), note: T('שעות אחר הצהריים מפורטות, יש עמוד לטיפול בילדים', 'Afternoon hours listed, has a page about treating children') },
+    { name: T('מרפאה ב׳', 'Clinic B'), note: T('כתובת וטלפון זהים בכל מקום ברשת', 'Address and phone identical everywhere online') },
+    { name: T('מרפאה ג׳', 'Clinic C'), note: T('עונה בכתב על השאלות שהורים שואלים', 'Answers in writing the questions parents ask') },
+  ],
+  yours: { name: T('העסק שלכם', 'Your business'), note: T('שעות ברורות, קהל מוגדר, מידע מובנה תקין', 'Clear hours, stated audience, valid structured data') },
+  absent: T('העסק שלכם לא הופיע. לא כי הוא פחות טוב — אלא כי שלושת הפרטים שהשאלה נשענת עליהם (עיר, קהל, שעות) לא כתובים באתר בשום מקום שאפשר לקרוא.',
+            'Your business did not appear. Not because it is worse, but because the three facts the question rests on — city, audience, hours — are not written anywhere readable on the site.'),
+  present: T('שלושת הפרטים נכתבו בעמוד הבית ובעמוד השירות, וסומנו במידע מובנה. זו כל ההתערבות.',
+             'Those three facts were written on the home and service pages and marked up as structured data. That is the whole intervention.'),
+};
+
+/* ------------------------------------------------------------------ helpers */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* --------------------------------------------------------------- rendering */
+let answerState = 'before';
+
+function renderAnswer() {
+  $('answerQ').textContent = t(ANSWER.question);
+  const rows = ANSWER.before.map(
+    (r) => `<li>${esc(t(r.name))}<br><span>${esc(t(r.note))}</span></li>`);
+  let tail;
+  if (answerState === 'after') {
+    rows.splice(1, 0, `<li><span class="you">${esc(t(ANSWER.yours.name))}</span><br><span>${esc(t(ANSWER.yours.note))}</span></li>`);
+    tail = `<div class="absent">${esc(t(ANSWER.present))}</div>`;
+  } else {
+    tail = `<div class="absent">${esc(t(ANSWER.absent))}</div>`;
+  }
+  $('answerA').innerHTML = `<ol>${rows.join('')}</ol>${tail}`;
+  $('tBefore').setAttribute('aria-pressed', String(answerState === 'before'));
+  $('tAfter').setAttribute('aria-pressed', String(answerState === 'after'));
+}
+
+let currentPlatform = 'wordpress';
+
+function renderPills() {
+  $('platformPills').innerHTML = PLATFORMS.map((p) => {
+    const label = LANG === 'he' && p.hebrewName ? p.hebrewName : p.name;
+    return `<button class="pill" type="button" data-platform="${p.id}" aria-pressed="${p.id === currentPlatform}">${esc(label)}</button>`;
+  }).join('');
+}
+
+function renderPanel() {
+  const p = PLATFORMS.find((x) => x.id === currentPlatform) || PLATFORMS[0];
+  const label = LANG === 'he' && p.hebrewName ? p.hebrewName : p.name;
+  const steps = p.steps.map((s, i) => `
+    <li><span class="num">${i + 1}</span>
+      <div>${esc(t(s.text))}${s.where ? `<br><span class="where">${esc(t(s.where))}</span>` : ''}</div>
+    </li>`).join('');
+
+  $('platformPanel').innerHTML = `
+    <div class="card card-accent stack g16" style="margin-top:14px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <h3 style="margin:0">${esc(label)}</h3>
+        <span class="badge ${SUPPORT_CLASS[p.support]}">${esc(t(SUPPORT_LABEL[p.support]))}</span>
+        <span class="small muted" style="margin-inline-start:auto">${p.minutes} ${esc(t(T('דקות', 'min')))}</span>
+      </div>
+      <p class="muted" style="margin:0">${esc(t(p.summary))}</p>
+      <ol class="numbered">${steps}</ol>
+      <div>
+        <strong class="small">${esc(t(T('מה מקבלים', 'What you get')))}</strong>
+        <p class="small muted" style="margin:4px 0 0">${esc(t(p.whatYouGet))}</p>
+      </div>
+      ${p.limitation ? `<div class="note">${esc(t(p.limitation))}</div>` : ''}
+    </div>`;
+}
+
+function renderFields() {
+  const sel = $('fField');
+  const keep = sel.selectedIndex;
+  sel.innerHTML = FIELDS.map((f, i) => `<option value="${i}">${esc(t(f))}</option>`).join('');
+  if (keep > -1) sel.selectedIndex = keep;
+}
+
+function renderAll() {
+  renderAnswer();
+  renderPills();
+  renderPanel();
+  renderFields();
+}
+
+/* ---------------------------------------------------------------- language */
+function setLanguage(lang) {
+  LANG = lang;
+  const root = document.documentElement;
+  root.lang = lang;
+  root.dir = lang === 'he' ? 'rtl' : 'ltr';
+  renderAll();
+}
+
+/* --------------------------------------------------------------- the form */
+function collect() {
+  const fieldIdx = Number($('fField').value || 0);
+  return {
+    business: $('fBiz').value.trim(),
+    website: $('fSite').value.trim(),
+    city: $('fCity').value.trim(),
+    field: t(FIELDS[fieldIdx] || FIELDS[FIELDS.length - 1]),
+    contact: $('fName').value.trim(),
+    phone: $('fPhone').value.trim(),
+    email: $('fEmail').value.trim(),
+    platform: (() => {
+      const p = PLATFORMS.find((x) => x.id === currentPlatform);
+      return p ? (LANG === 'he' && p.hebrewName ? p.hebrewName : p.name) : '';
+    })(),
+  };
+}
+
+function detailsText(d) {
+  const L = (he, en) => (LANG === 'he' ? he : en);
+  return [
+    L('בקשה לסריקה חינם', 'Free scan request'),
+    '',
+    `${L('שם העסק', 'Business')}: ${d.business}`,
+    `${L('אתר', 'Website')}: ${d.website || L('אין', 'none')}`,
+    `${L('עיר', 'City')}: ${d.city}`,
+    `${L('תחום', 'Field')}: ${d.field}`,
+    `${L('פלטפורמה', 'Platform')}: ${d.platform}`,
+    `${L('איש קשר', 'Contact')}: ${d.contact}`,
+    `${L('טלפון', 'Phone')}: ${d.phone}`,
+    `${L('אימייל', 'Email')}: ${d.email}`,
+  ].join('\n');
+}
+
+function handleSubmit(event) {
+  event.preventDefault();
+  const form = $('joinForm');
+  if (!form.reportValidity()) return;
+
+  const d = collect();
+  const body = detailsText(d);
+  const subject = LANG === 'he'
+    ? `סריקה חינם — ${d.business}`
+    : `Free scan — ${d.business}`;
+
+  $('detailsBlock').textContent = body;
+
+  const mail = $('sendMail');
+  const wa = $('sendWa');
+  if (OWNER_READY) {
+    mail.href = `mailto:${OWNER.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    wa.href = `https://wa.me/${OWNER.whatsapp}?text=${encodeURIComponent(body)}`;
+    mail.hidden = false;
+    wa.hidden = false;
+  } else {
+    mail.hidden = true;
+    wa.hidden = true;
+  }
+
+  const result = $('joinResult');
+  result.hidden = false;
+  result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ------------------------------------------------------------------- wiring */
+setLanguage('he');
+
+$('lang').addEventListener('click', () => setLanguage(LANG === 'he' ? 'en' : 'he'));
+$('tBefore').addEventListener('click', () => { answerState = 'before'; renderAnswer(); });
+$('tAfter').addEventListener('click', () => { answerState = 'after'; renderAnswer(); });
+
+$('platformPills').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-platform]');
+  if (!button) return;
+  currentPlatform = button.dataset.platform;
+  renderPills();
+  renderPanel();
+});
+
+$('joinForm').addEventListener('submit', handleSubmit);
+
+$('copyDetails').addEventListener('click', async () => {
+  const button = $('copyDetails');
+  const original = button.innerHTML;
+  try {
+    await navigator.clipboard.writeText($('detailsBlock').textContent);
+    button.textContent = LANG === 'he' ? 'הועתק' : 'Copied';
+  } catch {
+    const range = document.createRange();
+    range.selectNodeContents($('detailsBlock'));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    button.textContent = LANG === 'he' ? 'סמנו והעתיקו' : 'Select and copy';
+  }
+  setTimeout(() => { button.innerHTML = original; }, 2000);
+});
+
+/* The owner has not filled in their contact details yet: say so where they
+ * will see it, rather than handing visitors two dead buttons. */
+if (!OWNER_READY) {
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.style.marginTop = '14px';
+  note.innerHTML =
+    '<span class="lang-he"><strong>לבעל העמוד:</strong> מלאו את כתובת המייל ומספר הוואטסאפ בראש הסקריפט כדי להפעיל את כפתורי השליחה. עד אז המבקרים יכולים להעתיק את הפרטים ולשלוח בעצמם.</span>' +
+    '<span class="lang-en"><strong>Page owner:</strong> fill in the email address and WhatsApp number at the top of the script to switch on the send buttons. Until then visitors can copy their details and send them themselves.</span>';
+  $('joinResult').appendChild(note);
+}
+</script>
+</body>
+</html>
