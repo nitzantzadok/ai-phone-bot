@@ -86,6 +86,9 @@ importers:
       '@autopilot/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@autopilot/insights':
+        specifier: workspace:*
+        version: link:../../packages/insights
       '@autopilot/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
@@ -259,6 +262,24 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+
+  packages/insights:
+    dependencies:
+      '@autopilot/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@autopilot/optimization':
+        specifier: workspace:*
+        version: link:../optimization
+      '@autopilot/prompts':
+        specifier: workspace:*
+        version: link:../prompts
+      '@autopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/integrations:
     dependencies:

@@ -157,6 +157,9 @@ export interface Diagnosis {
 }
 
 export const diagnose = (input: DiagnosisInput): Diagnosis => {
+  // Israel-first: a Hebrew customer must not receive Hebrew advice interleaved with
+  // English findings. Every customer-visible string below is localized.
+  const language = input.language ?? 'en'
   const opportunities: Opportunity[] = []
   const total = input.outcomes.length
   const recommended = input.outcomes.filter((o) => o.recommended).length
@@ -187,9 +190,13 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
       dedupeKey: `attribute-gap:${gap.attributeKey}`,
       title:
         gap.controllability === 'NOT_CONTROLLED'
-          ? `External authority gap: ${gap.attributeLabel}`
-          : `AI does not associate you with ${gap.attributeLabel}`,
-      explanation: buildAttributeExplanation(gap, lostForAttribute.length, total),
+          ? language === 'he'
+            ? `פער מקורות חיצוניים: ${gap.attributeLabel}`
+            : `External authority gap: ${gap.attributeLabel}`
+          : language === 'he'
+            ? `ה-AI לא מקשר ביניכם לבין ${gap.attributeLabel}`
+            : `AI does not associate you with ${gap.attributeLabel}`,
+      explanation: buildAttributeExplanation(gap, lostForAttribute.length, total, language),
       category: 'CONTENT',
       controllability: gap.controllability,
       riskTier: actionType ? (ACTION_RISK[actionType] ?? 'MEDIUM') : 'LOW',
@@ -228,11 +235,13 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
     const first = findings[0]!
     opportunities.push({
       dedupeKey: `technical:${findingType}`,
-      title: titleForFinding(findingType, findings.length),
+      title: titleForFinding(findingType, findings.length, language),
       explanation:
         findings.length === 1
           ? first.plainLanguage
-          : `${first.plainLanguage} This affects ${findings.length} pages.`,
+          : language === 'he'
+            ? `${first.plainLanguage} זה נוגע ל-${findings.length} עמודים.`
+            : `${first.plainLanguage} This affects ${findings.length} pages.`,
       category: 'TECHNICAL',
       controllability: 'CONTROLLED',
       riskTier: actionType ? (ACTION_RISK[actionType] ?? 'MEDIUM') : 'LOW',
@@ -256,10 +265,16 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
     if (!vertical.expectedPageTypes.includes(pageType)) continue
     opportunities.push({
       dedupeKey: `missing-page:${pageType}`,
-      title: `You have no ${pageType} page`,
+      title:
+        language === 'he'
+          ? `אין לכם עמוד ${pageType}`
+          : `You have no ${pageType} page`,
       explanation:
-        `Businesses like yours normally have a ${pageType} page, and customers ask AI ` +
-        `questions it would answer. Without one there is nothing for an AI to read on that topic.`,
+        language === 'he'
+          ? `לעסקים כמוכם יש בדרך כלל עמוד ${pageType}, ולקוחות שואלים שאלות שהוא היה עונה ` +
+            `עליהן. בלעדיו פשוט אין ל-AI מה לקרוא בנושא הזה.`
+          : `Businesses like yours normally have a ${pageType} page, and customers ask AI ` +
+            `questions it would answer. Without one there is nothing for an AI to read on that topic.`,
       category: 'CONTENT',
       controllability: 'CONTROLLED',
       riskTier: 'MEDIUM',
@@ -281,11 +296,18 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
   for (const conflict of input.factConflicts) {
     opportunities.push({
       dedupeKey: `conflict:${conflict.factKind}`,
-      title: `Your ${conflict.factKind.replace('_', ' ')} is different in different places`,
+      title:
+        language === 'he'
+          ? `ה${factKindLabel(conflict.factKind, 'he')} שלכם שונה במקומות שונים`
+          : `Your ${factKindLabel(conflict.factKind, 'en')} is different in different places`,
       explanation:
-        `We found more than one ${conflict.factKind.replace('_', ' ')} for your business ` +
-        `(${conflict.values.map((v) => v.value).slice(0, 3).join(', ')}). ` +
-        'Inconsistent details make AI systems less certain it is describing the same business.',
+        language === 'he'
+          ? `מצאנו יותר מ${factKindLabel(conflict.factKind, 'he')} אחד לעסק שלכם ` +
+            `(${conflict.values.map((v) => v.value).slice(0, 3).join(', ')}). ` +
+            'פרטים סותרים גורמים למערכות AI להיות פחות בטוחות שמדובר באותו עסק.'
+          : `We found more than one ${factKindLabel(conflict.factKind, 'en')} for your business ` +
+            `(${conflict.values.map((v) => v.value).slice(0, 3).join(', ')}). ` +
+            'Inconsistent details make AI systems less certain it is describing the same business.',
       category: 'ENTITY',
       controllability: 'CONTROLLED',
       riskTier: 'MEDIUM',
@@ -309,7 +331,7 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
     .sort((a, b) => b.score - a.score)
 
   return {
-    summary: buildSummary(recommended, total, scored, input.language ?? 'en'),
+    summary: buildSummary(recommended, total, scored, language),
     opportunities: scored,
     recommendationRate: total === 0 ? 0 : recommended / total,
     lostPromptCount: lost.length,
@@ -321,7 +343,19 @@ const buildAttributeExplanation = (
   gap: EvidenceGap,
   lostPrompts: number,
   totalPrompts: number,
+  language: 'en' | 'he',
 ): string => {
+  if (language === 'he') {
+    const base =
+      `${gap.affectedPromptCount} מתוך ${totalPrompts} השאלות שאנחנו עוקבים אחריהן תלויות ` +
+      `ב"${gap.attributeLabel}".`
+    const performance = lostPrompts > 0 ? ` אתם לא מומלצים ב-${lostPrompts} מהן.` : ''
+    const competitor = gap.bestCompetitorName
+      ? ` ל${gap.bestCompetitorName} יש ראיות חזקות יותר לכך.`
+      : ''
+    return `${base}${performance}${competitor} ${gap.reason}`
+  }
+
   const base =
     `${gap.affectedPromptCount} of the ${totalPrompts} questions we monitor depend on ` +
     `"${gap.attributeLabel}".`
@@ -335,21 +369,59 @@ const buildAttributeExplanation = (
   return `${base}${performance}${competitor} ${gap.reason}`
 }
 
-const titleForFinding = (findingType: string, count: number): string => {
-  const titles: Record<string, string> = {
-    MISSING_TITLE: 'Pages with no title',
-    MISSING_META_DESCRIPTION: 'Pages with no summary',
-    MISSING_CANONICAL: 'Pages that do not state their official address',
-    NO_SITEMAP: 'Your site has no sitemap',
-    NO_STRUCTURED_DATA: 'Your pages carry no machine-readable business information',
-    MISSING_LANG_ATTRIBUTE: 'Pages that do not declare their language',
-    LANGUAGE_MISMATCH: 'Pages that declare the wrong language',
-    DUPLICATE_TITLE: 'Pages sharing the same title',
-    BROKEN_LINK: 'Links pointing to pages that no longer work',
-    THIN_CONTENT: 'Pages with very little text',
-    NOINDEX: 'Pages hidden from search engines',
+/** Fact kinds as a customer would name them, per language. */
+const factKindLabel = (factKind: string, language: 'en' | 'he'): string => {
+  const labels: Record<string, { he: string; en: string }> = {
+    phone: { he: 'טלפון', en: 'phone number' },
+    address: { he: 'כתובת', en: 'address' },
+    business_name: { he: 'שם העסק', en: 'business name' },
+    opening_hours: { he: 'שעות הפתיחה', en: 'opening hours' },
+    price_range: { he: 'טווח המחירים', en: 'price range' },
   }
-  const title = titles[findingType] ?? findingType.replace(/_/g, ' ').toLowerCase()
+  const label = labels[factKind]
+  if (!label) return factKind.replace(/_/g, ' ')
+  return language === 'he' ? label.he : label.en
+}
+
+const titleForFinding = (
+  findingType: string,
+  count: number,
+  language: 'en' | 'he',
+): string => {
+  const titles: Record<string, { he: string; en: string }> = {
+    MISSING_TITLE: { he: 'עמודים בלי כותרת', en: 'Pages with no title' },
+    MISSING_META_DESCRIPTION: { he: 'עמודים בלי תיאור קצר', en: 'Pages with no summary' },
+    MISSING_CANONICAL: {
+      he: 'עמודים שלא מציינים את הכתובת הרשמית שלהם',
+      en: 'Pages that do not state their official address',
+    },
+    NO_SITEMAP: { he: 'לאתר שלכם אין מפת אתר', en: 'Your site has no sitemap' },
+    NO_STRUCTURED_DATA: {
+      he: 'בעמודים שלכם אין מידע עסקי קריא למכונה',
+      en: 'Your pages carry no machine-readable business information',
+    },
+    MISSING_LANG_ATTRIBUTE: {
+      he: 'עמודים שלא מצהירים באיזו שפה הם',
+      en: 'Pages that do not declare their language',
+    },
+    LANGUAGE_MISMATCH: {
+      he: 'עמודים שמצהירים על השפה הלא נכונה',
+      en: 'Pages that declare the wrong language',
+    },
+    DUPLICATE_TITLE: { he: 'עמודים עם אותה כותרת', en: 'Pages sharing the same title' },
+    BROKEN_LINK: {
+      he: 'קישורים לעמודים שכבר לא עובדים',
+      en: 'Links pointing to pages that no longer work',
+    },
+    THIN_CONTENT: { he: 'עמודים עם מעט מאוד טקסט', en: 'Pages with very little text' },
+    NOINDEX: { he: 'עמודים מוסתרים ממנועי חיפוש', en: 'Pages hidden from search engines' },
+  }
+  const entry = titles[findingType]
+  const title = entry
+    ? language === 'he'
+      ? entry.he
+      : entry.en
+    : findingType.replace(/_/g, ' ').toLowerCase()
   return count > 1 ? `${title} (${count})` : title
 }
 

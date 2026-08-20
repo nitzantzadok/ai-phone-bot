@@ -19,6 +19,7 @@ const config: NextConfig = {
     '@autopilot/billing',
     '@autopilot/integrations',
     '@autopilot/agent',
+    '@autopilot/insights',
     '@autopilot/jobs',
   ],
   poweredByHeader: false,

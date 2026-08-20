@@ -1,6 +1,7 @@
 import { compareScores, explainScore } from '@autopilot/scoring/airs.ts'
 import { topOpportunities } from '@autopilot/optimization/diagnosis.ts'
 import { Card, ControlBadge, Disclosure, Rate, SimulatedBadge, Stat } from '@/components/primitives'
+import { Shell, languageFrom } from '@/components/shell'
 import { dashboardData } from '@/lib/demo-data'
 import { t } from '@/lib/i18n'
 
@@ -13,9 +14,15 @@ export const dynamic = 'force-dynamic'
  * it. Every rate carries its denominator, every simulated figure is badged, and every
  * opportunity says whether we can actually fix it.
  */
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const language = languageFrom(await searchParams)
+  const he = language === 'he'
   const data = await dashboardData()
-  const copy = t('en')
+  const copy = t(language)
 
   const { before, after, diagnosis, agentRun, prompts, competitors } = data
   const comparison = compareScores(before.airs, after.airs)
@@ -23,11 +30,14 @@ export default async function Dashboard() {
   const accuracy = after.airs.components.entityAccuracy.value
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <Shell language={language}>
+      <main className="mx-auto max-w-5xl px-6 py-10">
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Rosa</h1>
-          <p className="text-sm text-[--color-muted]">Italian restaurant, Tel Aviv</p>
+          <p className="text-sm text-[--color-muted]">
+            {he ? 'מסעדה איטלקית, תל אביב' : 'Italian restaurant, Tel Aviv'}
+          </p>
         </div>
         {after.airs.simulated ? <SimulatedBadge label={copy.simulated} /> : null}
       </header>
@@ -39,11 +49,14 @@ export default async function Dashboard() {
             value={`${after.airs.score}`}
             sub={`${copy.scoreOutOf} · ${comparison.delta >= 0 ? '+' : ''}${comparison.delta} ${copy.thisMonth}`}
           />
-          <p className="mt-3 text-sm text-[--color-muted]">{explainScore(after.airs)}</p>
+          <p className="mt-3 text-sm text-[--color-muted]">{explainScore(after.airs, language)}</p>
           <Disclosure text={after.airs.disclosure} />
         </Card>
 
-        <Card title={copy.recommendationShare} hint={`${prompts.length} questions x 3 engines`}>
+        <Card
+          title={copy.recommendationShare}
+          hint={he ? `${prompts.length} שאלות על פני 3 מנועים` : `${prompts.length} questions x 3 engines`}
+        >
           <div className="space-y-2.5">
             <Rate label={copy.mentioned} count={after.share.mentionCount} total={checks} />
             <Rate label={copy.top3} count={after.share.top3Count} total={checks} />
@@ -87,7 +100,10 @@ export default async function Dashboard() {
           </ul>
         </Card>
 
-        <Card title="What we changed" hint="Every change is reversible.">
+        <Card
+          title={he ? 'מה שינינו' : 'What we changed'}
+          hint={he ? 'כל שינוי ניתן לביטול.' : 'Every change is reversible.'}
+        >
           <ul className="space-y-3">
             {agentRun.appliedActions.map((applied) => (
               <li key={applied.versionId} className="flex items-start gap-3">
@@ -95,7 +111,10 @@ export default async function Dashboard() {
                 <div>
                   <div className="text-sm">{applied.summary}</div>
                   <div className="text-xs text-[--color-muted]">
-                    {applied.targetUrl ?? ''} · {applied.riskTier.toLowerCase()} risk
+                    {applied.targetUrl ?? ''} ·{' '}
+                    {he
+                      ? `סיכון ${applied.riskTier.toLowerCase()}`
+                      : `${applied.riskTier.toLowerCase()} risk`}
                   </div>
                 </div>
               </li>
@@ -130,7 +149,7 @@ export default async function Dashboard() {
         </Card>
       </div>
 
-      <Card title="Questions we monitor">
+      <Card title={he ? 'השאלות שאנחנו במעקב אחריהן' : 'Questions we monitor'}>
         <ul className="mt-1 grid gap-1.5 sm:grid-cols-2">
           {prompts.slice(0, 8).map((prompt) => (
             <li key={prompt.id} className="text-sm text-[--color-muted]">
@@ -142,6 +161,7 @@ export default async function Dashboard() {
           ))}
         </ul>
       </Card>
-    </main>
+      </main>
+    </Shell>
   )
 }
