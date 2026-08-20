@@ -45,3 +45,9 @@ test-results/
 # Temp
 tmp/
 temp/
+
+# Autopilot monorepo
+autopilot/node_modules/
+autopilot/**/node_modules/
+autopilot/**/.next/
+autopilot/**/dist/
