@@ -164,6 +164,20 @@ describe('honesty about what was not measured', () => {
     expect(report.aiVisibilitySkipped?.reason).toBe('MOCK_PROVIDERS_CONFIGURED')
   })
 
+  it('never claims what an AI did when no AI was asked', () => {
+    // The advice and the "not measured" notice sit on the same page. A headline saying
+    // "AI does not associate you with X" would contradict it, and a customer who spots
+    // that contradiction is right to stop believing the rest of the report.
+    for (const item of afterReport.playbook.items) {
+      expect(item.title).not.toMatch(/ה-AI לא מקשר/)
+      expect(item.title).not.toMatch(/AI does not associate/i)
+    }
+    // The same finding is still reported — stated about the site, where the evidence is.
+    expect(
+      afterReport.playbook.items.some((i) => i.title.includes('האתר שלכם לא אומר מספיק ברור')),
+    ).toBe(true)
+  })
+
   it('produces no AIRS score at all when nothing was measured', () => {
     // A readiness score is not an AIRS score, and the report must not blur them.
     expect(afterReport.aiVisibility).toBeNull()

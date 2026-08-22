@@ -28,7 +28,7 @@ export default async function Pricing({
         <h1 className="text-3xl font-semibold tracking-tight">
           {he ? 'מחירים' : 'Pricing'}
         </h1>
-        <p className="mt-3 text-[--color-muted]">
+        <p className="mt-3 text-muted">
           {he
             ? `כל המחירים לפני מע"מ (${vat.rateBps / 100}%). הסריקה הראשונה חינם, בלי כרטיס אשראי.`
             : `All prices before VAT (${vat.rateBps / 100}%). The first scan is free, with no credit card.`}
@@ -42,11 +42,11 @@ export default async function Pricing({
               <section
                 key={plan.code}
                 className={`rounded-xl border bg-white p-6 ${
-                  featured ? 'border-[--color-accent] shadow-sm' : 'border-[--color-line]'
+                  featured ? 'border-accent shadow-sm' : 'border-line'
                 }`}
               >
                 {featured ? (
-                  <span className="rounded-full bg-[--color-accent]/10 px-2.5 py-1 text-[11px] font-medium text-[--color-accent]">
+                  <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
                     {he ? 'הנפוץ ביותר' : 'Most popular'}
                   </span>
                 ) : null}
@@ -59,18 +59,18 @@ export default async function Pricing({
                   <span className="text-3xl font-semibold tabular-nums">
                     {formatMoney(plan.monthlyNet!, locale)}
                   </span>
-                  <span className="ms-1 text-sm text-[--color-muted]">
+                  <span className="ms-1 text-sm text-muted">
                     {he ? '/ חודש + מע"מ' : '/ month + VAT'}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-[--color-muted]">
+                <p className="mt-1 text-xs text-muted">
                   {he
                     ? `כולל מע"מ: ${formatMoney(taxed.gross, locale)}`
                     : `Including VAT: ${formatMoney(taxed.gross, locale)}`}
                 </p>
 
                 {plan.trialDays > 0 ? (
-                  <p className="mt-2 text-xs font-medium text-[--color-positive]">
+                  <p className="mt-2 text-xs font-medium text-positive">
                     {he ? `${plan.trialDays} ימי ניסיון` : `${plan.trialDays}-day trial`}
                   </p>
                 ) : null}
@@ -90,8 +90,8 @@ export default async function Pricing({
                       ? `רמת אוטומציה מרבית: ${plan.maxAutonomy}`
                       : `Maximum automation: ${plan.maxAutonomy}`,
                   ].map((line) => (
-                    <li key={line} className="flex gap-2 text-[--color-muted]">
-                      <span aria-hidden className="mt-2 inline-block size-1 shrink-0 rounded-full bg-[--color-accent]" />
+                    <li key={line} className="flex gap-2 text-muted">
+                      <span aria-hidden className="mt-2 inline-block size-1 shrink-0 rounded-full bg-accent" />
                       <span>{line}</span>
                     </li>
                   ))}
@@ -101,8 +101,8 @@ export default async function Pricing({
                   href={`/join?lang=${language}`}
                   className={`mt-6 block rounded-lg px-5 py-3 text-center text-sm font-medium ${
                     featured
-                      ? 'bg-[--color-accent] text-white'
-                      : 'border border-[--color-line] text-[--color-ink]'
+                      ? 'bg-accent text-white'
+                      : 'border border-line text-ink'
                   }`}
                 >
                   {he ? 'התחילו בסריקה חינם' : 'Start with a free scan'}
@@ -115,7 +115,7 @@ export default async function Pricing({
         <section className="mt-14 max-w-2xl space-y-6 text-sm">
           <div>
             <h3 className="font-semibold">{he ? 'מה קורה אם אבטל?' : 'What if I cancel?'}</h3>
-            <p className="mt-1 text-[--color-muted]">
+            <p className="mt-1 text-muted">
               {he
                 ? 'הכל נשאר כפי שהוא. כל שינוי שביצענו באתר שלכם נשאר שלכם, ואפשר לבטל כל שינוי בלחיצה גם אחרי הביטול.'
                 : 'Everything stays as it is. Every change we made to your site remains yours, and any change can still be undone in one click after you cancel.'}
@@ -125,7 +125,7 @@ export default async function Pricing({
             <h3 className="font-semibold">
               {he ? 'ואם התשלום נכשל?' : 'And if a payment fails?'}
             </h3>
-            <p className="mt-1 text-[--color-muted]">
+            <p className="mt-1 text-muted">
               {he
                 ? 'נמשיך למדוד עוד שבוע ולא נשנה כלום באתר עד שהתשלום יעבור. לא נחסום לכם את הנתונים בגלל כרטיס שפג תוקפו.'
                 : 'We keep measuring for another week and change nothing on your site until payment goes through. We will not lock you out of your own data over an expired card.'}
@@ -135,7 +135,7 @@ export default async function Pricing({
             <h3 className="font-semibold">
               {he ? 'אתם מבטיחים מקום ראשון?' : 'Do you guarantee first place?'}
             </h3>
-            <p className="mt-1 text-[--color-muted]">
+            <p className="mt-1 text-muted">
               {he
                 ? 'לא, ואף אחד לא יכול. אנחנו לא שולטים ב-ChatGPT, ב-Gemini או ב-Claude. אנחנו מודדים כמה פעמים אתם מופיעים, ומשפרים את מה שבשליטתכם — וזה מה שאנחנו מוכרים.'
                 : 'No, and nobody can. We do not control ChatGPT, Gemini or Claude. We measure how often you appear and improve what is within your control, and that is what we sell.'}

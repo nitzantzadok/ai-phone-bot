@@ -63,6 +63,20 @@ const EnvSchema = z.object({
   CRAWLER_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   /** Escape hatch for integration tests against a local fixture server. NEVER in production. */
   CRAWLER_ALLOW_PRIVATE_HOSTS: bool.default(false),
+
+  /**
+   * What this deployment is expected to serve.
+   *
+   * `scan-only` is a real product mode, not a development shortcut: the free scan needs no
+   * database, no Redis, no accounts and no secrets, so a public site that offers only the
+   * scan can be deployed with none of them. Demanding a Postgres cluster to serve a page
+   * that never writes a row would push an operator toward faking the variables, which is
+   * how a production invariant stops meaning anything.
+   *
+   * `full` keeps every guarantee the whole product needs, and is the default so that
+   * omitting this never silently weakens a real deployment.
+   */
+  DEPLOYMENT_MODE: z.enum(['full', 'scan-only']).default('full'),
 })
 
 export type Env = z.infer<typeof EnvSchema>
@@ -95,14 +109,25 @@ export const resetEnvCache = (): void => {
 function assertProductionInvariants(e: Env): void {
   if (e.APP_ENV !== 'production') return
   const missing: string[] = []
-  if (!e.DATABASE_URL) missing.push('DATABASE_URL')
-  if (!e.REDIS_URL) missing.push('REDIS_URL')
-  if (!e.ENCRYPTION_KEY) missing.push('ENCRYPTION_KEY')
-  if (!e.SESSION_SECRET) missing.push('SESSION_SECRET')
+
+  // These two hold in every production mode, because both are about not lying to a
+  // customer or not exposing our network — neither of which depends on what is deployed.
   if (e.CRAWLER_ALLOW_PRIVATE_HOSTS) missing.push('CRAWLER_ALLOW_PRIVATE_HOSTS must be false')
   if (e.USE_MOCK_PROVIDERS) missing.push('USE_MOCK_PROVIDERS must be false')
+
+  // The rest exist to protect stored data and signed sessions. A scan-only deployment has
+  // neither, so requiring them there would be theatre.
+  if (e.DEPLOYMENT_MODE === 'full') {
+    if (!e.DATABASE_URL) missing.push('DATABASE_URL')
+    if (!e.REDIS_URL) missing.push('REDIS_URL')
+    if (!e.ENCRYPTION_KEY) missing.push('ENCRYPTION_KEY')
+    if (!e.SESSION_SECRET) missing.push('SESSION_SECRET')
+  }
+
   if (missing.length) {
-    throw new Error(`Production configuration invalid: ${missing.join(', ')}`)
+    throw new Error(
+      `Production configuration invalid (DEPLOYMENT_MODE=${e.DEPLOYMENT_MODE}): ${missing.join(', ')}`,
+    )
   }
 }
 

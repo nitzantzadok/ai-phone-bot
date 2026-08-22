@@ -39,15 +39,15 @@ export default async function Guide({
   }[guide.writeSupport]
 
   const supportStyle = {
-    AUTOMATIC: 'bg-[--color-positive]/10 text-[--color-positive]',
-    GUIDED: 'bg-[--color-caution]/10 text-[--color-caution]',
-    PLANNED: 'bg-[--color-muted]/10 text-[--color-muted]',
+    AUTOMATIC: 'bg-positive/10 text-positive',
+    GUIDED: 'bg-caution/10 text-caution',
+    PLANNED: 'bg-muted/10 text-muted',
   }[guide.writeSupport]
 
   return (
     <Shell language={language}>
       <main className="mx-auto max-w-2xl px-6 py-16">
-        <Link href={`/join?lang=${language}`} className="text-sm text-[--color-muted] underline">
+        <Link href={`/join?lang=${language}`} className="text-sm text-muted underline">
           {he ? 'חזרה' : 'Back'}
         </Link>
 
@@ -58,17 +58,17 @@ export default async function Guide({
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${supportStyle}`}>
             {supportLabel}
           </span>
-          <span className="text-xs text-[--color-muted]">
+          <span className="text-xs text-muted">
             {he ? `כ-${guide.timeMinutes} דקות` : `about ${guide.timeMinutes} min`}
           </span>
         </div>
 
-        <p className="mt-4 leading-relaxed text-[--color-muted]">
+        <p className="mt-4 leading-relaxed text-muted">
           {he ? guide.summary.he : guide.summary.en}
         </p>
 
         {guide.limitation ? (
-          <div className="mt-5 rounded-lg border border-[--color-caution]/30 bg-[--color-caution]/5 p-4 text-sm">
+          <div className="mt-5 rounded-lg border border-caution/30 bg-caution/5 p-4 text-sm">
             <span className="font-medium">{he ? 'שימו לב: ' : 'Note: '}</span>
             {he ? guide.limitation.he : guide.limitation.en}
           </div>
@@ -77,13 +77,13 @@ export default async function Guide({
         <ol className="mt-8 space-y-5">
           {guide.steps.map((step, index) => (
             <li key={step.en} className="flex gap-4">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[--color-accent] text-xs font-medium text-white">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-medium text-white">
                 {index + 1}
               </span>
               <div>
                 <p className="leading-relaxed">{he ? step.he : step.en}</p>
                 {step.where ? (
-                  <p className="mt-1 text-xs text-[--color-muted]">
+                  <p className="mt-1 text-xs text-muted">
                     {he ? 'איפה: ' : 'Where: '}
                     <span className="font-medium">{he ? step.where.he : step.where.en}</span>
                   </p>
@@ -93,9 +93,9 @@ export default async function Guide({
           ))}
         </ol>
 
-        <section className="mt-10 rounded-xl border border-[--color-line] bg-white p-5">
+        <section className="mt-10 rounded-xl border border-line bg-white p-5">
           <h2 className="text-sm font-semibold">{he ? 'מה תקבלו' : 'What you get'}</h2>
-          <p className="mt-1.5 text-sm text-[--color-muted]">
+          <p className="mt-1.5 text-sm text-muted">
             {he ? guide.whatYouGet.he : guide.whatYouGet.en}
           </p>
         </section>
@@ -103,13 +103,13 @@ export default async function Guide({
         <div className="mt-10 flex flex-wrap gap-3">
           <Link
             href={`/join?lang=${language}`}
-            className="rounded-lg bg-[--color-accent] px-5 py-3 text-sm font-medium text-white"
+            className="rounded-lg bg-accent px-5 py-3 text-sm font-medium text-white"
           >
             {he ? 'התחילו סריקה חינם' : 'Start a free scan'}
           </Link>
           <Link
             href={`/guides/google?lang=${language}`}
-            className="rounded-lg border border-[--color-line] px-5 py-3 text-sm"
+            className="rounded-lg border border-line px-5 py-3 text-sm"
           >
             {he ? 'חיבור פרופיל Google' : 'Connect Google profile'}
           </Link>

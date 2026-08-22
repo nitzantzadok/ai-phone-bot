@@ -752,9 +752,14 @@ footer { border-top: 1px solid var(--line); padding-block: 32px; }
 const OWNER = {
   email: 'REPLACE-WITH-YOUR-EMAIL@example.com',
   whatsapp: '9725XXXXXXXX',            // international format, digits only
+  // Once the app is deployed (see DEPLOY-SCAN.md), put its address here — e.g.
+  // 'https://your-project.vercel.app' — and this form runs a real scan instead of
+  // preparing a message. Leave it empty and the contact route below is used.
+  scanAppUrl: '',
 };
 const OWNER_READY =
   !OWNER.email.startsWith('REPLACE-') && !OWNER.whatsapp.includes('X');
+const SCAN_LIVE = /^https?:\/\//.test(OWNER.scanAppUrl);
 /* -------------------------------------------------------------------------- */
 
 const T = (he, en) => ({ he, en });
@@ -1052,9 +1057,21 @@ function detailsText(d) {
 function handleSubmit(event) {
   event.preventDefault();
   const form = $('joinForm');
+  if (SCAN_LIVE) $('fSite').required = true;
   if (!form.reportValidity()) return;
 
   const d = collect();
+
+  // A deployed app can answer immediately, which is the whole point of the product. Send
+  // them straight to their result rather than to a message they have to send and wait on.
+  if (SCAN_LIVE && d.website) {
+    const target =
+      OWNER.scanAppUrl.replace(/\/+$/, '') +
+      '/scan?lang=' + LANG + '&url=' + encodeURIComponent(d.website);
+    window.location.href = target;
+    return;
+  }
+
   const body = detailsText(d);
   const subject = LANG === 'he'
     ? `סריקה חינם — ${d.business}`
@@ -1095,6 +1112,15 @@ $('platformPills').addEventListener('click', (event) => {
 });
 
 $('joinForm').addEventListener('submit', handleSubmit);
+
+if (SCAN_LIVE) {
+  const label = $('joinForm').querySelector('button[type=submit]');
+  if (label) {
+    label.innerHTML =
+      '<span class="lang-he">סרקו את האתר שלי עכשיו</span>' +
+      '<span class="lang-en">Scan my site now</span>';
+  }
+}
 
 $('copyDetails').addEventListener('click', async () => {
   const button = $('copyDetails');

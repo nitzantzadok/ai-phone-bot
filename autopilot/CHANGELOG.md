@@ -1,9 +1,18 @@
 # CHANGELOG
 
-## Unreleased — the scan runs against real websites
+## Unreleased — the scan runs against real websites, from the browser
 
 ### Fixed
 
+- **Every colour token in the web app was silently dropped.** `bg-[--color-accent]` is
+  parsed by Tailwind 4 as an arbitrary *value*, not a variable, so it is not a valid colour
+  and the declaration disappears: score bars rendered transparent, buttons lost their
+  accent, muted text and borders fell back to defaults. All 178 occurrences across 11 files
+  now use the utilities Tailwind generates from the `@theme` tokens.
+- **The advice claimed what an AI did when no AI had been asked.** On an unmeasured scan the
+  playbook headlined "AI does not associate you with X" on the same page as the NOT
+  MEASURED notice. The finding is real, so it is now stated about the site, which is where
+  the evidence came from.
 - **The crawler could not fetch any real website.** The pinned DNS lookup answered undici
   with a bare address string, but undici's connector asks with `all: true` and reads
   `addresses[0].address`, so every connection to a hostname died with
@@ -29,6 +38,18 @@
 
 ### Added
 
+- **The web form now returns a scan.** `/scan` runs the real thing server-side and streams
+  a waiting state while it works, so a business owner types an address and gets their
+  score, findings and playbook on screen. `/join` submits straight to it, and the email
+  field is gone — the result is shown, not delivered, so asking for an address before
+  showing anything only lost people.
+- **`DEPLOYMENT_MODE=scan-only`** — a real production mode for a deployment that serves
+  only the free scan: no database, no Redis, no session secrets, because it stores nothing
+  and signs nothing. `full` stays the default so omitting it never weakens a deployment,
+  and the SSRF and no-simulated-answers invariants hold in both. `DEPLOY-SCAN.md` and
+  `vercel.json` cover getting it online.
+- **A bound on the public scan endpoint** — five scans per address per ten minutes, so an
+  open crawler never becomes a load on somebody else's website.
 - **`pnpm scan <url>`** — a real scan of a live website with no database and no API key:
   crawl, fact extraction, technical audit, diagnosis, prioritized insights and a versioned
   `readiness-v1` score, printed in Hebrew or English, or as JSON. Documented in

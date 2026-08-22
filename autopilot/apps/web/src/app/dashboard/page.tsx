@@ -35,7 +35,7 @@ export default async function Dashboard({
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Rosa</h1>
-          <p className="text-sm text-[--color-muted]">
+          <p className="text-sm text-muted">
             {he ? 'מסעדה איטלקית, תל אביב' : 'Italian restaurant, Tel Aviv'}
           </p>
         </div>
@@ -49,7 +49,7 @@ export default async function Dashboard({
             value={`${after.airs.score}`}
             sub={`${copy.scoreOutOf} · ${comparison.delta >= 0 ? '+' : ''}${comparison.delta} ${copy.thisMonth}`}
           />
-          <p className="mt-3 text-sm text-[--color-muted]">{explainScore(after.airs, language)}</p>
+          <p className="mt-3 text-sm text-muted">{explainScore(after.airs, language)}</p>
           <Disclosure text={after.airs.disclosure} />
         </Card>
 
@@ -92,7 +92,7 @@ export default async function Dashboard({
                     }
                   />
                 </div>
-                <p className="mt-1 text-sm leading-relaxed text-[--color-muted]">
+                <p className="mt-1 text-sm leading-relaxed text-muted">
                   {opportunity.explanation}
                 </p>
               </li>
@@ -107,10 +107,10 @@ export default async function Dashboard({
           <ul className="space-y-3">
             {agentRun.appliedActions.map((applied) => (
               <li key={applied.versionId} className="flex items-start gap-3">
-                <span className="mt-1 inline-block size-1.5 shrink-0 rounded-full bg-[--color-positive]" />
+                <span className="mt-1 inline-block size-1.5 shrink-0 rounded-full bg-positive" />
                 <div>
                   <div className="text-sm">{applied.summary}</div>
-                  <div className="text-xs text-[--color-muted]">
+                  <div className="text-xs text-muted">
                     {applied.targetUrl ?? ''} ·{' '}
                     {he
                       ? `סיכון ${applied.riskTier.toLowerCase()}`
@@ -122,22 +122,22 @@ export default async function Dashboard({
           </ul>
 
           {agentRun.proposedActions.length > 0 ? (
-            <div className="mt-5 border-t border-[--color-line] pt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-[--color-muted]">
+            <div className="mt-5 border-t border-line pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
                 {copy.waiting}
               </h3>
               <ul className="mt-3 space-y-3">
                 {agentRun.proposedActions.map((proposed, index) => (
                   <li key={`${proposed.actionType}-${index}`}>
                     <div className="text-sm">{proposed.summary}</div>
-                    <div className="mt-0.5 text-xs text-[--color-muted]">
+                    <div className="mt-0.5 text-xs text-muted">
                       {proposed.heldBecause}
                     </div>
                     <div className="mt-2 flex gap-2">
-                      <button className="rounded-md bg-[--color-accent] px-3 py-1 text-xs text-white">
+                      <button className="rounded-md bg-accent px-3 py-1 text-xs text-white">
                         {copy.approve}
                       </button>
-                      <button className="rounded-md border border-[--color-line] px-3 py-1 text-xs">
+                      <button className="rounded-md border border-line px-3 py-1 text-xs">
                         {copy.reject}
                       </button>
                     </div>
@@ -152,8 +152,8 @@ export default async function Dashboard({
       <Card title={he ? 'השאלות שאנחנו במעקב אחריהן' : 'Questions we monitor'}>
         <ul className="mt-1 grid gap-1.5 sm:grid-cols-2">
           {prompts.slice(0, 8).map((prompt) => (
-            <li key={prompt.id} className="text-sm text-[--color-muted]">
-              <span className="me-2 rounded bg-[--color-line] px-1.5 py-0.5 text-[10px] uppercase">
+            <li key={prompt.id} className="text-sm text-muted">
+              <span className="me-2 rounded bg-line px-1.5 py-0.5 text-[10px] uppercase">
                 {prompt.language}
               </span>
               {prompt.queryText}

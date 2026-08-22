@@ -20,24 +20,24 @@ export const Shell = ({
 
   return (
     <div dir={he ? 'rtl' : 'ltr'} className="min-h-screen">
-      <nav className="border-b border-[--color-line]">
+      <nav className="border-b border-line">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href={`/?lang=${language}`} className="text-sm font-semibold tracking-tight">
             {he ? 'אוטופיילוט המלצות AI' : 'AI Recommendation Autopilot'}
           </Link>
           <div className="flex items-center gap-4 text-sm">
-            <Link href={`/insights?lang=${language}`} className="text-[--color-muted] hover:text-[--color-ink]">
+            <Link href={`/insights?lang=${language}`} className="text-muted hover:text-ink">
               {he ? 'איך זה עובד' : 'How it works'}
             </Link>
-            <Link href={`/pricing?lang=${language}`} className="text-[--color-muted] hover:text-[--color-ink]">
+            <Link href={`/pricing?lang=${language}`} className="text-muted hover:text-ink">
               {he ? 'מחירים' : 'Pricing'}
             </Link>
-            <Link href={`/?lang=${other}`} className="text-[--color-muted] hover:text-[--color-ink]">
+            <Link href={`/?lang=${other}`} className="text-muted hover:text-ink">
               {he ? 'English' : 'עברית'}
             </Link>
             <Link
               href={`/join?lang=${language}`}
-              className="rounded-lg bg-[--color-accent] px-4 py-2 font-medium text-white"
+              className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
             >
               {he ? 'סריקה חינם' : 'Free scan'}
             </Link>
@@ -47,8 +47,8 @@ export const Shell = ({
 
       {children}
 
-      <footer className="mt-20 border-t border-[--color-line]">
-        <div className="mx-auto max-w-5xl px-6 py-8 text-xs leading-relaxed text-[--color-muted]">
+      <footer className="mt-20 border-t border-line">
+        <div className="mx-auto max-w-5xl px-6 py-8 text-xs leading-relaxed text-muted">
           {he
             ? 'אנחנו לא שולטים במה שמערכות AI אומרות, ולא נטען אחרת. מה שאנחנו כן עושים: מודדים איפה אתם מופיעים, מסבירים למה, ומתקנים את מה שבאמת בשליטתכם.'
             : 'We do not control what AI systems say, and will not claim otherwise. What we do: measure where you appear, explain why, and fix what is genuinely within your control.'}

@@ -20,8 +20,15 @@ Two values at the top of the script decide whether the send buttons work:
 const OWNER = {
   email: 'REPLACE-WITH-YOUR-EMAIL@example.com',
   whatsapp: '9725XXXXXXXX',            // international format, digits only
+  scanAppUrl: '',                      // e.g. 'https://your-project.vercel.app'
 };
 ```
+
+`scanAppUrl` is the one that changes what the page *is*. Set it to a deployed instance of
+`apps/web` (see `../DEPLOY-SCAN.md`) and the form stops preparing a message and starts
+running a real scan: the visitor lands on their own result page a few seconds later. Leave
+it empty and the page falls back to the contact route below, which works with no
+infrastructure at all.
 
 Until they are filled in, the two send buttons stay hidden and the result panel
 carries a note saying so — visitors can still copy their details and send them

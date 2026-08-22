@@ -20,7 +20,7 @@ export default async function Home({
             : 'When a customer asks ChatGPT for a business like yours, are you in the answer?'}
         </h1>
 
-        <p className="mt-5 max-w-2xl text-lg text-[--color-muted]">
+        <p className="mt-5 max-w-2xl text-lg text-muted">
           {he
             ? 'היום לקוחות לא מחפשים ברשימה — הם שואלים שאלה ומקבלים שלושה שמות. אנחנו מודדים כמה פעמים אתם אחד מהם, מסבירים בדיוק למה לא, ומתקנים את מה שנמצא באתר שלכם.'
             : 'Customers no longer scan a list of results. They ask a question and get three names. We measure how often you are one of them, explain exactly why not, and fix what lives on your own site.'}
@@ -29,11 +29,11 @@ export default async function Home({
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Link
             href={`/join?lang=${language}`}
-            className="rounded-lg bg-[--color-accent] px-6 py-3 text-sm font-medium text-white"
+            className="rounded-lg bg-accent px-6 py-3 text-sm font-medium text-white"
           >
             {he ? 'קבלו סריקה חינם' : 'Get a free scan'}
           </Link>
-          <span className="text-sm text-[--color-muted]">
+          <span className="text-sm text-muted">
             {he ? 'בלי כרטיס אשראי · תוצאה תוך דקה' : 'No credit card · result in about a minute'}
           </span>
         </div>
@@ -43,7 +43,7 @@ export default async function Home({
           <h2 className="text-xl font-semibold tracking-tight">
             {he ? 'ארבעה דברים שתוכלו לעשות היום, בחינם' : 'Four things you can do today, free'}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-[--color-muted]">
+          <p className="mt-2 max-w-2xl text-sm text-muted">
             {he
               ? 'אלה הדברים עם ההשפעה הגדולה ביותר. הם נכונים בין אם תהיו לקוחות שלנו ובין אם לא.'
               : 'These carry the most weight. They are true whether or not you ever become a customer.'}
@@ -51,22 +51,22 @@ export default async function Home({
 
           <ol className="mt-6 grid gap-6 sm:grid-cols-2">
             {checklist.map((item, index) => (
-              <li key={item.title} className="rounded-xl border border-[--color-line] bg-white p-5">
+              <li key={item.title} className="rounded-xl border border-line bg-white p-5">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-semibold text-[--color-accent]">{index + 1}</span>
+                  <span className="text-xs font-semibold text-accent">{index + 1}</span>
                   <h3 className="text-sm font-semibold">{item.title}</h3>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-[--color-muted]">{item.why}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{item.why}</p>
                 <ul className="mt-3 space-y-1.5">
                   {item.steps.map((step) => (
-                    <li key={step} className="flex gap-2 text-sm text-[--color-muted]">
-                      <span aria-hidden className="mt-1.5 inline-block size-1 shrink-0 rounded-full bg-[--color-accent]" />
+                    <li key={step} className="flex gap-2 text-sm text-muted">
+                      <span aria-hidden className="mt-1.5 inline-block size-1 shrink-0 rounded-full bg-accent" />
                       <span>{step}</span>
                     </li>
                   ))}
                 </ul>
                 {item.weDoThisForYou ? (
-                  <p className="mt-3 text-xs font-medium text-[--color-positive]">
+                  <p className="mt-3 text-xs font-medium text-positive">
                     {he ? 'את זה אנחנו עושים עבורכם אוטומטית' : 'We do this for you automatically'}
                   </p>
                 ) : null}
@@ -90,7 +90,7 @@ export default async function Home({
           ).map((item) => (
             <div key={item.t}>
               <h3 className="text-sm font-semibold">{item.t}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-[--color-muted]">{item.b}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{item.b}</p>
             </div>
           ))}
         </section>

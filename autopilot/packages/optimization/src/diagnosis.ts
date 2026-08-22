@@ -186,6 +186,13 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
           : 'ADD_CONTENT_SECTION'
         : null
 
+    // "AI does not associate you with X" is a claim about what an engine did, and we may
+    // only make it when an engine was actually asked. On a scan with no measurement the
+    // same finding is true and useful stated about the site — which is where the evidence
+    // came from — and stating it the other way would contradict the NOT MEASURED notice
+    // sitting on the same page.
+    const measured = total > 0
+
     opportunities.push({
       dedupeKey: `attribute-gap:${gap.attributeKey}`,
       title:
@@ -193,9 +200,13 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
           ? language === 'he'
             ? `פער מקורות חיצוניים: ${gap.attributeLabel}`
             : `External authority gap: ${gap.attributeLabel}`
-          : language === 'he'
-            ? `ה-AI לא מקשר ביניכם לבין ${gap.attributeLabel}`
-            : `AI does not associate you with ${gap.attributeLabel}`,
+          : measured
+            ? language === 'he'
+              ? `ה-AI לא מקשר ביניכם לבין ${gap.attributeLabel}`
+              : `AI does not associate you with ${gap.attributeLabel}`
+            : language === 'he'
+              ? `האתר שלכם לא אומר מספיק ברור: ${gap.attributeLabel}`
+              : `Your site does not state clearly enough: ${gap.attributeLabel}`,
       // The denominator is the monitored question set. Sizing it from the outcomes alone
       // breaks an unmeasured scan ("4 of 0 questions"); sizing it from the prompts alone
       // breaks a caller that supplies outcomes without the set they came from. The set is

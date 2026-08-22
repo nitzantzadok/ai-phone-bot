@@ -143,6 +143,13 @@ describe('measuring against an engine that recommends somebody else', () => {
     expect(report.diagnosis.lostPromptCount).toBeGreaterThan(0)
     expect(report.diagnosis.recommendationRate).toBe(0)
   })
+
+  it('now that an engine was asked, may say what the engine did', () => {
+    // The mirror of the unmeasured case: with real answers read, the finding is stated
+    // about AI behaviour, because that is what was observed.
+    const titles = report.playbook.items.map((i) => i.title).join(' | ')
+    expect(titles).toMatch(/ה-AI לא מקשר|האתר שלכם לא אומר מספיק ברור/)
+  })
 })
 
 describe('spending limits', () => {

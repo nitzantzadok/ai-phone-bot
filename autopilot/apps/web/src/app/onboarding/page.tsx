@@ -24,14 +24,14 @@ export default async function Onboarding({
   return (
     <Shell language={language}>
       <main className="mx-auto max-w-3xl px-6 py-16">
-        <p className="text-xs font-medium uppercase tracking-wide text-[--color-accent]">
+        <p className="text-xs font-medium uppercase tracking-wide text-accent">
           {he ? 'שלב 2 מתוך 4' : 'Step 2 of 4'}
         </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           {he ? 'הסריקה רצה' : 'The scan is running'}
         </h1>
         {website ? (
-          <p className="mt-2 text-sm text-[--color-muted]" dir="ltr">
+          <p className="mt-2 text-sm text-muted" dir="ltr">
             {website}
           </p>
         ) : null}
@@ -58,37 +58,37 @@ export default async function Onboarding({
               <span
                 className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium ${
                   index === 0
-                    ? 'bg-[--color-accent] text-white'
-                    : 'bg-[--color-line] text-[--color-muted]'
+                    ? 'bg-accent text-white'
+                    : 'bg-line text-muted'
                 }`}
               >
                 {index + 1}
               </span>
               <span className="text-sm">{stage.t}</span>
-              <span className="text-xs text-[--color-muted]">{stage.s}</span>
+              <span className="text-xs text-muted">{stage.s}</span>
             </li>
           ))}
         </ol>
 
         {/* Step 3: confirming facts. This is the gate on everything we may later publish. */}
-        <section className="mt-14 border-t border-[--color-line] pt-8">
-          <p className="text-xs font-medium uppercase tracking-wide text-[--color-accent]">
+        <section className="mt-14 border-t border-line pt-8">
+          <p className="text-xs font-medium uppercase tracking-wide text-accent">
             {he ? 'שלב 3 מתוך 4' : 'Step 3 of 4'}
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight">
             {he ? 'אישור הפרטים' : 'Confirm your details'}
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[--color-muted]">
+          <p className="mt-2 text-sm leading-relaxed text-muted">
             {he
               ? 'זה החלק החשוב ביותר. לעולם לא נכתוב על העסק שלכם משהו שלא אישרתם — גם אם זה נשמע נכון. מה שתסמנו כאן הוא בדיוק מה שמותר לנו לומר עליכם.'
               : 'This is the most important part. We will never write anything about your business that you have not confirmed, however true it sounds. What you tick here is exactly what we are allowed to say about you.'}
           </p>
 
-          <div className="mt-5 rounded-xl border border-[--color-line] bg-white p-5">
+          <div className="mt-5 rounded-xl border border-line bg-white p-5">
             <p className="text-sm font-medium">
               {he ? 'למה העסק שלכם מתאים?' : 'What is your business good for?'}
             </p>
-            <p className="mt-1 text-xs text-[--color-muted]">
+            <p className="mt-1 text-xs text-muted">
               {he
                 ? 'סמנו רק מה שנכון באמת. מה שתסמנו — נוכל לכתוב עליו באתר.'
                 : 'Tick only what is genuinely true. What you tick, we may write about on your site.'}
@@ -100,9 +100,9 @@ export default async function Onboarding({
               ).map((attribute) => (
                 <label
                   key={attribute}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-[--color-line] px-3 py-2 text-sm"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm"
                 >
-                  <input type="checkbox" className="accent-[--color-accent]" />
+                  <input type="checkbox" className="accent-accent" />
                   {attribute}
                 </label>
               ))}
@@ -111,8 +111,8 @@ export default async function Onboarding({
         </section>
 
         {/* Step 4: how much autonomy. New customers start at RECOMMEND, per the product default. */}
-        <section className="mt-12 border-t border-[--color-line] pt-8">
-          <p className="text-xs font-medium uppercase tracking-wide text-[--color-accent]">
+        <section className="mt-12 border-t border-line pt-8">
+          <p className="text-xs font-medium uppercase tracking-wide text-accent">
             {he ? 'שלב 4 מתוך 4' : 'Step 4 of 4'}
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight">
@@ -136,31 +136,31 @@ export default async function Onboarding({
             ).map((mode) => (
               <label
                 key={mode.k}
-                className="flex cursor-pointer items-start gap-3 rounded-xl border border-[--color-line] bg-white p-4"
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-white p-4"
               >
                 <input
                   type="radio"
                   name="autonomy"
                   value={mode.k}
                   defaultChecked={mode.def}
-                  className="mt-1 accent-[--color-accent]"
+                  className="mt-1 accent-accent"
                 />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{mode.t}</span>
                     {mode.def ? (
-                      <span className="rounded-full bg-[--color-line] px-2 py-0.5 text-[10px] font-medium">
+                      <span className="rounded-full bg-line px-2 py-0.5 text-[10px] font-medium">
                         {he ? 'ברירת מחדל' : 'default'}
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-0.5 text-sm text-[--color-muted]">{mode.d}</p>
+                  <p className="mt-0.5 text-sm text-muted">{mode.d}</p>
                 </div>
               </label>
             ))}
           </div>
 
-          <p className="mt-4 text-xs text-[--color-muted]">
+          <p className="mt-4 text-xs text-muted">
             {he
               ? 'אפשר לשנות מתי שתרצו. שינויים רגישים — מחיקת עמודים, מחירים, הצהרות משפטיות או רפואיות — תמיד דורשים אישור מפורש, בכל מצב.'
               : 'Changeable at any time. Sensitive changes — deleting pages, prices, legal or medical claims — always require explicit approval, in every mode.'}
@@ -168,16 +168,16 @@ export default async function Onboarding({
         </section>
 
         {/* Platform-specific connection, shown only when writing needs setup. */}
-        <section className="mt-12 rounded-xl border border-[--color-line] bg-white p-5">
+        <section className="mt-12 rounded-xl border border-line bg-white p-5">
           <h2 className="text-sm font-semibold">
             {he ? `חיבור ל${guide.hebrewName}` : `Connecting ${guide.name}`}
           </h2>
-          <p className="mt-1.5 text-sm text-[--color-muted]">
+          <p className="mt-1.5 text-sm text-muted">
             {he ? guide.summary.he : guide.summary.en}
           </p>
           <Link
             href={`/guides/${guide.id}?lang=${language}`}
-            className="mt-3 inline-block text-sm text-[--color-accent] underline"
+            className="mt-3 inline-block text-sm text-accent underline"
           >
             {he ? `המדריך המלא (${guide.timeMinutes} דקות)` : `Full guide (${guide.timeMinutes} min)`}
           </Link>
@@ -185,7 +185,7 @@ export default async function Onboarding({
 
         <Link
           href={`/dashboard?lang=${language}`}
-          className="mt-10 inline-block rounded-lg bg-[--color-accent] px-6 py-3 text-sm font-medium text-white"
+          className="mt-10 inline-block rounded-lg bg-accent px-6 py-3 text-sm font-medium text-white"
         >
           {he ? 'לדשבורד' : 'Go to the dashboard'}
         </Link>
