@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { IL, resolveVatPeriod } from '@autopilot/shared/country.ts'
 import { applyVatToNet, formatMoney } from '@autopilot/shared/money.ts'
 import { purchasablePlans } from '@autopilot/billing/plans.ts'
@@ -34,7 +33,32 @@ export default async function Pricing({
             : `All prices before VAT (${vat.rateBps / 100}%). The first scan is free, with no credit card.`}
         </p>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+        {/* One address field, and each plan's button submits it. Plain HTML: no payment
+            step yet, so choosing a plan is genuinely one click. */}
+        <form action="/start" method="post" className="mt-8">
+          <input type="hidden" name="lang" value={language} />
+
+          <div className="rounded-xl border border-line bg-white p-5">
+            <label htmlFor="url" className="block text-sm font-medium">
+              {he ? 'כתובת האתר של העסק' : 'Your business website address'}
+            </label>
+            <input
+              id="url"
+              name="url"
+              type="text"
+              required
+              dir="ltr"
+              placeholder="example.co.il"
+              className="mt-2 w-full rounded-lg border border-line px-4 py-3 outline-none focus:border-accent"
+            />
+            <p className="mt-2 text-xs text-muted">
+              {he
+                ? 'בשלב הזה לא נגבה תשלום ולא נבקש פרטים — בחירת תוכנית מכניסה אתכם ישר לאפליקציה.'
+                : 'No payment is taken and no details are asked for at this stage — choosing a plan takes you straight into the app.'}
+            </p>
+          </div>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-3">
           {plans.map((plan) => {
             const taxed = applyVatToNet(plan.monthlyNet!, vat.rateBps, vat.id)
             const featured = plan.code === 'GROWTH'
@@ -97,20 +121,21 @@ export default async function Pricing({
                   ))}
                 </ul>
 
-                <Link
-                  href={`/join?lang=${language}`}
-                  className={`mt-6 block rounded-lg px-5 py-3 text-center text-sm font-medium ${
-                    featured
-                      ? 'bg-accent text-white'
-                      : 'border border-line text-ink'
+                <button
+                  type="submit"
+                  name="plan"
+                  value={plan.code}
+                  className={`mt-6 block w-full rounded-lg px-5 py-3 text-center text-sm font-medium ${
+                    featured ? 'bg-accent text-white' : 'border border-line text-ink'
                   }`}
                 >
-                  {he ? 'התחילו בסריקה חינם' : 'Start with a free scan'}
-                </Link>
+                  {he ? 'להתחיל עם התוכנית הזו' : 'Start with this plan'}
+                </button>
               </section>
             )
           })}
         </div>
+        </form>
 
         <section className="mt-14 max-w-2xl space-y-6 text-sm">
           <div>

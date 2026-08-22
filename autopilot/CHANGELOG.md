@@ -4,6 +4,20 @@
 
 ### Fixed
 
+Three ways the app forgot who you were, none of them visible in the code:
+
+- **A link that logged you out by being rendered.** Next prefetches `<Link>` targets, so a
+  GET route that clears the session ran on every dashboard render. Every state-changing
+  route is POST-only now, and the tests assert there is no GET export left to prefetch.
+- **A cookie set through the `cookies()` API on a hand-built `NextResponse`** never reaches
+  the browser: the mutation is dropped and no Set-Cookie header ships.
+- **`secure: NODE_ENV === 'production'`**, which is true under `next start` over plain
+  http, so the browser silently refused to store the session. It follows the connection
+  now, reading the forwarded scheme behind a hosting proxy.
+
+Also: an absolute redirect Location normalises the host, sending a browser on 127.0.0.1 to
+localhost — a different origin, where the cookie just set does not apply. Relative now.
+
 Four failures found by scanning the kinds of site a real customer has, rather than the
 well-behaved fixture. Each produced a report that was confidently wrong about a business
 with a perfectly good website.
@@ -63,6 +77,15 @@ with a perfectly good website.
 
 ### Added
 
+- **The whole product is walkable in a browser.** Scan straight from the landing page's
+  hero, choose a plan on the pricing page, and land in a working dashboard — no payment,
+  no details, stated on screen rather than left to be discovered. `/app` runs a real scan
+  of the chosen site on every load and shows the score with its components, the identity
+  read from the page, the questions monitored, the findings, the playbook, and the
+  connection guide for whatever built the site. Payment gets connected later; `/start` is
+  where the checkout will go, and nothing downstream of it changes.
+- **The `<meta name="generator">` tag is read**, so the connection guide shown is the one
+  for the platform the site actually runs on.
 - **`autopilot/.env` is read by `pnpm scan`**, so a provider key need not be typed on the
   command line, where it lands in shell history and the process list.
 - **The web form now returns a scan.** `/scan` runs the real thing server-side and streams

@@ -32,6 +32,9 @@ export const Shell = ({
             <Link href={`/pricing?lang=${language}`} className="text-muted hover:text-ink">
               {he ? 'מחירים' : 'Pricing'}
             </Link>
+            <Link href={`/app?lang=${language}`} className="text-muted hover:text-ink">
+              {he ? 'האפליקציה' : 'App'}
+            </Link>
             <Link href={`/?lang=${other}`} className="text-muted hover:text-ink">
               {he ? 'English' : 'עברית'}
             </Link>

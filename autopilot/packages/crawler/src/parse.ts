@@ -49,6 +49,12 @@ export interface ParsedPage {
   readonly structuredData: readonly Record<string, unknown>[]
   readonly schemaTypes: readonly string[]
   readonly openGraph: Record<string, string>
+  /**
+   * What built the page, from `<meta name="generator">`. WordPress, Wix, Squarespace and
+   * most site builders declare themselves here, and knowing which one a customer is on
+   * decides whether we can fix things for them or only show them where to click.
+   */
+  readonly generator: string | null
   readonly hreflang: Record<string, string>
   readonly contentHash: string
 }
@@ -214,6 +220,7 @@ export const parseHtml = (html: string, url: string): ParsedPage => {
     url,
     title: $('title').first().text().trim() || null,
     metaDescription: $('meta[name="description"]').attr('content')?.trim() ?? null,
+    generator: $('meta[name="generator"]').attr('content')?.trim() ?? null,
     canonical: absolute($('link[rel="canonical"]').attr('href'), url),
     robotsMeta,
     indexable: !/noindex/i.test(robotsMeta ?? ''),

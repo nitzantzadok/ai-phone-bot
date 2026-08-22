@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { starterChecklist } from '@autopilot/insights/playbook.ts'
 import { Shell, languageFrom } from '@/components/shell'
 
@@ -26,17 +25,36 @@ export default async function Home({
             : 'Customers no longer scan a list of results. They ask a question and get three names. We measure how often you are one of them, explain exactly why not, and fix what lives on your own site.'}
         </p>
 
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link
-            href={`/join?lang=${language}`}
-            className="rounded-lg bg-accent px-6 py-3 text-sm font-medium text-white"
-          >
-            {he ? 'קבלו סריקה חינם' : 'Get a free scan'}
-          </Link>
-          <span className="text-sm text-muted">
-            {he ? 'בלי כרטיס אשראי · תוצאה תוך דקה' : 'No credit card · result in about a minute'}
-          </span>
-        </div>
+        {/* The scan is the product's first promise, so it is the first thing on the page
+            you can actually do — not a link to a page with a form on it. */}
+        <form action="/scan" method="get" className="mt-8 max-w-xl">
+          <input type="hidden" name="lang" value={language} />
+          <label htmlFor="url" className="block text-sm font-medium">
+            {he ? 'כתובת האתר שלכם' : 'Your website address'}
+          </label>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              id="url"
+              name="url"
+              type="text"
+              required
+              dir="ltr"
+              placeholder="example.co.il"
+              className="min-w-0 flex-1 rounded-lg border border-line bg-white px-4 py-3 outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              className="rounded-lg bg-accent px-6 py-3 text-sm font-medium text-white"
+            >
+              {he ? 'סרקו אותי' : 'Scan me'}
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-muted">
+            {he
+              ? 'בלי הרשמה, בלי כרטיס אשראי · התוצאה מופיעה על המסך'
+              : 'No signup, no credit card · the result appears on screen'}
+          </p>
+        </form>
 
         {/* The four things that matter most, given away before anyone pays. */}
         <section className="mt-16">

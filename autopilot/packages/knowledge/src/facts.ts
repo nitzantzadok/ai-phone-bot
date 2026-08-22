@@ -290,6 +290,19 @@ export const extractFacts = (input: ExtractionInput): CandidateFact[] => {
         sourceUrl: home.url,
       })
     }
+    // What built the site. Not customer-facing, but it decides which connection guide we
+    // show and whether we can offer to fix anything at all.
+    const generator = input.crawl.pages.map((page) => page.generator).find(Boolean)
+    if (generator) {
+      add({
+        factKind: 'generator',
+        value: generator,
+        confidence: 'HIGH',
+        sourceType: 'OWN_PROPERTY',
+        sourceUrl: home.url,
+      })
+    }
+
     if (home.language) {
       add({
         factKind: 'content_language',

@@ -109,11 +109,24 @@ export default async function Scan({
             </p>
             <div className="mt-3 flex flex-wrap gap-3">
               <Link
-                href={`/onboarding?lang=${language}&website=${encodeURIComponent(url)}`}
+                href={`/pricing?lang=${language}`}
                 className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white"
               >
-                {he ? 'להמשיך להצטרפות' : 'Continue to signup'}
+                {he ? 'לבחור תוכנית ולהיכנס' : 'Choose a plan and go in'}
               </Link>
+              {/* A form, not a link: Next prefetches link targets, and a prefetched
+                  request to a route that signs you in would do so without a click. */}
+              <form action="/start" method="post">
+                <input type="hidden" name="lang" value={language} />
+                <input type="hidden" name="plan" value="FREE_SCAN" />
+                <input type="hidden" name="url" value={url} />
+                <button
+                  type="submit"
+                  className="rounded-lg border border-line px-5 py-2.5 text-sm font-medium"
+                >
+                  {he ? 'להיכנס לאפליקציה בחינם' : 'Enter the app free'}
+                </button>
+              </form>
               <Link
                 href={`/join?lang=${language}`}
                 className="rounded-lg border border-line px-5 py-2.5 text-sm font-medium"
