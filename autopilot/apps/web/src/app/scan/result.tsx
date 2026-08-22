@@ -3,6 +3,15 @@ import { headers } from 'next/headers'
 import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
 import { checkRateLimit, normalizeSiteUrl } from '@/lib/scan-limits'
 import { freeScanBudget } from '@/lib/spend'
+import { buildReportView } from '@/lib/report-view'
+import {
+  ActionItem,
+  FactsBlock,
+  HandoffBlock,
+  ScoreBlock,
+  Section,
+  VerdictBlock,
+} from '@/components/report'
 
 /**
  * The scan result.
@@ -24,23 +33,12 @@ const clientKey = async (): Promise<string> => {
   return forwarded?.split(',')[0]?.trim() || h.get('x-real-ip') || 'unknown'
 }
 
-const Bar = ({ value }: { value: number }) => (
-  <div className="h-2 w-full overflow-hidden rounded-full bg-line">
-    <div
-      className="h-full rounded-full bg-accent"
-      style={{ width: `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%` }}
-    />
-  </div>
-)
-
 const Notice = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div className="rounded-xl border border-line bg-white p-6">
     <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
     <div className="mt-2 space-y-3 text-sm text-muted">{children}</div>
   </div>
 )
-
-const SEVERITY_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const
 
 export const ScanResult = async ({
   rawUrl,
@@ -189,148 +187,119 @@ export const ScanResult = async ({
   }
 
   /* ---------------------------------------------------------- the report ------ */
+  const view = buildReportView(report, language)
   const b = report.business
-  const componentLabels: Record<string, string> = he
-    ? {
-        technicalDiscoverability: 'האם אפשר לקרוא את האתר',
-        informationCompleteness: 'האם המידע שלם',
-        attributeCoverage: 'האם כתוב מה שנשאלים',
-      }
-    : {
-        technicalDiscoverability: 'Can the site be read',
-        informationCompleteness: 'Is the information complete',
-        attributeCoverage: 'Is what people ask about written',
-      }
 
-  const groupedFindings = [
-    ...report.findings
-      .reduce((map, f) => {
-        map.set(f.findingType, [...(map.get(f.findingType) ?? []), f])
-        return map
-      }, new Map<string, typeof report.findings>())
-      .values(),
-  ].sort((a, b2) => SEVERITY_ORDER[a[0]!.severity] - SEVERITY_ORDER[b2[0]!.severity])
+  /* Measured findings and general advice are numbered separately and always have been two
+     different claims: one says "we found this on your site", the other says "this is what
+     works". Running them into one list put generic advice at number 8 of 9, where it reads
+     as a finding about this business that we simply forgot to evidence. */
+  const measured = report.playbook.items.filter((i) => i.kind === 'MEASURED').slice(0, 8)
+  const general = report.playbook.items.filter((i) => i.kind === 'GENERAL').slice(0, 4)
 
   return (
-    <div className="space-y-8">
-      {/* ------------------------------------------------------------ score --- */}
-      <section className="rounded-xl border border-line bg-white p-6">
-        <p className="text-xs text-muted" dir="ltr">
-          {url}
-        </p>
-        <div className="mt-4 flex items-baseline gap-3">
-          <span className="text-5xl font-semibold tabular-nums">{report.readiness.score}</span>
-          <span className="text-lg text-muted">/ 100</span>
-        </div>
-        <p className="mt-1 text-sm font-medium">{he ? 'ציון מוכנות' : 'Readiness score'}</p>
+    <div className="space-y-6">
+      <VerdictBlock verdict={view.verdict} language={language} />
 
-        <div className="mt-6 space-y-4">
-          {Object.entries(report.readiness.components).map(([key, c]) => (
-            <div key={key}>
-              <div className="flex items-baseline justify-between text-sm">
-                <span>{componentLabels[key]}</span>
-                <span className="tabular-nums text-muted">
-                  {Math.round(c.value * 100)}%
-                </span>
-              </div>
-              <div className="mt-1.5">
-                <Bar value={c.value} />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* --------------------------------------------------------- what to do --- */}
+      <Section
+        title={he ? 'מה לעשות, לפי הסדר' : 'What to do, in order'}
+        lead={
+          he
+            ? 'לפי מה שמשנה, לא לפי מה שקל. לכל שורה כתוב כמה זמן זה לוקח ומי צריך לעשות את זה — כדי שתדעו מה אתם יכולים לסגור הערב ומה צריך להעביר הלאה.'
+            : 'Ordered by what matters, not by what is easy. Each item says how long it takes and who has to do it, so you know what you can close tonight and what to pass on.'
+        }
+      >
+        {measured.length > 0 ? (
+          <ol className="space-y-6">
+            {measured.map((item, index) => (
+              <ActionItem key={item.title} item={item} index={index} language={language} />
+            ))}
+          </ol>
+        ) : (
+          <p className="text-[15px] leading-relaxed">
+            {he
+              ? 'לא מצאנו באתר שום דבר טכני שחוסם מערכת AI מלקרוא אתכם. זה נדיר, וזה טוב. מכאן ההבדל הוא בתוכן: כמה מהשאלות שלקוחות שואלים נענות באתר במפורש.'
+              : 'We found nothing technical on the site blocking an AI from reading you. That is rare, and it is good. From here the difference is editorial: how many of the questions customers ask are answered on the site explicitly.'}
+          </p>
+        )}
+      </Section>
 
-        <p className="mt-6 border-t border-line pt-4 text-xs text-muted">
-          {he
-            ? 'הציון מודד האם מערכת AI מסוגלת למצוא אתכם, לקרוא אתכם ולתאר אתכם נכון מתוך האתר שלכם. הוא לא מדידה של האם מישהו ממליץ עליכם, והוא לא תחזית שכן ימליץ.'
-            : report.readiness.disclosure}
-          {' · '}
-          {report.readiness.version}
-        </p>
-      </section>
 
-      {/* --------------------------------------------------------- identity --- */}
-      <section className="rounded-xl border border-line bg-white p-6">
-        <h2 className="text-sm font-semibold">
-          {he ? 'מה האתר אומר על העסק' : 'What the site says about the business'}
-        </h2>
-        <dl className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {(
-            [
-              [he ? 'שם' : 'Name', b.name],
-              [he ? 'עיר' : 'City', b.city],
-              [he ? 'טלפון' : 'Phone', b.phone],
-              [he ? 'כתובת' : 'Address', b.address],
-            ] as const
-          ).map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-4 text-sm">
-              <dt className="text-muted">{label}</dt>
-              <dd className={value ? 'font-medium' : 'text-negative'}>
-                {value ?? (he ? 'לא נמצא' : 'not found')}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      {/* -------------------------------------------------- general advice --- */}
+      {general.length > 0 ? (
+        <Section
+          title={
+            he
+              ? 'ומעבר לזה: מה שהכי משפיע בעסקים כמו שלכם'
+              : 'And beyond that: what matters most for businesses like yours'
+          }
+          lead={
+            he
+              ? 'את החלק הזה לא מדדנו אצלכם — הוא לא נמצא בקוד של האתר אלא בתוכן שלו. אלה הדברים שחוזרים אצל עסקים שכן מופיעים בתשובות, לפי הסדר שבו הם משפיעים.'
+              : 'We did not measure this part on your site — it lives in the content rather than the code. These are what recurs among businesses that do appear in answers, in the order they matter.'
+          }
+        >
+          <ol className="space-y-6">
+            {general.map((item, index) => (
+              <ActionItem key={item.title} item={item} index={index} language={language} />
+            ))}
+          </ol>
+        </Section>
+      ) : null}
 
-        {b.statedAttributes.length > 0 ? (
-          <div className="mt-5 border-t border-line pt-4">
-            <p className="text-xs text-muted">
-              {he ? 'מה שהאתר כן אומר עליכם' : 'What the site does say about you'}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {b.statedAttributes.map((a) => (
-                <span
-                  key={a}
-                  className="rounded-full bg-line px-2.5 py-1 text-xs font-medium"
-                >
-                  {a}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
+      {/* ---------------------------------------------------------- handoff ---- */}
+      <HandoffBlock
+        text={view.handoff.text}
+        developerItems={view.handoff.developerItems}
+        language={language}
+      />
 
-        <p className="mt-4 text-xs text-muted">
-          {he
-            ? `נקראו ${report.crawl.pagesFetched} עמודים · תחום שזוהה: ${b.vertical}`
-            : `${report.crawl.pagesFetched} pages read · detected field: ${b.vertical}`}
-        </p>
-      </section>
+      {/* ------------------------------------------------------------ facts ---- */}
+      <FactsBlock
+        facts={view.facts}
+        pagesRead={report.crawl.pagesFetched}
+        attributes={b.statedAttributes}
+        language={language}
+      />
 
-      {/* ------------------------------------------------------ ai visibility -- */}
-      <section className="rounded-xl border border-line bg-white p-6">
-        <h2 className="text-sm font-semibold">
-          {he ? 'נוכחות בתשובות של AI' : 'Presence in AI answers'}
-        </h2>
-
+      {/* ------------------------------------------------------- ai visibility -- */}
+      <Section
+        title={he ? 'מה קורה בפועל בתשובות של AI' : 'What actually happens in AI answers'}
+        lead={
+          report.aiVisibility
+            ? undefined
+            : he
+              ? 'הסריקה החינמית קוראת את האתר שלכם. את החלק הזה — לשאול את המערכות בפועל ולראות מה הן עונות — מודדים במנוי.'
+              : 'The free scan reads your site. This half — actually asking the systems and seeing what they answer — is what a plan measures.'
+        }
+      >
         {report.aiVisibility ? (
-          <div className="mt-4 space-y-4">
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-semibold tabular-nums">
-                {report.aiVisibility.airs.score}
-              </span>
-              <span className="text-sm text-muted">
-                AIRS / 100 · {report.aiVisibility.airs.formulaVersion}
-              </span>
-            </div>
-            <p className="text-sm">
+          <div className="space-y-5">
+            <p className="text-[15px] leading-relaxed">
               {he
-                ? `הופעתם ב-${Math.round(report.aiVisibility.recommendationRate * 100)}% מתוך ${report.aiVisibility.promptsRun} שאלות שנשאלו בפועל מול ${report.aiVisibility.engines.join(', ')}.`
-                : `You appeared in ${Math.round(report.aiVisibility.recommendationRate * 100)}% of ${report.aiVisibility.promptsRun} questions actually asked of ${report.aiVisibility.engines.join(', ')}.`}
+                ? `שאלנו ${report.aiVisibility.promptsRun} שאלות אמיתיות מול ${report.aiVisibility.engines.join(', ')}. הופעתם בתשובה ב-${Math.round(report.aiVisibility.recommendationRate * 100)}% מהן.`
+                : `We asked ${report.aiVisibility.promptsRun} real questions of ${report.aiVisibility.engines.join(', ')}. You appeared in ${Math.round(report.aiVisibility.recommendationRate * 100)}% of the answers.`}
             </p>
+
             {report.aiVisibility.competitors.length > 0 ? (
-              <p className="text-sm text-muted">
-                {he ? 'מי עוד הופיע: ' : 'Who else appeared: '}
-                {report.aiVisibility.competitors
-                  .slice(0, 5)
-                  .map((c) => c.name)
-                  .join(', ')}
+              <p className="text-[15px] leading-relaxed text-muted">
+                {he ? 'מי כן הופיע במקומכם: ' : 'Who appeared instead: '}
+                <span className="font-medium text-ink">
+                  {report.aiVisibility.competitors
+                    .slice(0, 5)
+                    .map((c) => c.name)
+                    .join(', ')}
+                </span>
               </p>
             ) : null}
-            <ul className="space-y-2 border-t border-line pt-4">
-              {report.aiVisibility.examples.slice(0, 5).map((e) => (
-                <li key={`${e.engine}-${e.question}`} className="flex gap-2 text-sm">
-                  <span className={e.recommended ? 'text-positive' : 'text-negative'}>
+
+            <ul className="space-y-2.5 border-t border-line pt-5">
+              {report.aiVisibility.examples.slice(0, 6).map((e) => (
+                <li key={`${e.engine}-${e.question}`} className="flex gap-2.5 text-[15px]">
+                  <span
+                    className={`shrink-0 font-semibold ${e.recommended ? 'text-positive' : 'text-negative'}`}
+                  >
                     {e.recommended ? '✓' : '✗'}
                   </span>
                   <span dir="auto">{e.question}</span>
@@ -339,128 +308,68 @@ export const ScanResult = async ({
             </ul>
           </div>
         ) : (
-          /* The free scan reads the site; it does not ask an engine. Say what that half
-             would tell them and what it costs to run, rather than showing a shrug — the
-             questions below are real, generated from this site, and seeing them is the
-             most persuasive thing on the page. */
-          <div className="mt-3 space-y-3 text-sm text-muted">
-            <p className="font-medium text-ink">
-              {he ? 'זה מה שמנוי מודד עבורכם' : 'This is what a plan measures for you'}
-            </p>
-            <p>
-              {he
-                ? 'הסריקה החינמית קוראת את האתר שלכם. השאלות למטה נוצרו ממנו — הן השאלות שלקוחות בתחום שלכם באמת שואלים, בעברית ובאנגלית. מנוי שואל אותן בפועל מול ChatGPT, Gemini ו-Claude, כל שבוע, ומדווח אם הופעתם ומי הופיע במקומכם.'
-                : 'The free scan reads your site. The questions below were generated from it — the ones customers in your field actually ask, in Hebrew and English. A plan asks them for real, of ChatGPT, Gemini and Claude, every week, and reports whether you appeared and who appeared instead.'}
-            </p>
+          <div className="space-y-4">
             {report.prompts.length > 0 ? (
-              <div className="border-t border-line pt-3">
-                <p className="font-medium text-ink">
+              <>
+                <p className="text-[15px] leading-relaxed">
                   {he
-                    ? `${report.prompts.length} שאלות שנוצרו מהאתר שלכם:`
-                    : `${report.prompts.length} questions generated from your site:`}
+                    ? `אלה ${report.prompts.length} השאלות שנוצרו מהאתר שלכם. הן לא רשימה כללית — הן נגזרו מהתחום, מהעיר ומהשירותים שכתובים אצלכם, והן מה שלקוח באמת מקליד:`
+                    : `These are the ${report.prompts.length} questions generated from your site. Not a generic list — they come from your field, your city and the services written on your pages, and they are what a customer actually types:`}
                 </p>
-                <ul className="mt-2 space-y-1">
-                  {report.prompts.slice(0, 6).map((p) => (
-                    <li key={p.id} dir="auto">
-                      · {p.queryText}
+                <ul className="space-y-2 rounded-lg bg-surface p-4 text-[15px]">
+                  {report.prompts.slice(0, 8).map((p) => (
+                    <li key={p.id} className="flex gap-2.5" dir="auto">
+                      <span className="text-muted">·</span>
+                      <span>{p.queryText}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </>
             ) : null}
-            <p className="border-t border-line pt-3 text-xs">
+            {report.prompts.length === 0 ? (
+              /* No questions is itself the finding, and a strong one: the question set is
+                 built from the field, the city and the services the site states, so an
+                 empty set means the site did not state enough to ask about. Leaving the
+                 section blank hides the most persuasive sentence on the page. */
+              <p className="text-[15px] leading-relaxed">
+                {he
+                  ? 'לא הצלחנו אפילו לייצר את השאלות. השאלות נבנות מהתחום, מהעיר ומהשירותים שכתובים אצלכם באתר — וכרגע אין באתר מספיק כדי לבנות מהן שאלה אחת. זה בדיוק המצב שבו נמצאת גם מערכת AI כשמישהו שואל אותה עליכם.'
+                  : 'We could not even generate the questions. They are built from the field, the city and the services stated on your site — and right now there is not enough there to build a single one. That is exactly the position an AI is in when somebody asks it about you.'}
+              </p>
+            ) : null}
+            <p className="text-sm leading-relaxed text-muted">
               {he
-                ? 'שום מספר כאן לא הוערך ולא הודמה. מה שלא נמדד — כתוב שלא נמדד.'
-                : 'No number here was estimated or simulated. What was not measured says so.'}
+                ? 'שום מספר בדוח הזה לא הוערך ולא הודמה. מה שלא נמדד — כתוב במפורש שלא נמדד.'
+                : 'No number in this report was estimated or simulated. What was not measured says so explicitly.'}
             </p>
           </div>
         )}
-      </section>
+      </Section>
 
-      {/* --------------------------------------------------------- findings --- */}
-      {groupedFindings.length > 0 ? (
-        <section className="rounded-xl border border-line bg-white p-6">
-          <h2 className="text-sm font-semibold">
-            {he ? 'מה מצאנו באתר' : 'What we found on the site'}
-          </h2>
-          <ul className="mt-4 space-y-3">
-            {groupedFindings.map((group) => {
-              const f = group[0]!
-              return (
-                <li key={f.findingType} className="flex gap-3 text-sm">
-                  <span
-                    className={`mt-1.5 size-2 shrink-0 rounded-full ${
-                      f.severity === 'HIGH'
-                        ? 'bg-negative'
-                        : f.severity === 'MEDIUM'
-                          ? 'bg-caution'
-                          : 'bg-line'
-                    }`}
-                  />
-                  <span>
-                    {group.length > 1 ? (
-                      <span className="me-1 font-medium tabular-nums">×{group.length}</span>
-                    ) : null}
-                    {he ? f.plainLanguageHe : f.plainLanguage}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      ) : null}
+      {/* ------------------------------------------------------------ score ---- */}
+      <ScoreBlock
+        score={report.readiness.score}
+        bandLabel={view.bandLabel}
+        components={view.components}
+        language={language}
+        footnote={view.scoreFootnote}
+      />
 
-      {/* --------------------------------------------------------- playbook --- */}
-      <section className="rounded-xl border border-line bg-white p-6">
-        <h2 className="text-sm font-semibold">{he ? 'מה לעשות' : 'What to do'}</h2>
-        <p className="mt-1 text-sm text-muted">{report.playbook.headline}</p>
-
-        <ol className="mt-5 space-y-6">
-          {report.playbook.items.slice(0, 8).map((item, index) => (
-            <li key={item.title} className="flex gap-3">
-              <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white tabular-nums">
-                {index + 1}
-              </span>
-              <div className="min-w-0">
-                <p className="font-medium">
-                  {item.title}
-                  {item.weDoThisForYou ? (
-                    <span className="ms-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium text-muted">
-                      {he ? 'אנחנו עושים את זה' : 'we do this'}
-                    </span>
-                  ) : null}
-                </p>
-                {item.reach ? (
-                  <p className="mt-1 text-xs font-medium text-accent">
-                    {he
-                      ? `נוגע ל-${item.reach.questions} מתוך ${item.reach.of} השאלות בתחום שלכם`
-                      : `Touches ${item.reach.questions} of the ${item.reach.of} questions in your field`}
-                  </p>
-                ) : null}
-                <p className="mt-1 text-sm text-muted">{item.why}</p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {item.steps.slice(0, 4).map((step) => (
-                    <li key={step} className="flex gap-2">
-                      <span className="text-muted">·</span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
-
+      {/* -------------------------------------------------- outside our control -- */}
       {report.playbook.outsideOurControl.length > 0 ? (
-        <section className="rounded-xl border border-dashed border-line p-6">
-          <h2 className="text-sm font-semibold">
-            {he ? 'מה לא בשליטתנו' : 'Outside our control'}
+        <section className="rounded-xl border border-dashed border-line p-6 sm:p-8">
+          <h2 className="text-lg font-semibold tracking-tight">
+            {he ? 'מה שאף אחד לא יכול לעשות בשבילכם' : 'What nobody can do for you'}
           </h2>
+          <p className="mt-2 text-[15px] leading-relaxed text-muted">
+            {he
+              ? 'זה כתוב כאן בנפרד ובכוונה, כדי שלא ייראה כמו משימה שאפשר לקנות. מי שמוכר לכם את זה בתשלום מוכר לכם בעיה עתידית.'
+              : 'Set apart deliberately, so it never looks like a task you can buy. Anyone selling you this is selling you a future problem.'}
+          </p>
           {report.playbook.outsideOurControl.map((item) => (
-            <div key={item.title} className="mt-3">
-              <p className="text-sm font-medium">{item.title}</p>
-              <p className="mt-1 text-sm text-muted">{item.why}</p>
+            <div key={item.title} className="mt-5">
+              <p className="font-medium">{item.title}</p>
+              <p className="mt-1.5 text-[15px] leading-relaxed text-muted">{item.why}</p>
             </div>
           ))}
         </section>

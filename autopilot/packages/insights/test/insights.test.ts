@@ -258,3 +258,103 @@ describe('platform guides', () => {
     }
   })
 })
+
+describe('a measured item, once it carries its fix guide', () => {
+  const technical = (findingType: string, urls: string[] = ['https://x.co.il/']) =>
+    opportunity({
+      dedupeKey: `technical:${findingType}`,
+      category: 'TECHNICAL',
+      evidence: { findingType, affectedUrls: urls },
+      promptReach: 0,
+    })
+
+  it('replaces "we will handle it" with steps somebody can actually follow', () => {
+    // The old text was true for a subscriber and false for everybody else — and everybody
+    // else is exactly who reads a free scan. The most common report this product produces
+    // used to list seven problems and zero instructions.
+    const playbook = buildPlaybook({
+      vertical: 'local_business',
+      language: 'he',
+      opportunities: [technical('MISSING_META_DESCRIPTION')],
+    })
+    const item = playbook.items[0]!
+    expect(item.steps.length).toBeGreaterThan(1)
+    expect(item.steps.join(' ')).not.toContain('אנחנו נטפל בזה אוטומטית')
+    expect(item.steps.join(' ')).toContain('Meta description')
+  })
+
+  it('answers how long it takes and who has to do it', () => {
+    const playbook = buildPlaybook({
+      vertical: 'local_business',
+      language: 'he',
+      opportunities: [technical('CLIENT_RENDERED')],
+    })
+    expect(playbook.items[0]!.who).toBe('WEB_PERSON')
+    expect(playbook.items[0]!.minutes).toBeDefined()
+  })
+
+  it('keeps the pages it was found on, so the reader can go and look', () => {
+    const playbook = buildPlaybook({
+      vertical: 'local_business',
+      language: 'he',
+      opportunities: [technical('MISSING_TITLE', ['https://x.co.il/a', 'https://x.co.il/b'])],
+    })
+    expect(playbook.items[0]!.affectedUrls).toEqual(['https://x.co.il/a', 'https://x.co.il/b'])
+  })
+
+  it('orders by what blocks a recommendation, not by the order the crawler emitted', () => {
+    const playbook = buildPlaybook({
+      vertical: 'local_business',
+      language: 'he',
+      opportunities: [
+        technical('TITLE_LENGTH'),
+        technical('MISSING_CANONICAL'),
+        technical('NO_STRUCTURED_DATA'),
+        technical('NOINDEX'),
+      ],
+    })
+    expect(playbook.items.slice(0, 4).map((i) => i.impact)).toEqual([
+      'CRITICAL',
+      'IMPORTANT',
+      'MINOR',
+      'MINOR',
+    ])
+  })
+
+  it('breaks a tie inside a level by leverage, not by crawler order', () => {
+    const playbook = buildPlaybook({
+      vertical: 'local_business',
+      language: 'he',
+      // Emitted worst-last on purpose: all three are IMPORTANT.
+      opportunities: [technical('NO_SITEMAP'), technical('THIN_CONTENT'), technical('MISSING_TITLE')],
+    })
+    expect(playbook.items[0]!.title).toContain('אין כותרת')
+  })
+
+  it('still produces a usable item for a finding no guide covers yet', () => {
+    // Degrading to the opportunity's own words is acceptable. Printing SOMETHING_NEW at a
+    // customer is not.
+    const playbook = buildPlaybook({
+      vertical: 'local_business',
+      language: 'he',
+      opportunities: [technical('SOMETHING_NEW')],
+    })
+    const item = playbook.items[0]!
+    expect(item.title).not.toContain('SOMETHING_NEW')
+    expect(item.steps.length).toBeGreaterThan(0)
+    expect(item.impact).toBeUndefined()
+  })
+
+  it('leaves non-technical opportunities alone', () => {
+    // An attribute gap has no crawler finding behind it; its own explanation is already
+    // written for the owner and is more specific than anything a generic guide could say.
+    const playbook = buildPlaybook({
+      vertical: 'local_business',
+      language: 'he',
+      opportunities: [opportunity()],
+      monitoredQuestions: 24,
+    })
+    expect(playbook.items[0]!.title).toBe('AI does not associate you with Romantic')
+    expect(playbook.items[0]!.reach).toEqual({ questions: 8, of: 24 })
+  })
+})

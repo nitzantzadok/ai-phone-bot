@@ -11,11 +11,13 @@ import type { Controllability } from '@autopilot/shared/domain.ts'
 import type { Opportunity } from '@autopilot/optimization/diagnosis.ts'
 import {
   prioritizedInsights,
+  type Effort,
   type Insight,
   type InsightCategory,
 } from './catalogue.ts'
+import { fixGuide, IMPACT_RANK, type FixOwner, type Impact, type Language } from './explain.ts'
 
-export type Language = 'he' | 'en'
+export type { Language }
 
 export interface PlaybookItem {
   readonly kind: 'MEASURED' | 'GENERAL'
@@ -36,6 +38,25 @@ export interface PlaybookItem {
    * questions, not an estimate of anything.
    */
   readonly reach?: { readonly questions: number; readonly of: number }
+
+  /**
+   * How much fixing this changes whether an assistant recommends them — not how broken the
+   * crawler considers it. See explain.ts; the two disagree often and the customer needs
+   * ours, not the crawler's.
+   */
+  readonly impact?: Impact
+  /** Orders findings inside an impact level. See explain.ts. */
+  readonly leverage?: number
+  /** The honest answer to "can I do this myself". */
+  readonly who?: FixOwner
+  /** Realistic minutes, so a list of nine items is a plan rather than a threat. */
+  readonly minutes?: number
+  /** What the thing actually is, for a reader who has never heard the term. */
+  readonly what?: string
+  /** What it looks like once it is right, so they can check their own work. */
+  readonly example?: string
+  /** The pages this was found on. */
+  readonly affectedUrls?: readonly string[]
 }
 
 export interface Playbook {
@@ -57,53 +78,118 @@ const OPPORTUNITY_TO_INSIGHT: Record<string, InsightCategory> = {
 const localize = (value: { he: string; en: string }, language: Language): string =>
   language === 'he' ? value.he : value.en
 
-const fromInsight = (insight: Insight, language: Language): PlaybookItem => ({
-  kind: 'GENERAL',
-  title: localize(insight.title, language),
-  why: localize(insight.why, language),
-  steps: insight.steps.map((s) => localize(s, language)),
-  controllability: insight.controllability,
-  weDoThisForYou: insight.weDoThisForYou,
-  howYouWillKnow: localize(insight.howYouWillKnow, language),
-})
+/**
+ * Roughly how long a piece of general advice takes.
+ *
+ * The catalogue records effort as a band rather than a number because these are content
+ * decisions, not tasks with a known length. But a reader comparing a measured item that
+ * says "5 minutes" against one that says nothing concludes the second is open-ended and
+ * skips it, so a band becomes the honest end of its range. ONGOING gets no number at all:
+ * putting one on work that never finishes would be the lie the number exists to avoid.
+ */
+const MINUTES_BY_EFFORT: Record<Effort, number | undefined> = {
+  MINUTES: 15,
+  HOURS: 60,
+  ONGOING: undefined,
+}
 
+const fromInsight = (insight: Insight, language: Language): PlaybookItem => {
+  const minutes = MINUTES_BY_EFFORT[insight.effort]
+  return {
+    kind: 'GENERAL',
+    title: localize(insight.title, language),
+    why: localize(insight.why, language),
+    steps: insight.steps.map((s) => localize(s, language)),
+    controllability: insight.controllability,
+    weDoThisForYou: insight.weDoThisForYou,
+    howYouWillKnow: localize(insight.howYouWillKnow, language),
+    // Every insight in the catalogue is content or consistency work on the business's own
+    // material. None of it needs somebody who edits code.
+    who: 'YOU',
+    ...(minutes === undefined ? {} : { minutes }),
+  }
+}
+
+const findingTypeOf = (opportunity: Opportunity): string | undefined => {
+  const value = opportunity.evidence?.findingType
+  return typeof value === 'string' ? value : undefined
+}
+
+/**
+ * Findings about the site as a whole rather than about particular pages.
+ *
+ * Their `url` is a location that does not exist — that is the finding. Listing
+ * "/sitemap.xml" under "which pages" invites the reader to go and look at a 404.
+ */
+const SITE_LEVEL = new Set(['NO_SITEMAP', 'NO_ROBOTS_TXT'])
+
+const affectedUrlsOf = (opportunity: Opportunity): readonly string[] => {
+  if (SITE_LEVEL.has(findingTypeOf(opportunity) ?? '')) return []
+  const value = opportunity.evidence?.affectedUrls
+  return Array.isArray(value) ? value.filter((u): u is string => typeof u === 'string') : []
+}
+
+/**
+ * A measured finding, written out for the person who has to act on it.
+ *
+ * The steps used to say "we handle this automatically" for anything auto-fixable. That is
+ * true of a subscriber and false of everybody else, and everybody else is who reads a free
+ * scan — so the single most common report this product produces used to list seven
+ * problems and zero instructions. Where a fix guide exists it supplies real steps; the
+ * "we can do this for you" claim moves to a flag the UI can show next to them, which is
+ * what it always was.
+ */
 const fromOpportunity = (
   opportunity: Opportunity,
   language: Language,
   monitoredQuestions: number,
-): PlaybookItem => ({
-  kind: 'MEASURED',
-  title: opportunity.title,
-  why: opportunity.explanation,
-  steps: opportunity.autoFixable
-    ? [
-        language === 'he'
-          ? 'אנחנו נטפל בזה אוטומטית. תוכלו לראות בדיוק מה שונה, ולבטל בלחיצה.'
-          : 'We handle this automatically. You can see exactly what changed and undo it in one click.',
-      ]
-    : [
-        language === 'he'
-          ? 'זה דורש החלטה שלכם. נציג לכם בדיוק מה מוצע לפני שמשנים משהו.'
-          : 'This needs a decision from you. We show you exactly what we propose before anything changes.',
-      ],
-  controllability: opportunity.controllability,
-  weDoThisForYou: opportunity.autoFixable,
-  howYouWillKnow:
+): PlaybookItem => {
+  const guide = fixGuide(findingTypeOf(opportunity) ?? '')
+  const localized = (value: { he: string; en: string }) => localize(value, language)
+
+  const fallbackSteps = [
     language === 'he'
-      ? 'נמדוד מחדש את אותן שאלות ונראה אם המצב השתנה.'
-      : 'We re-measure the same questions and see whether it moved.',
-  evidence: opportunity.evidence,
-  // Only when both numbers are real. A reach of zero out of zero is noise, and a reach
-  // larger than the set it is drawn from would be a bug on display.
-  ...(opportunity.promptReach > 0 && monitoredQuestions > 0
-    ? {
-        reach: {
-          questions: Math.min(opportunity.promptReach, monitoredQuestions),
-          of: monitoredQuestions,
-        },
-      }
-    : {}),
-})
+      ? 'זה דורש החלטה שלכם. נציג לכם בדיוק מה מוצע לפני שמשנים משהו.'
+      : 'This needs a decision from you. We show you exactly what we propose before anything changes.',
+  ]
+
+  return {
+    kind: 'MEASURED',
+    title: guide ? localized(guide.headline) : opportunity.title,
+    why: guide ? localized(guide.costs) : opportunity.explanation,
+    steps: guide ? guide.steps.map(localized) : fallbackSteps,
+    controllability: opportunity.controllability,
+    weDoThisForYou: opportunity.autoFixable,
+    howYouWillKnow:
+      language === 'he'
+        ? 'נמדוד מחדש את אותן שאלות ונראה אם המצב השתנה.'
+        : 'We re-measure the same questions and see whether it moved.',
+    evidence: opportunity.evidence,
+    // Only when both numbers are real. A reach of zero out of zero is noise, and a reach
+    // larger than the set it is drawn from would be a bug on display.
+    ...(opportunity.promptReach > 0 && monitoredQuestions > 0
+      ? {
+          reach: {
+            questions: Math.min(opportunity.promptReach, monitoredQuestions),
+            of: monitoredQuestions,
+          },
+        }
+      : {}),
+    ...(guide
+      ? {
+          impact: guide.impact,
+          leverage: guide.leverage,
+          who: guide.who,
+          minutes: guide.minutes,
+          what: localized(guide.what),
+          ...(guide.example ? { example: localized(guide.example) } : {}),
+        }
+      : {}),
+    ...(affectedUrlsOf(opportunity).length > 0
+      ? { affectedUrls: affectedUrlsOf(opportunity) }
+      : {}),
+  }
+}
 
 export interface PlaybookInput {
   readonly vertical: string
@@ -130,6 +216,15 @@ export const buildPlaybook = (input: PlaybookInput): Playbook => {
   const measured = opportunities
     .filter((o) => o.controllability !== 'NOT_CONTROLLED')
     .map((o) => fromOpportunity(o, language, input.monitoredQuestions ?? 0))
+    // Ordered by what actually decides whether an assistant can recommend them. The
+    // opportunity score that produced this list is a blend of reach, lift and cost, and it
+    // is good at ranking work; it is not the same question as "which of these is the
+    // reason nothing mentions us", and that is the question the reader is asking. Ties
+    // keep the upstream order, which is the scored one.
+    .sort((a, b) => {
+      const byImpact = IMPACT_RANK[a.impact ?? 'MINOR'] - IMPACT_RANK[b.impact ?? 'MINOR']
+      return byImpact !== 0 ? byImpact : (b.leverage ?? 0) - (a.leverage ?? 0)
+    })
 
   const general = prioritizedInsights(input.vertical, {
     weakCategories: [...measuredCategories],

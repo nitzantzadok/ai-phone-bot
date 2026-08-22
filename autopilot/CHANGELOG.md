@@ -1,5 +1,66 @@
 # CHANGELOG
 
+## Unreleased — the report is written for the person who has to act on it
+
+### Changed
+
+The scan was producing correct findings in the crawler's vocabulary. A business owner who
+reads "this page does not state its official address, so crawlers may treat duplicates as
+separate pages" has learned nothing they can act on, and every sentence like it teaches
+them that the report is not meant for them.
+
+- **Every finding type now has a plain-language guide** (`insights/explain.ts`): what the
+  thing actually is, what it costs in customers, and steps concrete enough to follow alone,
+  naming the platforms Israeli small businesses actually use. A test reads the audit source
+  and fails if the crawler can emit a finding with no guide behind it.
+- **Two questions every owner asks, which no report of this kind answers:** how long this
+  takes, and whether they can do it themselves or need the person who built the site. Both
+  are on every item now.
+- **The report opens with a verdict, not a score.** What happens today when a customer asks
+  an assistant, which of their details are missing from their own site, and the single
+  thing to do first. The number moved to the bottom with a band and an explanation of what
+  it does and does not claim.
+- **A ready-to-send handoff for whoever built the site** (`insights/handoff.ts`), with the
+  findings in a developer's vocabulary, the exact addresses, and a JSON-LD block generated
+  from the details the scan actually read. Roughly half of what a scan finds cannot be
+  fixed from a site editor, and a clear report that leaves the owner to translate it
+  themselves still changes nothing. Fields that were not read are left out rather than
+  stubbed — a developer who pastes `"telephone": "TODO"` into production has been failed.
+- **Ordered by what decides whether an assistant can recommend them**, not by crawler
+  severity. The two disagree often: a title four characters too long is a real finding and
+  almost never the reason a business is invisible.
+- **Measured findings and general advice are numbered separately.** Running them into one
+  list put generic advice at number 8 of 9, where it reads as a finding about this business
+  that we forgot to evidence.
+
+### Fixed
+
+- **Operator diagnostics were rendering in customer dashboards.** "No ANTHROPIC_API_KEY,
+  OPENAI_API_KEY or GEMINI_API_KEY is configured" and "USE_MOCK_PROVIDERS is set" both
+  reached the page. That text is correct and belongs in the CLI and the logs; in a
+  dentist's dashboard it says two things at once — something is broken, and nobody read
+  this page before shipping it. A test now holds the boundary.
+- **`local_business` and `readiness-v1` were printed at customers**, the first under the
+  heading "detected field". An underscore in their own report tells a reader, correctly,
+  that they are looking at somebody's debug output.
+- **A claim the report could not defend.** A missing machine-readable business card was
+  ranked CRITICAL, which carries the sentence "this is not lower odds, it is zero". That is
+  false — a site with well-written plain text gets recommended without one every day. It is
+  the highest-leverage finding in the table and it is now IMPORTANT, ordered to the top of
+  its level by a separate `leverage` field. CRITICAL is reserved for the three findings that
+  honestly mean there is nothing to read: a page that asks to be excluded, a page whose text
+  does not exist until a browser draws it, and a page that does not load.
+- **"We handle this automatically" was the only instruction on every auto-fixable item.**
+  True for a subscriber, false for everybody else — and everybody else is who reads a free
+  scan, so the most common report this product produces listed seven problems and zero
+  instructions.
+- **"Which pages" listed `/sitemap.xml`** for a site-level finding, inviting the reader to
+  go and look at a 404.
+- **An empty question set rendered as silence.** No questions is itself the strongest
+  finding available: they are built from the field, the city and the services the site
+  states, so an empty set means the site did not state enough to ask about — which is
+  exactly the position an assistant is in when somebody asks about that business.
+
 ## Unreleased — the scan runs against real websites, from the browser
 
 ### Fixed

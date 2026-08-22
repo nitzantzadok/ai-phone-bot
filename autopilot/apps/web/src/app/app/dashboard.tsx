@@ -3,6 +3,15 @@ import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli
 import { platformById, GOOGLE_GUIDE, type PlatformGuide } from '@autopilot/insights/platforms.ts'
 import type { BusinessSession } from '@/lib/session'
 import { dashboardBudget } from '@/lib/spend'
+import { buildReportView } from '@/lib/report-view'
+import {
+  ActionItem,
+  FactsBlock,
+  HandoffBlock,
+  ScoreBlock,
+  Section,
+  VerdictBlock,
+} from '@/components/report'
 
 /**
  * The working dashboard.
@@ -12,8 +21,6 @@ import { dashboardBudget } from '@/lib/spend'
  * is: no trend arrows, no "up 4 points since last month", no sparkline drawn from a single
  * point. It says this is the first scan, because it is.
  */
-
-const SEVERITY_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const
 
 const Panel = ({
   title,
@@ -31,15 +38,6 @@ const Panel = ({
     </div>
     {children}
   </section>
-)
-
-const Bar = ({ value }: { value: number }) => (
-  <div className="h-2 w-full overflow-hidden rounded-full bg-line">
-    <div
-      className="h-full rounded-full bg-accent"
-      style={{ width: `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%` }}
-    />
-  </div>
 )
 
 /** Which platform guide to show, from what the scan saw rather than from a question. */
@@ -139,129 +137,114 @@ export const Dashboard = async ({
   /* --------------------------------------------------------------- the app ----- */
   const b = report.business
   const guide = guideFor(report)
-  const componentLabels: Record<string, string> = he
-    ? {
-        technicalDiscoverability: 'האם אפשר לקרוא את האתר',
-        informationCompleteness: 'האם המידע שלם',
-        attributeCoverage: 'האם כתוב מה שנשאלים',
-      }
-    : {
-        technicalDiscoverability: 'Can the site be read',
-        informationCompleteness: 'Is the information complete',
-        attributeCoverage: 'Is what people ask about written',
-      }
-
-  const grouped = [
-    ...report.findings
-      .reduce((map, f) => {
-        map.set(f.findingType, [...(map.get(f.findingType) ?? []), f])
-        return map
-      }, new Map<string, typeof report.findings>())
-      .values(),
-  ].sort((a, c) => SEVERITY_ORDER[a[0]!.severity] - SEVERITY_ORDER[c[0]!.severity])
-
-  const autoFixable = grouped.filter((g) => g[0]!.autoFixable).length
+  const view = buildReportView(report, language)
+  const measured = report.playbook.items.filter((i) => i.kind === 'MEASURED')
+  const general = report.playbook.items.filter((i) => i.kind === 'GENERAL')
 
   return (
     <div className="space-y-6">
-      {/* -------------------------------------------------------- headline --- */}
-      <div className="grid gap-6 sm:grid-cols-3">
-        <section className="rounded-xl border border-accent bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:col-span-1">
-          <p className="text-xs text-muted">{he ? 'ציון מוכנות' : 'Readiness'}</p>
-          <p className="mt-2 text-5xl font-semibold tabular-nums">{report.readiness.score}</p>
-          <p className="mt-1 text-xs text-muted">
-            {he ? 'מתוך 100 · הסריקה הראשונה' : 'out of 100 · first scan'}
-          </p>
-        </section>
+      <VerdictBlock verdict={view.verdict} language={language} />
 
-        <section className="rounded-xl border border-line bg-white p-6 sm:col-span-2">
-          <div className="space-y-3.5">
-            {Object.entries(report.readiness.components).map(([key, c]) => (
-              <div key={key}>
-                <div className="flex items-baseline justify-between text-sm">
-                  <span>{componentLabels[key]}</span>
-                  <span className="tabular-nums text-muted">{Math.round(c.value * 100)}%</span>
-                </div>
-                <div className="mt-1.5">
-                  <Bar value={c.value} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* -------------------------------------------------------- identity --- */}
-      <Panel
-        title={he ? 'מה האתר אומר על העסק' : 'What the site says about the business'}
-        hint={
+      {/* -------------------------------------------------------- playbook --- */}
+      <Section
+        title={he ? 'מה לעשות, לפי הסדר' : 'What to do, in order'}
+        lead={
           he
-            ? `נקראו ${report.crawl.pagesFetched} עמודים · תחום שזוהה: ${b.vertical}`
-            : `${report.crawl.pagesFetched} pages read · detected field: ${b.vertical}`
+            ? 'לפי מה שמשנה, לא לפי מה שקל. לכל שורה כתוב כמה זמן זה לוקח ומי צריך לעשות את זה.'
+            : 'Ordered by what matters, not by what is easy. Each item says how long it takes and who has to do it.'
         }
       >
-        <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {(
-            [
-              [he ? 'שם' : 'Name', b.name],
-              [he ? 'עיר' : 'City', b.city],
-              [he ? 'טלפון' : 'Phone', b.phone],
-              [he ? 'כתובת' : 'Address', b.address],
-            ] as const
-          ).map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-4 text-sm">
-              <dt className="text-muted">{label}</dt>
-              <dd className={value ? 'font-medium' : 'text-negative'}>
-                {value ?? (he ? 'לא נמצא' : 'not found')}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        {measured.length > 0 ? (
+          <ol className="space-y-6">
+            {measured.map((item, index) => (
+              <ActionItem key={item.title} item={item} index={index} language={language} />
+            ))}
+          </ol>
+        ) : (
+          <p className="text-[15px] leading-relaxed">
+            {he
+              ? 'לא מצאנו באתר שום דבר טכני שחוסם מערכת AI מלקרוא אתכם.'
+              : 'We found nothing technical on the site blocking an AI from reading you.'}
+          </p>
+        )}
+      </Section>
 
-        {b.statedAttributes.length > 0 ? (
-          <div className="mt-5 border-t border-line pt-4">
-            <p className="text-xs text-muted">
-              {he ? 'מה שהאתר כן אומר עליכם' : 'What the site does say about you'}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {b.statedAttributes.map((a) => (
-                <span key={a} className="rounded-full bg-line px-2.5 py-1 text-xs font-medium">
-                  {a}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </Panel>
+
+      {/* -------------------------------------------------- general advice --- */}
+      {general.length > 0 ? (
+        <Section
+          title={
+            he
+              ? 'ומעבר לזה: מה שהכי משפיע בעסקים כמו שלכם'
+              : 'And beyond that: what matters most for businesses like yours'
+          }
+          lead={
+            he
+              ? 'את החלק הזה לא מדדנו אצלכם — הוא לא נמצא בקוד של האתר אלא בתוכן שלו. אלה הדברים שחוזרים אצל עסקים שכן מופיעים בתשובות, לפי הסדר שבו הם משפיעים.'
+              : 'We did not measure this part on your site — it lives in the content rather than the code. These are what recurs among businesses that do appear in answers, in the order they matter.'
+          }
+        >
+          <ol className="space-y-6">
+            {general.map((item, index) => (
+              <ActionItem key={item.title} item={item} index={index} language={language} />
+            ))}
+          </ol>
+        </Section>
+      ) : null}
+
+      {/* --------------------------------------------------------- handoff --- */}
+      <HandoffBlock
+        text={view.handoff.text}
+        developerItems={view.handoff.developerItems}
+        language={language}
+      />
 
       {/* ------------------------------------------------------------- ai --- */}
-      <Panel title={he ? 'נוכחות בתשובות של AI' : 'Presence in AI answers'}>
+      <Section
+        title={he ? 'מה קורה בפועל בתשובות של AI' : 'What actually happens in AI answers'}
+        lead={
+          report.aiVisibility
+            ? he
+              ? `שאלנו ${report.aiVisibility.promptsRun} שאלות אמיתיות מול ${report.aiVisibility.engines.join(', ')}. אלה התשובות שחזרו.`
+              : `We asked ${report.aiVisibility.promptsRun} real questions of ${report.aiVisibility.engines.join(', ')}. These are the answers that came back.`
+            : undefined
+        }
+      >
         {report.aiVisibility ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-baseline gap-3">
-              <span className="text-3xl font-semibold tabular-nums">
-                {report.aiVisibility.airs.score}
-              </span>
-              <span className="text-sm text-muted">
-                AIRS · {report.aiVisibility.engines.join(', ')} ·{' '}
-                {report.aiVisibility.promptsRun} {he ? 'הרצות' : 'runs'}
-              </span>
+          <div className="space-y-5">
+            <div>
+              <div className="flex flex-wrap items-baseline gap-3">
+                <span className="text-4xl font-semibold tabular-nums">
+                  {Math.round(report.aiVisibility.recommendationRate * 100)}%
+                </span>
+                <span className="text-[15px] text-muted">
+                  {he
+                    ? `מהשאלות הזכירו אתכם (${report.aiVisibility.promptsRun} שאלות)`
+                    : `of the questions mentioned you (${report.aiVisibility.promptsRun} questions)`}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                {he
+                  ? 'זה המספר היחיד כאן שנמדד מול המערכות עצמן, לא מהאתר. כל השאר בדוח נקרא מהאתר שלכם.'
+                  : 'This is the one number here measured against the systems themselves rather than the site. Everything else in the report was read from your pages.'}
+              </p>
             </div>
-            <p className="text-sm">
-              {he
-                ? `הופעתם ב-${Math.round(report.aiVisibility.recommendationRate * 100)}% מהשאלות שנשאלו בפועל.`
-                : `You appeared in ${Math.round(report.aiVisibility.recommendationRate * 100)}% of the questions actually asked.`}
-            </p>
+
             {report.aiVisibility.competitors.length > 0 ? (
-              <p className="text-sm text-muted">
-                {he ? 'מי עוד הופיע: ' : 'Who else appeared: '}
-                {report.aiVisibility.competitors.slice(0, 5).map((c) => c.name).join(', ')}
+              <p className="text-[15px] leading-relaxed text-muted">
+                {he ? 'מי הופיע במקומכם: ' : 'Who appeared instead: '}
+                <span className="font-medium text-ink">
+                  {report.aiVisibility.competitors.slice(0, 5).map((c) => c.name).join(', ')}
+                </span>
               </p>
             ) : null}
-            <ul className="space-y-2 border-t border-line pt-4">
-              {report.aiVisibility.examples.slice(0, 6).map((e) => (
-                <li key={`${e.engine}-${e.question}`} className="flex gap-2 text-sm">
-                  <span className={e.recommended ? 'text-positive' : 'text-negative'}>
+
+            <ul className="space-y-2.5 border-t border-line pt-5">
+              {report.aiVisibility.examples.slice(0, 8).map((e) => (
+                <li key={`${e.engine}-${e.question}`} className="flex gap-2.5 text-[15px]">
+                  <span
+                    className={`shrink-0 font-semibold ${e.recommended ? 'text-positive' : 'text-negative'}`}
+                  >
                     {e.recommended ? '✓' : '✗'}
                   </span>
                   <span dir="auto">{e.question}</span>
@@ -270,20 +253,21 @@ export const Dashboard = async ({
             </ul>
           </div>
         ) : (
-          <div className="space-y-3 text-sm text-muted">
-            <p className="font-medium text-ink">{he ? 'לא נמדד' : 'Not measured'}</p>
-            <p>{he ? report.aiVisibilitySkipped?.detail.he : report.aiVisibilitySkipped?.detail.en}</p>
+          <div className="space-y-4">
+            <p className="font-medium">{he ? 'לא נמדד בהרצה הזו' : 'Not measured on this run'}</p>
+            <p className="text-[15px] leading-relaxed text-muted">{view.aiSkipMessage}</p>
             {report.prompts.length > 0 ? (
-              <div className="border-t border-line pt-3">
-                <p>
+              <div className="border-t border-line pt-4">
+                <p className="text-[15px]">
                   {he
                     ? `אלה ${report.prompts.length} השאלות שאנחנו עוקבים אחריהן עבורכם:`
                     : `These are the ${report.prompts.length} questions we monitor for you:`}
                 </p>
-                <ul className="mt-2 space-y-1">
+                <ul className="mt-2.5 space-y-2 rounded-lg bg-surface p-4 text-[15px]">
                   {report.prompts.slice(0, 8).map((p) => (
-                    <li key={p.id} dir="auto">
-                      · {p.queryText}
+                    <li key={p.id} className="flex gap-2.5" dir="auto">
+                      <span className="text-muted">·</span>
+                      <span>{p.queryText}</span>
                     </li>
                   ))}
                 </ul>
@@ -291,92 +275,15 @@ export const Dashboard = async ({
             ) : null}
           </div>
         )}
-      </Panel>
+      </Section>
 
-      {/* -------------------------------------------------------- findings --- */}
-      {grouped.length > 0 ? (
-        <Panel
-          title={he ? 'מה מצאנו באתר' : 'What we found on the site'}
-          hint={
-            he
-              ? `${grouped.length} סוגי בעיות · ${autoFixable} מהן אנחנו יכולים לתקן בעצמנו`
-              : `${grouped.length} kinds of problem · ${autoFixable} we can fix ourselves`
-          }
-        >
-          <ul className="space-y-3">
-            {grouped.map((group) => {
-              const f = group[0]!
-              return (
-                <li key={f.findingType} className="flex gap-3 text-sm">
-                  <span
-                    className={`mt-1.5 size-2 shrink-0 rounded-full ${
-                      f.severity === 'HIGH'
-                        ? 'bg-negative'
-                        : f.severity === 'MEDIUM'
-                          ? 'bg-caution'
-                          : 'bg-line'
-                    }`}
-                  />
-                  <span className="min-w-0">
-                    {group.length > 1 ? (
-                      <span className="me-1 font-medium tabular-nums">×{group.length}</span>
-                    ) : null}
-                    {he ? f.plainLanguageHe : f.plainLanguage}
-                    {f.autoFixable ? (
-                      <span className="ms-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
-                        {he ? 'ניתן לתיקון אוטומטי' : 'auto-fixable'}
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        </Panel>
-      ) : null}
-
-      {/* -------------------------------------------------------- playbook --- */}
-      <Panel title={he ? 'מה לעשות, לפי סדר' : 'What to do, in order'} hint={report.playbook.headline}>
-        <ol className="space-y-6">
-          {report.playbook.items.map((item, index) => (
-            <li key={item.title} className="flex gap-3">
-              <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold tabular-nums text-white">
-                {index + 1}
-              </span>
-              <div className="min-w-0">
-                <p className="font-medium">
-                  {item.title}
-                  {item.weDoThisForYou ? (
-                    <span className="ms-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium text-muted">
-                      {he ? 'אנחנו עושים את זה' : 'we do this'}
-                    </span>
-                  ) : null}
-                </p>
-                {item.reach ? (
-                  <p className="mt-1 text-xs font-medium text-accent">
-                    {he
-                      ? `נוגע ל-${item.reach.questions} מתוך ${item.reach.of} השאלות שאנחנו עוקבים אחריהן`
-                      : `Touches ${item.reach.questions} of the ${item.reach.of} questions we monitor`}
-                  </p>
-                ) : null}
-                <p className="mt-1 text-sm text-muted">{item.why}</p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {item.steps.map((step) => (
-                    <li key={step} className="flex gap-2">
-                      <span className="text-muted">·</span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-xs text-muted">
-                  {he ? 'איך תדעו: ' : 'How you will know: '}
-                  {item.howYouWillKnow}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </Panel>
+      {/* ---------------------------------------------------------- facts --- */}
+      <FactsBlock
+        facts={view.facts}
+        pagesRead={report.crawl.pagesFetched}
+        attributes={b.statedAttributes}
+        language={language}
+      />
 
       {/* ------------------------------------------------------- connect --- */}
       <Panel
@@ -421,6 +328,15 @@ export const Dashboard = async ({
         </div>
       </Panel>
 
+      {/* ----------------------------------------------------------- score --- */}
+      <ScoreBlock
+        score={report.readiness.score}
+        bandLabel={view.bandLabel}
+        components={view.components}
+        language={language}
+        footnote={view.scoreFootnote}
+      />
+
       {/* ------------------------------------------------------- honesty --- */}
       <Panel title={he ? 'מה לא בשליטתנו' : 'Outside our control'}>
         {report.playbook.outsideOurControl.map((item) => (
@@ -430,7 +346,6 @@ export const Dashboard = async ({
           </div>
         ))}
         <p className="mt-4 border-t border-line pt-4 text-xs text-muted">
-          {report.readiness.version} ·{' '}
           {he
             ? 'כל מספר במסך הזה נמדד עכשיו, מהאתר שלכם. אין כאן היסטוריה עדיין — זו הסריקה הראשונה.'
             : 'Every number on this screen was measured just now, from your site. There is no history yet — this is the first scan.'}

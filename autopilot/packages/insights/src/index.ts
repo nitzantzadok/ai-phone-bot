@@ -1,3 +1,6 @@
 export * from './catalogue.ts'
 export * from './playbook.ts'
 export * from './platforms.ts'
+export * from './explain.ts'
+export * from './verdict.ts'
+export * from './handoff.ts'
