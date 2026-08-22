@@ -48,10 +48,17 @@ pnpm web
 
 Then open **http://localhost:3100**
 
-Port 3100 rather than 3000 on purpose: 3000 is the default for nearly every Node project,
-so anyone running more than one meets a collision on their first try — and Next quietly
-moves to a different port, which means the address in the instructions loads somebody
-else's app. If the terminal prints a different port anyway, trust the terminal., type an address, press the button. This is the
+The server prints a box with the address to open. **That box is the address** — not
+whatever any guide says, including this one. `pnpm web` finds a free port before starting
+(3100 upward), so it never lands on a port something else already owns, and it tells you
+which one it took. 3000 is the default for nearly every Node project, so anyone running
+more than one meets a collision on their first try.
+
+Two things worth knowing the first time:
+
+- **The terminal window running the server is occupied.** Anything you type into it goes
+  to the server and does nothing. Open a new window (⌘N) for other commands.
+- **Stopping the server:** `Ctrl + C` in that window., type an address, press the button. This is the
 identical flow that a visitor gets on a deployed site — useful for seeing what a customer
 would see, and for showing someone the product over a screen share.
 

@@ -95,8 +95,9 @@ fi
 if [ -z "$TARGET" ]; then
   printf '\n%s✓ הכל מוכן.%s\n\n' "$GREEN" "$RESET"
   printf 'להרצת סריקה:\n\n  pnpm scan https://www.example.co.il\n\n'
-  printf 'או להרצת האתר בדפדפן:\n\n  pnpm web\n\nואז לפתוח http://localhost:3100\n\n'
-  printf '%sאם הטרמינל מדפיס פורט אחר, תשתמשו במה שהוא מדפיס — הוא תמיד צודק.%s\n\n' "$DIM" "$RESET"
+  printf 'או להרצת האתר בדפדפן:\n\n  pnpm web\n\n'
+  printf '%sהשרת ידפיס מסגרת עם הכתובת המדויקת לפתוח. זו הכתובת — לא מה שכתוב במדריך.%s\n' "$DIM" "$RESET"
+  printf '%sוחשוב: חלון הטרמינל שבו רץ השרת תפוס. לפקודות נוספות פתחו חלון חדש (⌘N).%s\n\n' "$DIM" "$RESET"
   exit 0
 fi
 
