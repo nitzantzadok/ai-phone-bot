@@ -21,10 +21,17 @@ No API keys. No database. No Docker. Zero cost.
 ### Scan a real website
 
 ```bash
+git clone https://github.com/nitzantzadok/ai-phone-bot.git
+cd ai-phone-bot
+git checkout claude/ai-recommendation-autopilot-4pr0dq
 cd autopilot
-pnpm install
+bash setup.sh
 pnpm scan https://example.co.il
 ```
+
+> The `git checkout` line matters: this work lives on a branch, and `git clone` alone
+> fetches the default one, where most of these files do not exist yet.
+
 
 A live crawl of that site, the facts it actually states, the technical problems it
 actually has, a versioned readiness score and a prioritized list of what to do — in Hebrew

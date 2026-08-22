@@ -14,10 +14,18 @@ corepack enable
 
 ```bash
 git clone https://github.com/nitzantzadok/ai-phone-bot.git
-cd ai-phone-bot/autopilot
+cd ai-phone-bot
 git checkout claude/ai-recommendation-autopilot-4pr0dq
-pnpm install
+cd autopilot
+bash setup.sh
 ```
+
+The `git checkout` line is not optional. `git clone` fetches the default branch, and this
+work lives on a branch of its own — without it half the files are missing, `setup.sh`
+among them, and the first command you run fails with `No such file or directory`.
+
+`setup.sh` checks each prerequisite and installs; it says in Hebrew what is missing and
+what to do about it.
 
 ## Scan a site
 
