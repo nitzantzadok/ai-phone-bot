@@ -569,6 +569,8 @@ export const scanBusiness = async (options: ScanOptions): Promise<ScanReport> =>
     language,
     opportunities: diagnosis.opportunities,
     businessName: name ?? undefined,
+    // So each recommendation can say what it touches: "14 of the 22 questions we monitor".
+    monitoredQuestions: prompts.length,
   })
 
   return {

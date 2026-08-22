@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
-import { getPlan } from '@autopilot/billing/plans.ts'
 import { platformById, GOOGLE_GUIDE, type PlatformGuide } from '@autopilot/insights/platforms.ts'
 import type { BusinessSession } from '@/lib/session'
+import { dashboardBudget } from '@/lib/spend'
 
 /**
  * The working dashboard.
@@ -68,16 +68,15 @@ export const Dashboard = async ({
   language: 'he' | 'en'
 }) => {
   const he = language === 'he'
-  const plan = getPlan(session.plan)
 
   let report: ScanReport
   try {
     report = await scanBusiness({
       url: session.url,
       language,
-      maxPages: Math.min(20, plan.limits.crawl_page),
-      maxPrompts: Math.min(30, plan.limits.monitored_prompts),
-      maxSpendMinor: plan.limits.monthlySpendCapMinor,
+      // A per-request ceiling, not the plan's monthly one: this render can repeat on every
+      // refresh, and a month's budget per reload is not a budget.
+      ...dashboardBudget(session.plan),
     })
   } catch (error) {
     return (
@@ -353,6 +352,13 @@ export const Dashboard = async ({
                     </span>
                   ) : null}
                 </p>
+                {item.reach ? (
+                  <p className="mt-1 text-xs font-medium text-accent">
+                    {he
+                      ? `נוגע ל-${item.reach.questions} מתוך ${item.reach.of} השאלות שאנחנו עוקבים אחריהן`
+                      : `Touches ${item.reach.questions} of the ${item.reach.of} questions we monitor`}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-sm text-muted">{item.why}</p>
                 <ul className="mt-2 space-y-1 text-sm">
                   {item.steps.map((step) => (

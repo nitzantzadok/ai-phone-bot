@@ -27,6 +27,15 @@ export interface PlaybookItem {
   readonly howYouWillKnow: string
   /** Present on measured items: the evidence that produced it. */
   readonly evidence?: Record<string, unknown>
+  /**
+   * How many of the monitored questions this item touches, out of how many there are.
+   *
+   * The difference between a chore list and a business case. "Add opening hours" is work
+   * somebody has to find time for; "this affects 14 of the 22 questions customers ask
+   * about you" is a decision with a number attached — and it is a count of real generated
+   * questions, not an estimate of anything.
+   */
+  readonly reach?: { readonly questions: number; readonly of: number }
 }
 
 export interface Playbook {
@@ -58,7 +67,11 @@ const fromInsight = (insight: Insight, language: Language): PlaybookItem => ({
   howYouWillKnow: localize(insight.howYouWillKnow, language),
 })
 
-const fromOpportunity = (opportunity: Opportunity, language: Language): PlaybookItem => ({
+const fromOpportunity = (
+  opportunity: Opportunity,
+  language: Language,
+  monitoredQuestions: number,
+): PlaybookItem => ({
   kind: 'MEASURED',
   title: opportunity.title,
   why: opportunity.explanation,
@@ -80,6 +93,16 @@ const fromOpportunity = (opportunity: Opportunity, language: Language): Playbook
       ? 'נמדוד מחדש את אותן שאלות ונראה אם המצב השתנה.'
       : 'We re-measure the same questions and see whether it moved.',
   evidence: opportunity.evidence,
+  // Only when both numbers are real. A reach of zero out of zero is noise, and a reach
+  // larger than the set it is drawn from would be a bug on display.
+  ...(opportunity.promptReach > 0 && monitoredQuestions > 0
+    ? {
+        reach: {
+          questions: Math.min(opportunity.promptReach, monitoredQuestions),
+          of: monitoredQuestions,
+        },
+      }
+    : {}),
 })
 
 export interface PlaybookInput {
@@ -89,6 +112,8 @@ export interface PlaybookInput {
   readonly businessName?: string
   /** Cap on general advice, so a measured diagnosis is never buried under priors. */
   readonly maxGeneral?: number
+  /** Size of the monitored question set, so each item can state what it touches. */
+  readonly monitoredQuestions?: number
 }
 
 export const buildPlaybook = (input: PlaybookInput): Playbook => {
@@ -104,7 +129,7 @@ export const buildPlaybook = (input: PlaybookInput): Playbook => {
 
   const measured = opportunities
     .filter((o) => o.controllability !== 'NOT_CONTROLLED')
-    .map((o) => fromOpportunity(o, language))
+    .map((o) => fromOpportunity(o, language, input.monitoredQuestions ?? 0))
 
   const general = prioritizedInsights(input.vertical, {
     weakCategories: [...measuredCategories],
@@ -117,7 +142,7 @@ export const buildPlaybook = (input: PlaybookInput): Playbook => {
   const external = [
     ...opportunities
       .filter((o) => o.controllability === 'NOT_CONTROLLED')
-      .map((o) => fromOpportunity(o, language)),
+      .map((o) => fromOpportunity(o, language, input.monitoredQuestions ?? 0)),
     ...prioritizedInsights(input.vertical)
       .filter((i) => i.controllability === 'NOT_CONTROLLED')
       .map((i) => fromInsight(i, language)),

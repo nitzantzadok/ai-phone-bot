@@ -244,6 +244,15 @@ export const renderReport = (report: ScanReport): string => {
   report.playbook.items.forEach((item, i) => {
     const tag = item.kind === 'MEASURED' ? L(lang, 'נמדד', 'measured') : L(lang, 'כללי', 'general')
     say(`  ${i + 1}. ${item.title}  (${tag})`)
+    if (item.reach) {
+      say(
+        L(
+          lang,
+          `     נוגע ל-${item.reach.questions} מתוך ${item.reach.of} השאלות שאנחנו עוקבים אחריהן`,
+          `     Touches ${item.reach.questions} of the ${item.reach.of} questions we monitor`,
+        ),
+      )
+    }
     say(`     ${item.why}`)
     for (const step of item.steps.slice(0, 4)) say(`       · ${step}`)
     say(

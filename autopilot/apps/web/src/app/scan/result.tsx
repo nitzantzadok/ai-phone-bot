@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
 import { checkRateLimit, normalizeSiteUrl } from '@/lib/scan-limits'
+import { freeScanBudget } from '@/lib/spend'
 
 /**
  * The scan result.
@@ -89,11 +90,9 @@ export const ScanResult = async ({
     report = await scanBusiness({
       url,
       language,
-      // Bounded for a web request: enough pages to read a small business site properly,
-      // few enough to finish inside a serverless function's budget.
-      maxPages: 12,
-      maxPrompts: 24,
-      maxSpendMinor: 300,
+      // The free scan never asks a real AI engine: see lib/spend.ts. The site half is what
+      // produces the fixes and costs only a crawl; the measurement is what a plan buys.
+      ...freeScanBudget(),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -340,23 +339,28 @@ export const ScanResult = async ({
             </ul>
           </div>
         ) : (
+          /* The free scan reads the site; it does not ask an engine. Say what that half
+             would tell them and what it costs to run, rather than showing a shrug — the
+             questions below are real, generated from this site, and seeing them is the
+             most persuasive thing on the page. */
           <div className="mt-3 space-y-3 text-sm text-muted">
-            <p className="font-medium text-ink">{he ? 'לא נמדד' : 'Not measured'}</p>
-            <p>{he ? report.aiVisibilitySkipped?.detail.he : report.aiVisibilitySkipped?.detail.en}</p>
+            <p className="font-medium text-ink">
+              {he ? 'זה מה שמנוי מודד עבורכם' : 'This is what a plan measures for you'}
+            </p>
             <p>
               {he
-                ? 'לא הערכנו ולא הדמינו מספר במקום המדידה. החלק הזה של הדוח פשוט לא בוצע.'
-                : 'Nothing was estimated or simulated in its place. This half of the report simply did not run.'}
+                ? 'הסריקה החינמית קוראת את האתר שלכם. השאלות למטה נוצרו ממנו — הן השאלות שלקוחות בתחום שלכם באמת שואלים, בעברית ובאנגלית. מנוי שואל אותן בפועל מול ChatGPT, Gemini ו-Claude, כל שבוע, ומדווח אם הופעתם ומי הופיע במקומכם.'
+                : 'The free scan reads your site. The questions below were generated from it — the ones customers in your field actually ask, in Hebrew and English. A plan asks them for real, of ChatGPT, Gemini and Claude, every week, and reports whether you appeared and who appeared instead.'}
             </p>
             {report.prompts.length > 0 ? (
               <div className="border-t border-line pt-3">
-                <p>
+                <p className="font-medium text-ink">
                   {he
-                    ? `${report.prompts.length} השאלות שהיינו שואלים, לדוגמה:`
-                    : `${report.prompts.length} questions we would ask, for example:`}
+                    ? `${report.prompts.length} שאלות שנוצרו מהאתר שלכם:`
+                    : `${report.prompts.length} questions generated from your site:`}
                 </p>
                 <ul className="mt-2 space-y-1">
-                  {report.prompts.slice(0, 5).map((p) => (
+                  {report.prompts.slice(0, 6).map((p) => (
                     <li key={p.id} dir="auto">
                       · {p.queryText}
                     </li>
@@ -364,6 +368,11 @@ export const ScanResult = async ({
                 </ul>
               </div>
             ) : null}
+            <p className="border-t border-line pt-3 text-xs">
+              {he
+                ? 'שום מספר כאן לא הוערך ולא הודמה. מה שלא נמדד — כתוב שלא נמדד.'
+                : 'No number here was estimated or simulated. What was not measured says so.'}
+            </p>
           </div>
         )}
       </section>
@@ -421,6 +430,13 @@ export const ScanResult = async ({
                     </span>
                   ) : null}
                 </p>
+                {item.reach ? (
+                  <p className="mt-1 text-xs font-medium text-accent">
+                    {he
+                      ? `נוגע ל-${item.reach.questions} מתוך ${item.reach.of} השאלות בתחום שלכם`
+                      : `Touches ${item.reach.questions} of the ${item.reach.of} questions in your field`}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-sm text-muted">{item.why}</p>
                 <ul className="mt-2 space-y-1 text-sm">
                   {item.steps.slice(0, 4).map((step) => (
