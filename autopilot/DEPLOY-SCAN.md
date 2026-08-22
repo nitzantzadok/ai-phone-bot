@@ -70,7 +70,7 @@ APP_ENV=production DEPLOYMENT_MODE=scan-only \
   pnpm --filter @autopilot/web run start
 ```
 
-That serves on port 3000. Put it behind your own domain and TLS. There is no long-running
+That serves on port 3100. Put it behind your own domain and TLS. There is no long-running
 worker to deploy and nothing to migrate, because nothing is stored.
 
 ---

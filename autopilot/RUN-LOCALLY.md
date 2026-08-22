@@ -46,7 +46,12 @@ respects `robots.txt`.
 pnpm web
 ```
 
-Then open **http://localhost:3000/join**, type an address, press the button. This is the
+Then open **http://localhost:3100**
+
+Port 3100 rather than 3000 on purpose: 3000 is the default for nearly every Node project,
+so anyone running more than one meets a collision on their first try — and Next quietly
+moves to a different port, which means the address in the instructions loads somebody
+else's app. If the terminal prints a different port anyway, trust the terminal., type an address, press the button. This is the
 identical flow that a visitor gets on a deployed site — useful for seeing what a customer
 would see, and for showing someone the product over a screen share.
 

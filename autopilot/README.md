@@ -63,7 +63,7 @@ engines genuinely see something different and the score moves for a real reason.
 pnpm test        # 657 tests, no infrastructure required
 pnpm typecheck
 pnpm lint
-pnpm web         # dashboard at http://localhost:3000
+pnpm web         # dashboard at http://localhost:3100
 pnpm worker
 ```
 

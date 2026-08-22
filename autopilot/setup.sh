@@ -95,7 +95,8 @@ fi
 if [ -z "$TARGET" ]; then
   printf '\n%s✓ הכל מוכן.%s\n\n' "$GREEN" "$RESET"
   printf 'להרצת סריקה:\n\n  pnpm scan https://www.example.co.il\n\n'
-  printf 'או להרצת האתר בדפדפן:\n\n  pnpm web\n\nואז לפתוח http://localhost:3000/join\n\n'
+  printf 'או להרצת האתר בדפדפן:\n\n  pnpm web\n\nואז לפתוח http://localhost:3100\n\n'
+  printf '%sאם הטרמינל מדפיס פורט אחר, תשתמשו במה שהוא מדפיס — הוא תמיד צודק.%s\n\n' "$DIM" "$RESET"
   exit 0
 fi
 
