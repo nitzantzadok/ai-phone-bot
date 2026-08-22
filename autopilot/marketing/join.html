@@ -667,8 +667,8 @@ footer { border-top: 1px solid var(--line); padding-block: 32px; }
     </form>
 
     <div class="result narrow" id="joinResult" hidden>
-      <h3><span class="lang-he">כמעט סיימנו &mdash; נשארה לחיצה אחת</span><span class="lang-en">Almost done &mdash; one click left</span></h3>
-      <p class="small muted" style="margin-top:6px">
+      <h3 id="resultHead"><span class="lang-he">כמעט סיימנו &mdash; נשארה לחיצה אחת</span><span class="lang-en">Almost done &mdash; one click left</span></h3>
+      <p class="small muted" style="margin-top:6px" id="resultLede">
         <span class="lang-he">בחרו איך לשלוח לנו את הפרטים. הכל כבר מוכן, רק ללחוץ ולשלוח.</span>
         <span class="lang-en">Choose how to send us your details. Everything is prepared; just click and send.</span>
       </p>
@@ -1142,6 +1142,21 @@ $('copyDetails').addEventListener('click', async () => {
 /* The owner has not filled in their contact details yet: say so where they
  * will see it, rather than handing visitors two dead buttons. */
 if (!OWNER_READY) {
+  const head = $('resultHead');
+  const lede = $('resultLede');
+  if (head) {
+    head.innerHTML =
+      '<span class="lang-he">הפרטים מוכנים להעתקה</span>' +
+      '<span class="lang-en">Your details are ready to copy</span>';
+  }
+  if (lede) {
+    lede.innerHTML =
+      '<span class="lang-he">העתיקו את הפרטים ושלחו אותם אלינו. אם הגעתם לכאן מקישור שקיבלתם, ' +
+      'שלחו אותם למי ששלח לכם את הקישור.</span>' +
+      '<span class="lang-en">Copy your details and send them to us. If you arrived from a link ' +
+      'somebody sent you, send them to whoever sent it.</span>';
+  }
+
   const note = document.createElement('div');
   note.className = 'note';
   note.style.marginTop = '14px';
