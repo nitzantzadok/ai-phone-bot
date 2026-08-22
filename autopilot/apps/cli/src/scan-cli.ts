@@ -38,7 +38,7 @@ interface Args {
   readonly vertical?: string
   readonly city?: string
   readonly measureAi?: boolean
-  readonly allowPrivateHosts: boolean
+  readonly allowPrivateHosts?: boolean
 }
 
 const USAGE = `
@@ -106,7 +106,10 @@ const parseArgs = (argv: readonly string[]): Args | null => {
     vertical: str('vertical'),
     city: str('city'),
     measureAi: flags.get('no-ai') === true ? false : undefined,
-    allowPrivateHosts: flags.get('allow-private') === true,
+    // undefined, not false, when the flag is absent: the scan falls back to
+    // CRAWLER_ALLOW_PRIVATE_HOSTS with `??`, and `false ?? env` never falls through — so
+    // passing a boolean here silently disables the environment variable entirely.
+    allowPrivateHosts: flags.get('allow-private') === true ? true : undefined,
   }
 }
 
