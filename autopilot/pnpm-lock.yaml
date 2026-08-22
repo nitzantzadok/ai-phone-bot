@@ -38,6 +38,9 @@ importers:
       '@autopilot/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@autopilot/insights':
+        specifier: workspace:*
+        version: link:../../packages/insights
       '@autopilot/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations

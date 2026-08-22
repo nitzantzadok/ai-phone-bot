@@ -168,27 +168,40 @@ export const analyzeGaps = (input: GapAnalysisInput): EvidenceGap[] => {
     let controllability: Controllability
     let reason: string
 
+    // Israel-first: the reason is written in the customer's language, not translated at
+    // the point of display. A Hebrew report with an English sentence inside it reads as a
+    // machine talking to itself.
+    const hebrew = language === 'he'
+
     if (ownerBacksIt && !onOurSite) {
       controllability = 'CONTROLLED'
-      reason =
-        'You confirmed this is true of your business, but your website never says so. ' +
-        'We can state it clearly in your own words.'
+      reason = hebrew
+        ? 'אישרתם שזה נכון לגבי העסק שלכם, אבל האתר שלכם לא אומר את זה בשום מקום. ' +
+          'אנחנו יכולים לנסח את זה בבירור, במילים שלכם.'
+        : 'You confirmed this is true of your business, but your website never says so. ' +
+          'We can state it clearly in your own words.'
     } else if (!ownerBacksIt && ourStrength < 0.2) {
       // We must not assert something the business has not confirmed.
       controllability = 'INFLUENCEABLE'
-      reason =
-        'We found little evidence that this applies to you. If it is true, confirming it ' +
-        'lets us describe it accurately; if not, this is not a gap worth chasing.'
+      reason = hebrew
+        ? 'מצאנו מעט מאוד ראיות שזה רלוונטי אליכם. אם זה נכון, אישור שלכם יאפשר לנו ' +
+          'לתאר את זה במדויק; אם לא, זה לא פער ששווה לרדוף אחריו.'
+        : 'We found little evidence that this applies to you. If it is true, confirming it ' +
+          'lets us describe it accurately; if not, this is not a gap worth chasing.'
     } else if (onOurSite && best && best.externalSources && gap > 0.2) {
       controllability = 'NOT_CONTROLLED'
-      reason =
-        `Your site already states this. ${best.competitorName} is corroborated by ` +
-        'independent sources we cannot create for you. This is an external authority gap.'
+      reason = hebrew
+        ? `האתר שלכם כבר אומר את זה. ל${best.competitorName} יש גיבוי ממקורות עצמאיים ` +
+          'שאנחנו לא יכולים לייצר עבורכם. זה פער של סמכות חיצונית.'
+        : `Your site already states this. ${best.competitorName} is corroborated by ` +
+          'independent sources we cannot create for you. This is an external authority gap.'
     } else {
       controllability = 'INFLUENCEABLE'
-      reason =
-        'Your information exists but is not stated clearly or consistently enough for AI ' +
-        'systems to associate it with you.'
+      reason = hebrew
+        ? 'המידע קיים אצלכם, אבל הוא לא כתוב מספיק ברור או מספיק עקבי כדי שמערכות AI ' +
+          'יקשרו אותו אליכם.'
+        : 'Your information exists but is not stated clearly or consistently enough for AI ' +
+          'systems to associate it with you.'
     }
 
     gaps.push({

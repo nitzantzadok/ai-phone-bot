@@ -14,6 +14,7 @@
 import { newId, type BusinessId, type PromptId } from '@autopilot/shared/ids.ts'
 import type { LanguageCode } from '@autopilot/shared/locale.ts'
 import { clamp01, round } from '@autopilot/shared/stats.ts'
+import { agree, GOOD, PREFERABLE, RECOMMENDED, SUITABLE, WHICH } from './hebrew.ts'
 import { getVertical, type VerticalConfig } from './verticals.ts'
 import { attributeLabel } from '@autopilot/knowledge/attributes.ts'
 
@@ -119,20 +120,27 @@ const render = (
 
   if (language === 'he') {
     const service = parts.qualifier ? `${parts.service} ${parts.qualifier}` : parts.service
+    // Agreement is taken from the service term, not assumed: see ./hebrew.ts.
+    const which = agree(parts.service, WHICH)
+    const suitable = agree(parts.service, SUITABLE)
     switch (category) {
       case 'DISCOVERY':
-        return `מה ה${service} הכי טובה ב${parts.city}?`
+        return `${service} ${agree(parts.service, RECOMMENDED)} ב${parts.city}`
       case 'OCCASION':
-        return parts.occasion ? `איזו ${service} ב${parts.city} מתאימה ל${parts.occasion}?` : null
+        return parts.occasion
+          ? `${which} ${service} ב${parts.city} ${suitable} ל${parts.occasion}?`
+          : null
       case 'CONSTRAINT':
         return parts.attribute ? `${service} ב${parts.city} עם ${parts.attribute}` : null
       case 'AUDIENCE':
-        return parts.audience ? `${service} ב${parts.city} שמתאימה ל${parts.audience}` : null
+        return parts.audience ? `${service} ב${parts.city} ל${parts.audience}` : null
       case 'PROXIMITY':
-        return parts.neighborhood ? `${service} טובה ליד ${parts.neighborhood}` : null
+        return parts.neighborhood
+          ? `${service} ${agree(parts.service, GOOD)} ליד ${parts.neighborhood}`
+          : null
       case 'COMPARISON':
         return parts.occasion
-          ? `איזו ${service} ב${parts.city} עדיפה ל${parts.occasion} ולמה?`
+          ? `${which} ${service} ב${parts.city} ${agree(parts.service, PREFERABLE)} ל${parts.occasion} ולמה?`
           : null
       case 'TRANSACTIONAL':
         return `איפה כדאי להזמין ${service} ב${parts.city} להיום?`

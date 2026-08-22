@@ -196,7 +196,16 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
           : language === 'he'
             ? `ה-AI לא מקשר ביניכם לבין ${gap.attributeLabel}`
             : `AI does not associate you with ${gap.attributeLabel}`,
-      explanation: buildAttributeExplanation(gap, lostForAttribute.length, total, language),
+      // The denominator is the monitored question set. Sizing it from the outcomes alone
+      // breaks an unmeasured scan ("4 of 0 questions"); sizing it from the prompts alone
+      // breaks a caller that supplies outcomes without the set they came from. The set is
+      // at least as large as either, so take the larger.
+      explanation: buildAttributeExplanation(
+        gap,
+        lostForAttribute.length,
+        Math.max(input.prompts.length, total),
+        language,
+      ),
       category: 'CONTENT',
       controllability: gap.controllability,
       riskTier: actionType ? (ACTION_RISK[actionType] ?? 'MEDIUM') : 'LOW',
@@ -236,12 +245,15 @@ export const diagnose = (input: DiagnosisInput): Diagnosis => {
     opportunities.push({
       dedupeKey: `technical:${findingType}`,
       title: titleForFinding(findingType, findings.length, language),
-      explanation:
-        findings.length === 1
-          ? first.plainLanguage
-          : language === 'he'
-            ? `${first.plainLanguage} זה נוגע ל-${findings.length} עמודים.`
-            : `${first.plainLanguage} This affects ${findings.length} pages.`,
+      explanation: ((): string => {
+        // The finding carries both languages; picking one here is what keeps a Hebrew
+        // report from arriving with Hebrew headings over English explanations.
+        const sentence = language === 'he' ? first.plainLanguageHe : first.plainLanguage
+        if (findings.length === 1) return sentence
+        return language === 'he'
+          ? `${sentence} זה נוגע ל-${findings.length} עמודים.`
+          : `${sentence} This affects ${findings.length} pages.`
+      })(),
       category: 'TECHNICAL',
       controllability: 'CONTROLLED',
       riskTier: actionType ? (ACTION_RISK[actionType] ?? 'MEDIUM') : 'LOW',
@@ -415,6 +427,19 @@ const titleForFinding = (
     },
     THIN_CONTENT: { he: 'עמודים עם מעט מאוד טקסט', en: 'Pages with very little text' },
     NOINDEX: { he: 'עמודים מוסתרים ממנועי חיפוש', en: 'Pages hidden from search engines' },
+    NO_ROBOTS_TXT: { he: 'לאתר שלכם אין קובץ robots.txt', en: 'Your site has no robots.txt' },
+    BROKEN_PAGE: { he: 'עמודים שלא נטענים', en: 'Pages that do not load' },
+    TITLE_LENGTH: { he: 'כותרות קצרות או ארוכות מדי', en: 'Titles that are too short or too long' },
+    META_DESCRIPTION_LENGTH: {
+      he: 'תיאורים קצרים או ארוכים מדי',
+      en: 'Summaries that are too short or too long',
+    },
+    MISSING_H1: { he: 'עמודים בלי כותרת ראשית', en: 'Pages with no main heading' },
+    MISSING_IMAGE_ALT: { he: 'תמונות בלי תיאור', en: 'Images with no description' },
+    DUPLICATE_META_DESCRIPTION: {
+      he: 'עמודים עם אותו תיאור קצר',
+      en: 'Pages sharing the same summary',
+    },
   }
   const entry = titles[findingType]
   const title = entry

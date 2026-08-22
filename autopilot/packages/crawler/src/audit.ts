@@ -15,6 +15,12 @@ export interface TechnicalFinding {
   readonly detail: string
   /** Plain language for a business owner, never SEO jargon (brief §82). */
   readonly plainLanguage: string
+  /**
+   * The same sentence in Hebrew. Israel-first means a Hebrew customer never receives a
+   * Hebrew heading over an English explanation; both are written here, not translated at
+   * the point of display.
+   */
+  readonly plainLanguageHe: string
   readonly confidence: number
   readonly autoFixable: boolean
 }
@@ -44,6 +50,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
       detail: 'No robots.txt was found at the site root.',
       plainLanguage:
         'Your site has no robots.txt file. It tells search and AI crawlers what they may read.',
+        plainLanguageHe:
+          'לאתר שלכם אין קובץ robots.txt. הקובץ הזה אומר למנועי חיפוש ו-AI מה מותר להם לקרוא.',
       confidence: 1,
       autoFixable: false,
     })
@@ -57,6 +65,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
       detail: 'No XML sitemap was discovered via robots.txt or the common locations.',
       plainLanguage:
         'Your site has no sitemap, so crawlers have to guess which pages exist. Adding one helps them find everything.',
+        plainLanguageHe:
+          'לאתר שלכם אין מפת אתר, אז סורקים צריכים לנחש אילו עמודים קיימים. מפת אתר עוזרת להם למצוא הכל.',
       confidence: 1,
       autoFixable: true,
     })
@@ -75,6 +85,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         url: page.url,
         detail: `Page returned HTTP ${status}.`,
         plainLanguage: 'This page is not loading for visitors or crawlers.',
+        plainLanguageHe:
+          'העמוד הזה לא נטען, לא למבקרים ולא לסורקים.',
         confidence: 1,
         autoFixable: false,
       })
@@ -89,6 +101,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: 'Page has no <title>.',
         plainLanguage:
           'This page has no title. AI systems and search engines use it to understand what the page is about.',
+        plainLanguageHe:
+          'לעמוד הזה אין כותרת. מערכות AI ומנועי חיפוש משתמשות בה כדי להבין על מה העמוד.',
         confidence: 1,
         autoFixable: true,
       })
@@ -101,6 +115,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
           url: page.url,
           detail: `Title is ${page.title.length} characters (recommended ${TITLE_MIN}-${TITLE_MAX}).`,
           plainLanguage: 'This page title is unusually short or long, so it may be cut off.',
+        plainLanguageHe:
+          'הכותרת של העמוד הזה קצרה או ארוכה מהרגיל, ולכן היא עלולה להיחתך.',
           confidence: 0.6,
           autoFixable: true,
         })
@@ -115,6 +131,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: 'Page has no meta description.',
         plainLanguage:
           'This page has no short summary. It is one of the first things an AI reads to decide what you offer.',
+        plainLanguageHe:
+          'לעמוד הזה אין תיאור קצר. זה אחד הדברים הראשונים ש-AI קורא כדי להבין מה אתם מציעים.',
         confidence: 1,
         autoFixable: true,
       })
@@ -133,6 +151,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
           url: page.url,
           detail: `Meta description is ${page.metaDescription.length} characters.`,
           plainLanguage: 'This page summary is unusually short or long.',
+        plainLanguageHe:
+          'התיאור הקצר של העמוד הזה קצר או ארוך מהרגיל.',
           confidence: 0.5,
           autoFixable: true,
         })
@@ -147,6 +167,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: 'Page has no canonical link.',
         plainLanguage:
           'This page does not state its official address, so crawlers may treat duplicates as separate pages.',
+        plainLanguageHe:
+          'העמוד הזה לא מציין את הכתובת הרשמית שלו, ולכן סורקים עלולים לראות כפילויות כעמודים נפרדים.',
         confidence: 0.9,
         autoFixable: true,
       })
@@ -159,6 +181,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         url: page.url,
         detail: 'Page has no H1 heading.',
         plainLanguage: 'This page has no main heading, which makes its topic harder to identify.',
+        plainLanguageHe:
+          'לעמוד הזה אין כותרת ראשית, וזה מקשה לזהות במה הוא עוסק.',
         confidence: 0.9,
         autoFixable: false,
       })
@@ -172,6 +196,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: `Page carries robots meta "${page.robotsMeta}".`,
         plainLanguage:
           'This page tells search engines not to list it. If that is not intentional, it is invisible to AI too.',
+        plainLanguageHe:
+          'העמוד הזה מבקש ממנועי חיפוש לא להציג אותו. אם זה לא במכוון, הוא גם בלתי נראה ל-AI.',
         confidence: 1,
         // Never auto-flip: a deliberate noindex (thank-you pages, staging) is common.
         autoFixable: false,
@@ -186,6 +212,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: `Page has only ${page.wordCount} words.`,
         plainLanguage:
           'This page has very little text, so there is not much for an AI to learn from it.',
+        plainLanguageHe:
+          'בעמוד הזה יש מעט מאוד טקסט, אז אין הרבה ש-AI יכול ללמוד ממנו.',
         confidence: 0.7,
         autoFixable: false,
       })
@@ -199,6 +227,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: 'Page has no JSON-LD structured data.',
         plainLanguage:
           'This page has no machine-readable business information, which AI systems rely on to describe you accurately.',
+        plainLanguageHe:
+          'בעמוד הזה אין מידע עסקי קריא למכונה, ומערכות AI נשענות עליו כדי לתאר אתכם נכון.',
         confidence: 1,
         autoFixable: true,
       })
@@ -212,6 +242,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: 'The <html> element has no lang attribute.',
         plainLanguage:
           'This page does not declare its language, which matters for a bilingual Hebrew and English site.',
+        plainLanguageHe:
+          'העמוד הזה לא מצהיר באיזו שפה הוא כתוב, וזה משנה באתר דו-לשוני בעברית ובאנגלית.',
         confidence: 1,
         autoFixable: true,
       })
@@ -226,6 +258,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: `Declared "${page.declaredLanguage}" but the content reads as "${page.language}".`,
         plainLanguage:
           'This page says it is in one language but is written in another, which confuses AI systems.',
+        plainLanguageHe:
+          'העמוד הזה מצהיר על שפה אחת אבל כתוב בשפה אחרת, וזה מבלבל מערכות AI.',
         confidence: 0.7,
         autoFixable: true,
       })
@@ -239,6 +273,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         url: page.url,
         detail: `${missingAlt} of ${page.images.length} images have no alt text.`,
         plainLanguage: 'Some images have no description, so their content is invisible to AI.',
+        plainLanguageHe:
+          'לחלק מהתמונות אין תיאור, ולכן מה שיש בהן בלתי נראה ל-AI.',
         confidence: 1,
         autoFixable: false,
       })
@@ -254,6 +290,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         detail: `${urls.length} pages share the title "${title}".`,
         plainLanguage:
           'Several pages have the same title, so they look like the same page to an AI.',
+        plainLanguageHe:
+          'לכמה עמודים יש אותה כותרת, ולכן הם נראים ל-AI כאותו עמוד.',
         confidence: 1,
         autoFixable: false,
       })
@@ -268,6 +306,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         url: urls[0]!,
         detail: `${urls.length} pages share the same meta description.`,
         plainLanguage: 'Several pages have identical summaries.',
+        plainLanguageHe:
+          'לכמה עמודים יש תיאור קצר זהה.',
         confidence: 1,
         autoFixable: false,
       })
@@ -286,6 +326,8 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         url: target,
         detail: `Internal link target returned HTTP ${status}.`,
         plainLanguage: 'A link on your site points to a page that no longer works.',
+        plainLanguageHe:
+          'קישור באתר שלכם מוביל לעמוד שכבר לא עובד.',
         confidence: 1,
         autoFixable: false,
       })

@@ -16,6 +16,7 @@
     "db:generate": "pnpm --filter @autopilot/database exec drizzle-kit generate",
     "db:migrate": "pnpm --filter @autopilot/database run migrate",
     "demo": "pnpm --filter @autopilot/cli run demo",
+    "scan": "pnpm --filter @autopilot/cli run scan",
     "worker": "pnpm --filter @autopilot/worker run start",
     "web": "pnpm --filter @autopilot/web run dev",
     "build": "pnpm --filter @autopilot/web run build"

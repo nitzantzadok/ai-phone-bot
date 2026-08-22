@@ -47,6 +47,7 @@ const finding = (o: Partial<TechnicalFinding> = {}): TechnicalFinding => ({
   url: 'https://rosa.example.com/menu',
   detail: 'no meta description',
   plainLanguage: 'This page has no short summary for AI systems to read.',
+  plainLanguageHe: 'לעמוד הזה אין תיאור קצר שמערכות AI יכולות לקרוא.',
   confidence: 1,
   autoFixable: true,
   ...o,

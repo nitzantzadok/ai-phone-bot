@@ -56,13 +56,27 @@ export const createProviderRegistry = (options: RegistryOptions): ProviderRegist
   } else {
     const base = { ledger, logger }
     if (env.OPENAI_API_KEY) {
-      providers.set('openai', new OpenAIProvider({ ...base, apiKey: env.OPENAI_API_KEY }))
+      providers.set(
+        'openai',
+        new OpenAIProvider({
+          ...base,
+          apiKey: env.OPENAI_API_KEY,
+          ...(env.OPENAI_BASE_URL ? { baseURL: env.OPENAI_BASE_URL } : {}),
+        }),
+      )
     }
     if (env.GEMINI_API_KEY) {
       providers.set('gemini', new GeminiProvider({ ...base, apiKey: env.GEMINI_API_KEY }))
     }
     if (env.ANTHROPIC_API_KEY) {
-      providers.set('anthropic', new AnthropicProvider({ ...base, apiKey: env.ANTHROPIC_API_KEY }))
+      providers.set(
+        'anthropic',
+        new AnthropicProvider({
+          ...base,
+          apiKey: env.ANTHROPIC_API_KEY,
+          ...(env.ANTHROPIC_BASE_URL ? { baseURL: env.ANTHROPIC_BASE_URL } : {}),
+        }),
+      )
     }
   }
 

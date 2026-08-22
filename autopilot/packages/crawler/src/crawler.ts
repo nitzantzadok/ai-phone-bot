@@ -158,7 +158,13 @@ export const crawlSite = async (rootUrl: string, options: CrawlOptions = {}): Pr
     if (!url.startsWith(origin)) return
     if (visited.has(url) || queue.includes(url)) return
     if (!isCrawlableAsset(url)) return
-    if (respectRobots && !isAllowed(robots, url, userAgent)) return
+    if (respectRobots && !isAllowed(robots, url, userAgent)) {
+      // Recorded, not silently dropped. A site whose robots.txt excludes us excludes every
+      // AI crawler too, and "we fetched nothing and found nothing wrong" is the one report
+      // that would leave a customer with no idea why they are invisible.
+      errors.push({ url, code: 'ROBOTS_BLOCKED', message: 'excluded by robots.txt' })
+      return
+    }
     queue.push(url)
   }
 

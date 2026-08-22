@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "demo": "tsx src/demo.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "scan": "tsx src/scan-cli.ts",
+    "demo:scan": "tsx src/demo-scan.ts",
+    "demo:measured": "tsx src/demo-measured.ts"
   },
   "dependencies": {
     "@autopilot/shared": "workspace:*",
@@ -21,7 +24,8 @@
     "@autopilot/billing": "workspace:*",
     "@autopilot/integrations": "workspace:*",
     "@autopilot/agent": "workspace:*",
-    "@autopilot/jobs": "workspace:*"
+    "@autopilot/jobs": "workspace:*",
+    "@autopilot/insights": "workspace:*"
   },
   "exports": {
     ".": "./src/pipeline.ts",

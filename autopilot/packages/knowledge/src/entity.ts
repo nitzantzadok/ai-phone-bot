@@ -81,6 +81,46 @@ const bestFact = (
 /** Minimum confidence a fact needs before it may shape the published entity. */
 const MIN_ENTITY_CONFIDENCE: ConfidenceLevel = 'MEDIUM'
 
+/**
+ * Titles that are page labels rather than business names.
+ *
+ * Compared per title segment, since "ברוכים הבאים | דנטל סנטר הדר" is a greeting followed
+ * by a real name, and the name is the half worth keeping.
+ */
+const GENERIC_TITLES = new Set([
+  'ברוכים הבאים',
+  'ברוכות הבאות',
+  'דף הבית',
+  'עמוד הבית',
+  'ראשי',
+  'בית',
+  'אודות',
+  'צור קשר',
+  'welcome',
+  'home',
+  'home page',
+  'homepage',
+  'index',
+  'main',
+  'about',
+  'about us',
+  'contact',
+  'contact us',
+  'untitled',
+  'my site',
+])
+
+const TITLE_SEPARATORS = /[|\u2013\u2014\u00b7]|\s-\s/
+
+const nameFromTitle = (title: string | null | undefined): string | null => {
+  if (!title) return null
+  const candidate = title
+    .split(TITLE_SEPARATORS)
+    .map((segment) => segment.trim())
+    .find((segment) => segment.length >= 2 && !GENERIC_TITLES.has(segment.toLowerCase()))
+  return candidate ?? null
+}
+
 export const buildEntity = (
   facts: readonly CandidateFact[],
   vertical: string,
@@ -89,7 +129,12 @@ export const buildEntity = (
     (f) => CONFIDENCE_RANK[f.confidence] >= CONFIDENCE_RANK[MIN_ENTITY_CONFIDENCE],
   )
 
-  const name = bestFact(usable, 'business_name')?.value ?? bestFact(usable, 'site_title')?.value
+  // A page title is only a name when it reads like one. "ברוכים הבאים" / "Welcome" is the
+  // most common home-page title in the country, and publishing it as the business name
+  // would put a greeting into every answer we generate about this business. Reporting no
+  // name at all is better: that absence is itself the finding the customer needs to see.
+  const titleFact = bestFact(usable, 'site_title')?.value
+  const name = bestFact(usable, 'business_name')?.value ?? nameFromTitle(titleFact)
   const entityType = bestFact(usable, 'entity_type')?.value ?? defaultEntityType(vertical)
   const city = bestFact(usable, 'city')?.value ?? null
   const phone = bestFact(usable, 'phone')?.value ?? null

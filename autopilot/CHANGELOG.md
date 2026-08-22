@@ -1,5 +1,51 @@
 # CHANGELOG
 
+## Unreleased — the scan runs against real websites
+
+### Fixed
+
+- **The crawler could not fetch any real website.** The pinned DNS lookup answered undici
+  with a bare address string, but undici's connector asks with `all: true` and reads
+  `addresses[0].address`, so every connection to a hostname died with
+  "Invalid IP address: undefined". Nothing caught it because Node skips DNS entirely for
+  IP literals and every integration test targeted `127.0.0.1` — so the pin never ran.
+  `safe-fetch-pinning.test.ts` now exercises a hostname and fails against the old code.
+- **Hebrew questions disagreed with their own nouns.** Templates hard-coded feminine
+  agreement, producing "איזו רופא שיניים מתאימה" — a question no Hebrew speaker types, so
+  measuring it measured demand that does not exist. Agreement now follows the service term
+  (`packages/prompts/src/hebrew.ts`).
+- **English questions named Israeli cities in Hebrew** ("Where should I go in פתח תקווה").
+  English is now generated only for cities we can name in English.
+- **A page greeting was published as the business name.** "ברוכים הבאים" is not a name;
+  reporting no name is better, and is itself the finding.
+- **Formatting differences were reported as contradictions.** `+972-3-555-0123` and
+  `03-555-0123` are one phone number.
+- **A robots.txt exclusion was silently dropped**, producing an empty report that told the
+  customer nothing about why they were invisible. It is now recorded and explained.
+- **English leaked into Hebrew reports** through technical findings and evidence-gap
+  reasons; both are now written in both languages at source.
+- **"4 of 0 questions"** — the attribute explanation used the number of answers read as its
+  denominator, which is zero on an unmeasured scan.
+
+### Added
+
+- **`pnpm scan <url>`** — a real scan of a live website with no database and no API key:
+  crawl, fact extraction, technical audit, diagnosis, prioritized insights and a versioned
+  `readiness-v1` score, printed in Hebrew or English, or as JSON. Documented in
+  `SCANNING.md`.
+- **Real AI visibility measurement** when a provider key is configured, reporting the
+  recommendation rate, competitors named, AIRS and the run's cost. Without a key that half
+  is reported as NOT MEASURED with the reason; it is never simulated, and a simulated
+  registry is refused outright.
+- **Egress proxy support** in the crawler via `HTTPS_PROXY`/`NO_PROXY`, with the pinning
+  trade-off documented and logged rather than hidden.
+- **Provider endpoint overrides** (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`) for gateways
+  and regional endpoints — and so the measurement path can be tested end-to-end against a
+  real server rather than mocked at the seam.
+- **A demo site** with a "before" and "after" version of the same clinic, plus 47 tests
+  covering the scan end to end.
+
+
 ## 0.1.0 — initial vertical slice
 
 The end-to-end loop works: a business goes from a URL to a measured score, a diagnosis,

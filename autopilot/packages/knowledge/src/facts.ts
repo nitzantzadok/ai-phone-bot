@@ -298,6 +298,24 @@ export interface FactConflict {
   readonly values: readonly { value: string; sourceUrl: string }[]
 }
 
+/**
+ * Reduces a phone number to the digits that identify the line.
+ *
+ * "+972-3-555-0123" and "03-555-0123" are one number written two ways, and reporting them
+ * as a contradiction sends a customer hunting for a problem that does not exist. Once we
+ * have cried wolf on their phone number, the next finding we raise carries less weight —
+ * which is why a false positive here is more expensive than a missed one.
+ */
+const canonicalPhone = (value: string): string => {
+  const digits = value.replace(/\D/g, '')
+  if (digits.startsWith('972')) return `0${digits.slice(3)}`
+  if (digits.startsWith('00972')) return `0${digits.slice(5)}`
+  return digits.startsWith('0') ? digits : `0${digits}`
+}
+
+const canonicalValue = (kind: string, value: string): string =>
+  kind === 'phone' ? canonicalPhone(value) : value.toLowerCase().replace(/[\s\-()]/g, '')
+
 export const findConflicts = (facts: readonly CandidateFact[]): FactConflict[] => {
   const singleValued = ['phone', 'address', 'business_name', 'opening_hours', 'price_range']
   const conflicts: FactConflict[] = []
@@ -306,7 +324,7 @@ export const findConflicts = (facts: readonly CandidateFact[]): FactConflict[] =
     const relevant = facts.filter((f) => f.factKind === kind && f.value !== null)
     const distinct = new Map<string, { value: string; sourceUrl: string }>()
     for (const fact of relevant) {
-      const normalized = fact.value!.toLowerCase().replace(/[\s\-()]/g, '')
+      const normalized = canonicalValue(kind, fact.value!)
       if (!distinct.has(normalized)) {
         distinct.set(normalized, { value: fact.value!, sourceUrl: fact.sourceUrl })
       }

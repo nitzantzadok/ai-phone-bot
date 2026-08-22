@@ -28,6 +28,14 @@ const EnvSchema = z.object({
   GEMINI_API_KEY: z.string().min(1).optional(),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
 
+  /**
+   * Override a provider's endpoint. Real uses: an enterprise gateway, a regional endpoint,
+   * or a compatible host. Also what lets the measurement path be tested end-to-end against
+   * a local server rather than mocked at the seam.
+   */
+  OPENAI_BASE_URL: z.url().optional(),
+  ANTHROPIC_BASE_URL: z.url().optional(),
+
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.url().optional(),

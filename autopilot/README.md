@@ -18,9 +18,24 @@ Israel-first: Hebrew and English throughout, RTL, ILS with versioned VAT, Asia/J
 
 No API keys. No database. No Docker. Zero cost.
 
+### Scan a real website
+
 ```bash
 cd autopilot
 pnpm install
+pnpm scan https://example.co.il
+```
+
+A live crawl of that site, the facts it actually states, the technical problems it
+actually has, a versioned readiness score and a prioritized list of what to do — in Hebrew
+by default. With `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY` set, the scan
+also asks real assistants the generated questions and reports whether the business was
+named. Without a key that half says NOT MEASURED and why; it is never simulated. See
+`SCANNING.md`.
+
+### Watch the whole loop, against a fixture
+
+```bash
 pnpm demo
 ```
 
@@ -38,7 +53,7 @@ their web presence actually says, so when the agent strengthens Rosa's site, the
 engines genuinely see something different and the score moves for a real reason.
 
 ```bash
-pnpm test        # 586 tests, no infrastructure required
+pnpm test        # 657 tests, no infrastructure required
 pnpm typecheck
 pnpm lint
 pnpm web         # dashboard at http://localhost:3000

@@ -6,7 +6,7 @@
  * rather than buffered), total time cap, content-type allowlist and a bounded, fully
  * re-validated redirect chain.
  */
-import { Agent, request } from 'undici'
+import { Agent, ProxyAgent, type Dispatcher, request } from 'undici'
 import type { LookupFunction } from 'node:net'
 import { AppError } from '@autopilot/shared/errors.ts'
 import type { Logger } from '@autopilot/shared/logger.ts'
@@ -21,6 +21,12 @@ export interface SafeFetchOptions {
   readonly acceptTypes?: readonly string[]
   readonly logger?: Logger
   readonly headers?: Record<string, string>
+  /**
+   * Egress proxy to tunnel through, e.g. `http://127.0.0.1:3128`. Defaults to the
+   * HTTPS_PROXY environment variable. Pass `null` to force a direct connection even
+   * when the environment sets one.
+   */
+  readonly proxyUrl?: string | null
 }
 
 export interface SafeFetchResult {
@@ -48,11 +54,55 @@ const DEFAULT_ACCEPT = [
 ]
 
 /**
+ * Resolves the egress proxy for a host, honouring NO_PROXY.
+ *
+ * Plenty of production networks — and every locked-down corporate one — refuse direct
+ * outbound connections. Without this the crawler simply times out there, which looks
+ * like "the customer's site is down" rather than "we cannot reach the internet".
+ */
+const NO_PROXY_ENTRIES = (process.env.NO_PROXY ?? process.env.no_proxy ?? '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter((e) => e.length > 0)
+
+const bypassesProxy = (hostname: string): boolean => {
+  const host = hostname.toLowerCase()
+  return NO_PROXY_ENTRIES.some((entry) => {
+    if (entry === '*') return true
+    const bare = entry.startsWith('.') ? entry.slice(1) : entry
+    return host === bare || host.endsWith(`.${bare}`)
+  })
+}
+
+const proxyFor = (target: ValidatedTarget, options: SafeFetchOptions): string | null => {
+  if (options.proxyUrl === null) return null
+  const configured = options.proxyUrl ?? process.env.HTTPS_PROXY ?? process.env.https_proxy
+  if (!configured) return null
+  if (bypassesProxy(target.url.hostname)) return null
+  return configured
+}
+
+/**
  * Pins the connection to the address we validated. Without this the OS would resolve the
  * hostname again at connect time, reopening the rebinding window we just closed.
+ *
+ * The callback has two shapes and the caller picks which one by setting `all`. undici's
+ * connector asks for `all: true` and then reads `addresses[0].address`, so answering that
+ * call with a bare string produces "Invalid IP address: undefined" at connect time — the
+ * pin silently fails closed and no real host is ever reachable. Both shapes are answered
+ * here, from the same validated address.
  */
 const pinnedAgent = (target: ValidatedTarget, timeoutMs: number): Agent => {
-  const lookup: LookupFunction = (_hostname, _options, callback) => {
+  const lookup: LookupFunction = (_hostname, options, callback) => {
+    if (typeof options === 'object' && options !== null && options.all === true) {
+      ;(
+        callback as unknown as (
+          err: Error | null,
+          addresses: { address: string; family: number }[],
+        ) => void
+      )(null, [{ address: target.address, family: target.family }])
+      return
+    }
     ;(callback as (err: Error | null, address: string, family: number) => void)(
       null,
       target.address,
@@ -64,6 +114,37 @@ const pinnedAgent = (target: ValidatedTarget, timeoutMs: number): Agent => {
     headersTimeout: timeoutMs,
     bodyTimeout: timeoutMs,
   })
+}
+
+/**
+ * Builds the dispatcher for one hop.
+ *
+ * Through a proxy the IP pin is necessarily given up: the proxy, not us, opens the socket
+ * and resolves the name. That is a deliberate trade, and a narrow one — the URL has still
+ * been fully validated (scheme, port, hostname, and every DNS answer) before we get here,
+ * and an operator who put an egress proxy in the path has substituted their own policy
+ * boundary for ours, which is the stronger of the two. What we must not do is pretend the
+ * pin still holds, so the proxy in use is logged on every hop.
+ */
+const dispatcherFor = (
+  target: ValidatedTarget,
+  timeoutMs: number,
+  options: SafeFetchOptions,
+  logger: Logger,
+): { dispatcher: Dispatcher; close: () => Promise<void> } => {
+  const proxy = proxyFor(target, options)
+  if (proxy) {
+    logger.debug('safe-fetch proxying', { host: target.url.hostname, proxy })
+    const agent = new ProxyAgent({
+      uri: proxy,
+      requestTls: { timeout: timeoutMs },
+      headersTimeout: timeoutMs,
+      bodyTimeout: timeoutMs,
+    })
+    return { dispatcher: agent, close: () => agent.close() }
+  }
+  const agent = pinnedAgent(target, timeoutMs)
+  return { dispatcher: agent, close: () => agent.close() }
 }
 
 /**
@@ -95,7 +176,7 @@ export const safeFetch = async (
   for (let hop = 0; hop <= policy.maxRedirects; hop++) {
     // Re-validated on EVERY hop. A public host that redirects to 127.0.0.1 dies here.
     const target = await validateUrl(current, policy)
-    const agent = pinnedAgent(target, timeoutMs)
+    const { dispatcher: agent } = dispatcherFor(target, timeoutMs, options, logger)
 
     try {
       const response = await request(target.url.toString(), {

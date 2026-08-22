@@ -222,6 +222,10 @@ describe('auditSite', () => {
     })
     for (const f of findings) {
       expect(f.plainLanguage.length).toBeGreaterThan(20)
+      // Israel-first: a finding without a Hebrew sentence becomes an English sentence in
+      // a Hebrew report, which is how the whole report stops sounding like it is for you.
+      expect(f.plainLanguageHe.length).toBeGreaterThan(15)
+      expect(f.plainLanguageHe).toMatch(/[\u0590-\u05ff]/)
       expect(f.plainLanguage).not.toMatch(/canonical tag|meta robots|hreflang|JSON-LD|H1 element/i)
     }
   })
@@ -239,6 +243,7 @@ describe('discoverabilityScore', () => {
       url: 'u',
       detail: 'd',
       plainLanguage: 'p',
+      plainLanguageHe: 'פ',
       confidence: 1,
       autoFixable: false,
     })
