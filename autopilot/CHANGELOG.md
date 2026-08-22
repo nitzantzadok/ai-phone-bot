@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- **A failed measurement was published as a measurement of zero.** When every provider call
+  failed — a wrong key, an exhausted quota, no network — the report still showed
+  "recommended in 0% of questions" and an AIRS score computed from no observations. Those
+  two states produce identical numbers and only one is true, so a run with no successful
+  execution is now a skip carrying the provider's reason, and no AIRS number is produced.
 - **Every colour token in the web app was silently dropped.** `bg-[--color-accent]` is
   parsed by Tailwind 4 as an arbitrary *value*, not a variable, so it is not a valid colour
   and the declaration disappears: score bars rendered transparent, buttons lost their
@@ -38,6 +43,8 @@
 
 ### Added
 
+- **`autopilot/.env` is read by `pnpm scan`**, so a provider key need not be typed on the
+  command line, where it lands in shell history and the process list.
 - **The web form now returns a scan.** `/scan` runs the real thing server-side and streams
   a waiting state while it works, so a business owner types an address and gets their
   score, findings and playbook on screen. `/join` submits straight to it, and the email

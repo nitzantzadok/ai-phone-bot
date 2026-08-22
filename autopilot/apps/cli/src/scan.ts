@@ -82,6 +82,7 @@ export type SkipReason =
   | 'NOT_REQUESTED'
   | 'NO_CITY_KNOWN'
   | 'NO_BUSINESS_NAME'
+  | 'MEASUREMENT_FAILED'
 
 export interface AiVisibility {
   readonly engines: readonly string[]
@@ -459,6 +460,28 @@ export const scanBusiness = async (options: ScanOptions): Promise<ScanReport> =>
         clock,
       })
 
+      // Every call failing is not a measurement of zero — it is the absence of a
+      // measurement, and the two look identical in a report unless we refuse to conflate
+      // them here. A bad key, a network fault or a provider outage would otherwise be
+      // published as "you were recommended in 0% of questions", with an AIRS score
+      // computed from no observations at all. That is the single most damaging thing this
+      // product could say, because it is both false and plausible.
+      if (summary.results.length === 0) {
+        const first = summary.failures[0]
+        const reason = first ? `${first.code}: ${first.message}` : 'no responses were returned'
+        skipped = {
+          reason: 'MEASUREMENT_FAILED',
+          detail: {
+            he:
+              `כל ${summary.failures.length} הפניות למנוע ה-AI נכשלו, ולכן אין מדידה. ` +
+              `בדרך כלל זה מפתח שגוי, מכסה שנגמרה או תקלת רשת. הסיבה שהוחזרה: ${reason}`,
+            en:
+              `All ${summary.failures.length} calls to the AI engine failed, so there is no ` +
+              `measurement. Usually that is a bad key, an exhausted quota or a network fault. ` +
+              `Reported reason: ${reason}`,
+          },
+        }
+      } else {
       const observations = toObservations(summary)
       const counts = new Map<string, number>()
       for (const r of summary.results) {
@@ -525,6 +548,7 @@ export const scanBusiness = async (options: ScanOptions): Promise<ScanReport> =>
         promptScore: o.prompt.promptScore,
         difficulty: o.prompt.difficulty,
       }))
+      }
     }
   }
 

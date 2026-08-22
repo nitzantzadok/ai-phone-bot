@@ -152,6 +152,47 @@ describe('measuring against an engine that recommends somebody else', () => {
   })
 })
 
+describe('an engine that is unreachable or rejects the key', () => {
+  it('reports no measurement, rather than a measurement of zero', async () => {
+    // Every call failing and nobody ever recommending you produce identical numbers:
+    // promptsRun 0, rate 0. Publishing the first as the second would tell a customer
+    // they are invisible when in fact we never asked — false, and entirely plausible to
+    // them, which is the worst combination a report can have.
+    const broken = createServer((req, res) => {
+      req.resume()
+      res.writeHead(401, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: 'invalid api key' } }))
+    })
+    await new Promise<void>((resolve) => broken.listen(0, '127.0.0.1', resolve))
+    const brokenUrl = `http://127.0.0.1:${(broken.address() as AddressInfo).port}`
+
+    try {
+      const report = await scanBusiness({
+        url: site.origin,
+        language: 'he',
+        allowPrivateHosts: true,
+        measureAi: true,
+        maxPages: 12,
+        maxPrompts: 3,
+        env: loadEnv({
+          NODE_ENV: 'test',
+          APP_ENV: 'ci',
+          ANTHROPIC_API_KEY: 'sk-ant-wrong',
+          ANTHROPIC_BASE_URL: brokenUrl,
+        }),
+      })
+
+      expect(report.aiVisibility).toBeNull()
+      expect(report.aiVisibilitySkipped?.reason).toBe('MEASUREMENT_FAILED')
+      expect(report.aiVisibilitySkipped?.detail.he).toMatch(/נכשלו/)
+      // And no AIRS number is produced from nothing.
+      expect(JSON.stringify(report)).not.toMatch(/"airs"/)
+    } finally {
+      await new Promise<void>((resolve) => broken.close(() => resolve()))
+    }
+  })
+})
+
 describe('spending limits', () => {
   it('stops rather than exceeding the ceiling it was given', async () => {
     answer = 'דנטל סנטר הדר היא מרפאת שיניים מומלצת בפתח תקווה.'

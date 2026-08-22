@@ -8,6 +8,24 @@
  */
 import { scanBusiness } from './scan.ts'
 import { renderReport } from './report-text.ts'
+
+/**
+ * Loads `autopilot/.env` when one exists.
+ *
+ * Without this the only way to supply a provider key is to prefix the command with it,
+ * which puts a live secret into shell history and into the process list. A gitignored
+ * file is the boring, safe place for it. Node reads it natively, so this costs no
+ * dependency, and a missing file is the normal case rather than an error.
+ */
+const loadDotEnv = (): void => {
+  const root = new URL('../../../.env', import.meta.url)
+  try {
+    process.loadEnvFile(root)
+  } catch {
+    // No .env, or unreadable. Environment variables already set still apply.
+  }
+}
+loadDotEnv()
 import { createLogger } from '@autopilot/shared/logger.ts'
 
 interface Args {
@@ -39,6 +57,9 @@ Usage: pnpm scan <url> [options]
 AI visibility is measured only when ANTHROPIC_API_KEY, OPENAI_API_KEY or
 GEMINI_API_KEY is set. Without one, that half of the report is reported as
 not measured. It is never simulated.
+
+Keys are read from autopilot/.env (gitignored) or the environment. Prefer the
+file: a key on the command line ends up in your shell history.
 `.trim()
 
 const parseArgs = (argv: readonly string[]): Args | null => {

@@ -46,11 +46,21 @@ would see, and for showing someone the product over a screen share.
 
 Everything above measures your website. To also measure whether an assistant names the
 business, you need a provider key. Get one from
-[console.anthropic.com](https://console.anthropic.com), then:
+[console.anthropic.com](https://console.anthropic.com) or
+[platform.openai.com](https://platform.openai.com).
+
+Put it in `autopilot/.env`, which is gitignored:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... pnpm scan https://www.gillis.co.il
+echo 'OPENAI_API_KEY=sk-proj-...' >> .env
+pnpm scan https://www.gillis.co.il
 ```
+
+Use the file rather than the command line — a key typed into a command is stored in your
+shell history and visible in the process list.
+
+If every call fails (wrong key, no quota, no network) the report says so and names the
+reason. It will not report "0% of questions" as though it had asked and been left out.
 
 The report then adds the recommendation rate, the AIRS score, which competitors were named
 instead, and what the run cost. A scan of 24 questions costs a few agorot.

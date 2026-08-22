@@ -24,6 +24,11 @@ means asking a real assistant. Set `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or
 and reports the recommendation rate, the competitors named, the AIRS score and what it
 cost.
 
+A failed run is not a measurement either. If every call fails — a bad key, an exhausted
+quota, a network fault — the report says **NOT MEASURED** with the provider's reason,
+rather than publishing "recommended in 0% of questions" and an AIRS score computed from no
+observations. Those two states produce identical numbers, and only one of them is true.
+
 Without a key, that half of the report says **NOT MEASURED** and gives the reason. It is
 never simulated, never estimated, and never folded into a score that would then look like
 a measurement. The invariant is enforced in the type: an unmeasured scan has
@@ -58,6 +63,9 @@ pnpm scan <url> [options]
   --allow-private     Permit 127.0.0.1 targets (local testing only)
   --verbose           Log crawl progress to stderr as JSON
 ```
+
+Keys are read from `autopilot/.env` (gitignored) or from the environment. Prefer the file:
+a key passed on the command line ends up in your shell history and in the process list.
 
 Relevant environment variables:
 
