@@ -439,6 +439,10 @@ const titleForFinding = (
     THIN_CONTENT: { he: 'עמודים עם מעט מאוד טקסט', en: 'Pages with very little text' },
     NOINDEX: { he: 'עמודים מוסתרים ממנועי חיפוש', en: 'Pages hidden from search engines' },
     NO_ROBOTS_TXT: { he: 'לאתר שלכם אין קובץ robots.txt', en: 'Your site has no robots.txt' },
+    CLIENT_RENDERED: {
+      he: 'התוכן באתר נטען על ידי JavaScript',
+      en: 'Your content is loaded by JavaScript',
+    },
     BROKEN_PAGE: { he: 'עמודים שלא נטענים', en: 'Pages that do not load' },
     TITLE_LENGTH: { he: 'כותרות קצרות או ארוכות מדי', en: 'Titles that are too short or too long' },
     META_DESCRIPTION_LENGTH: {

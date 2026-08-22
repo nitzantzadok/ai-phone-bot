@@ -6,6 +6,7 @@
  * format nobody has read.
  */
 import type { ScanReport } from './scan.ts'
+import { whyNothingWasRead } from './scan.ts'
 
 /* ------------------------------------------------------------------ output --- */
 
@@ -48,11 +49,32 @@ export const renderReport = (report: ScanReport): string => {
     say()
     // Why nothing was read decides whose problem it is. Telling a business their site is
     // unreadable when our own network failed is an accusation, not a finding.
-    const codes = report.crawl.errors.map((e) => e.code)
-    const allRobots = codes.length > 0 && codes.every((c) => c === 'ROBOTS_BLOCKED')
-    const anyHttp = codes.some((c) => c.startsWith('HTTP_'))
+    const why = whyNothingWasRead(report)
 
-    if (allRobots) {
+    if (why === 'BOT_PROTECTION') {
+      say(
+        L(
+          lang,
+          'האתר זיהה אותנו כסורק אוטומטי וחסם את הגישה. זה לא כשל באתר — זו הגדרת הגנה, ' +
+            'בדרך כלל של Cloudflare או תוסף אבטחה. הבעיה: הסורקים שמזינים את התשובות של ' +
+            'ChatGPT ו-Gemini נתקלים באותה חסימה בדיוק, ולכן הם לא רואים אתכם בכלל.',
+          'The site recognised us as an automated crawler and refused access. That is not a ' +
+            'fault, it is a protection setting, usually Cloudflare or a security plugin. The ' +
+            'problem: the crawlers that feed ChatGPT and Gemini hit exactly the same wall, so ' +
+            'they cannot see you at all.',
+        ),
+      )
+      say()
+      say(
+        L(
+          lang,
+          'מה לעשות: בהגדרות ההגנה אפשרו סורקים מאומתים, או הוסיפו חריגה ל-GPTBot, ' +
+            'ClaudeBot, PerplexityBot ו-Google-Extended.',
+          'What to do: in your protection settings allow verified bots, or add an exception ' +
+            'for GPTBot, ClaudeBot, PerplexityBot and Google-Extended.',
+        ),
+      )
+    } else if (why === 'ROBOTS_BLOCKED') {
       say(
         L(
           lang,
@@ -63,7 +85,7 @@ export const renderReport = (report: ScanReport): string => {
             'answer at all. It is a one-line fix.',
         ),
       )
-    } else if (anyHttp) {
+    } else if (why === 'SITE_ERRORS') {
       say(
         L(
           lang,

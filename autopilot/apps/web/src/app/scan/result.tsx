@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { scanBusiness, type ScanReport } from '@autopilot/cli/scan.ts'
+import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
 import { checkRateLimit, normalizeSiteUrl } from '@/lib/scan-limits'
 
 /**
@@ -116,22 +116,25 @@ export const ScanResult = async ({
 
   /* ------------------------------------------------------ nothing was read ----- */
   if (report.crawl.pagesFetched === 0) {
-    const codes = report.crawl.errors.map((e) => e.code)
-    const robotsBlocked = codes.length > 0 && codes.every((c) => c === 'ROBOTS_BLOCKED')
+    const why = whyNothingWasRead(report)
+
+    const titles: Record<typeof why, string> = he
+      ? {
+          ROBOTS_BLOCKED: 'האתר שלכם חוסם סורקים',
+          BOT_PROTECTION: 'ההגנה של האתר חסמה אותנו',
+          SITE_ERRORS: 'האתר החזיר שגיאה בכל עמוד',
+          UNREACHABLE: 'לא הצלחנו להגיע לאתר',
+        }
+      : {
+          ROBOTS_BLOCKED: 'Your site blocks crawlers',
+          BOT_PROTECTION: 'The site’s protection refused us',
+          SITE_ERRORS: 'The site returned an error for every page',
+          UNREACHABLE: 'We could not reach the site',
+        }
 
     return (
-      <Notice
-        title={
-          robotsBlocked
-            ? he
-              ? 'האתר שלכם חוסם סורקים'
-              : 'Your site blocks crawlers'
-            : he
-              ? 'לא הצלחנו לקרוא אף עמוד'
-              : 'We could not read a single page'
-        }
-      >
-        {robotsBlocked ? (
+      <Notice title={titles[why]}>
+        {why === 'ROBOTS_BLOCKED' ? (
           <>
             <p>
               {he
@@ -144,11 +147,35 @@ export const ScanResult = async ({
                 : 'That is almost always the entire reason a business appears in no answer at all, and it is a one-line fix.'}
             </p>
           </>
+        ) : why === 'BOT_PROTECTION' ? (
+          <>
+            <p>
+              {he
+                ? 'האתר זיהה אותנו כסורק אוטומטי וחסם את הגישה. זו לא תקלה — זו הגדרת הגנה, בדרך כלל Cloudflare או תוסף אבטחה.'
+                : 'The site recognised us as an automated crawler and refused access. That is not a fault, it is a protection setting — usually Cloudflare or a security plugin.'}
+            </p>
+            <p className="font-medium text-ink">
+              {he
+                ? 'הסורקים שמזינים את התשובות של ChatGPT ו-Gemini נתקלים באותה חסימה בדיוק, ולכן הם לא רואים אתכם בכלל.'
+                : 'The crawlers that feed ChatGPT and Gemini hit exactly the same wall, so they cannot see you at all.'}
+            </p>
+            <p>
+              {he
+                ? 'בהגדרות ההגנה אפשרו סורקים מאומתים, או הוסיפו חריגה ל-GPTBot, ClaudeBot, PerplexityBot ו-Google-Extended.'
+                : 'In your protection settings allow verified bots, or add an exception for GPTBot, ClaudeBot, PerplexityBot and Google-Extended.'}
+            </p>
+          </>
+        ) : why === 'SITE_ERRORS' ? (
+          <p>
+            {he
+              ? 'האתר החזיר שגיאה בכל עמוד שביקשנו. מה שלא נטען עבורנו לא נטען גם עבור מנוע AI.'
+              : 'The site returned an error for every page we requested. What does not load for us does not load for an AI engine either.'}
+          </p>
         ) : (
           <p>
             {he
-              ? 'לא קיבלנו תשובה מהאתר. זו יכולה להיות בעיה באתר, בדומיין, או חסימה של גישה אוטומטית. בדקו את הכתובת ונסו שוב.'
-              : 'No response came back from the site. That can be the site, the domain, or a block on automated access. Check the address and try again.'}
+              ? 'לא קיבלנו שום תשובה מהאתר. זו יכולה להיות בעיה באתר, בדומיין, או ברשת. בדקו את הכתובת ונסו שוב.'
+              : 'No response came back at all. That can be the site, the domain, or the network. Check the address and try again.'}
           </p>
         )}
         <ul className="font-mono text-xs" dir="ltr">

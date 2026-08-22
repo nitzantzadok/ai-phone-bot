@@ -4,6 +4,26 @@
 
 ### Fixed
 
+Four failures found by scanning the kinds of site a real customer has, rather than the
+well-behaved fixture. Each produced a report that was confidently wrong about a business
+with a perfectly good website.
+
+- **Hebrew served as windows-1255 came back as mojibake.** Every body was decoded as UTF-8,
+  so on the older Israeli sites that still use the legacy codepage the name, the city and
+  every Hebrew attribute silently failed to extract, and the report told a full site it
+  states nothing. The declared charset is now honoured.
+- **The city was read only from structured data**, which most small business sites do not
+  have. No city means no local question, so the entire measurement half switched itself off
+  for the majority of real customers. Israeli cities are now recognised in the page text
+  from a fixed vocabulary — a wrong city is worse than none, so nothing is guessed.
+- **A JavaScript-rendered site was reported as nearly empty** — "hardly any text", "no
+  heading", "no summary" — about a site full of content. An empty application shell is now
+  detected and reported as the single finding it is: crawlers that feed AI answers do not
+  run JavaScript, so to them the page is blank.
+- **Bot protection was reported as a broken site.** A Cloudflare 403 is a server that saw
+  us and said no, and the crawlers behind ChatGPT and Gemini hit the same wall — so it is
+  named, with the bots to allow.
+
 - **A failed measurement was published as a measurement of zero.** When every provider call
   failed — a wrong key, an exhausted quota, no network — the report still showed
   "recommended in 0% of questions" and an AIRS score computed from no observations. Those

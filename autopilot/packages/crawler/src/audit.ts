@@ -78,6 +78,29 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
   for (const page of input.pages) {
     const status = input.statusByUrl.get(page.url)
 
+    // An application shell has one problem, not six. Reporting "no heading", "hardly any
+    // text" and "no summary" against a page whose content simply has not been written yet
+    // buries the only finding that matters under symptoms of itself — and tells a business
+    // with a perfectly full website that it is nearly empty.
+    if (page.clientRendered) {
+      add({
+        findingType: 'CLIENT_RENDERED',
+        severity: 'HIGH',
+        url: page.url,
+        detail: 'Page body is an empty application shell; content is written by JavaScript.',
+        plainLanguage:
+          'The text on this page is added by JavaScript after loading. Most crawlers that ' +
+          'feed AI answers do not run JavaScript, so to them this page is blank.',
+        plainLanguageHe:
+          'הטקסט בעמוד הזה נוצר על ידי JavaScript אחרי הטעינה. רוב הסורקים שמזינים תשובות ' +
+          'של AI לא מריצים JavaScript, ולכן מבחינתם העמוד הזה ריק.',
+        confidence: 0.85,
+        // A rendering strategy is an architectural decision, never ours to change silently.
+        autoFixable: false,
+      })
+      continue
+    }
+
     if (status !== undefined && status >= 400) {
       add({
         findingType: 'BROKEN_PAGE',

@@ -616,3 +616,23 @@ export const scanBusiness = async (options: ScanOptions): Promise<ScanReport> =>
 }
 
 export type { EntityProfile, Playbook, Diagnosis, GeneratedPrompt, EvidenceGap, TechnicalFinding }
+
+/**
+ * Why a scan came back with nothing.
+ *
+ * Whose problem an empty crawl is depends entirely on this, and every surface that renders
+ * a report has to answer it the same way — so it is decided once, here, rather than
+ * re-derived from error codes in each of them.
+ */
+export type EmptyCrawlReason = 'ROBOTS_BLOCKED' | 'BOT_PROTECTION' | 'SITE_ERRORS' | 'UNREACHABLE'
+
+export const whyNothingWasRead = (report: ScanReport): EmptyCrawlReason => {
+  const codes = report.crawl.errors.map((e) => e.code)
+  if (codes.length > 0 && codes.every((c) => c === 'ROBOTS_BLOCKED')) return 'ROBOTS_BLOCKED'
+  // 403 and 429 are a server that saw us and said no. That is bot protection, and the
+  // crawlers behind AI answers meet exactly the same wall — which makes it a finding about
+  // the site, not a failure of ours.
+  if (codes.some((c) => c === 'HTTP_403' || c === 'HTTP_429')) return 'BOT_PROTECTION'
+  if (codes.some((c) => c.startsWith('HTTP_'))) return 'SITE_ERRORS'
+  return 'UNREACHABLE'
+}

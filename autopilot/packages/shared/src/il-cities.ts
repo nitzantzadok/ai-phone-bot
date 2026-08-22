@@ -73,3 +73,47 @@ export const englishCityName = (hebrewCity: string): string | null =>
 
 /** True when the value contains no Hebrew letters, i.e. it needs no translation. */
 export const containsHebrew = (value: string): boolean => /[֐-׿]/.test(value)
+
+/** Every Hebrew city name we recognise, longest first so "קרית גת" wins over "קרית". */
+const HEBREW_CITIES = Object.keys(ENGLISH_BY_HEBREW).sort((a, b) => b.length - a.length)
+
+/**
+ * Hebrew letters that attach to the front of a noun: "בחיפה" is ב + חיפה, and a business
+ * writes "מוסך בחיפה" far more often than it writes the bare city name.
+ */
+const PREFIXES = '[\u05d1\u05d4\u05dc\u05de\u05d5\u05e9\u05db]?'
+const HEBREW_LETTER = '[\u0590-\u05ff]'
+
+const cityPattern = (city: string): RegExp =>
+  new RegExp(`(?<!${HEBREW_LETTER})${PREFIXES}${city.replace(/ /g, '\\s+')}(?!${HEBREW_LETTER})`, 'g')
+
+export interface CityMatch {
+  readonly city: string
+  readonly occurrences: number
+}
+
+/**
+ * Finds Israeli cities named in Hebrew text.
+ *
+ * Vocabulary-based on purpose. Guessing that some noun is a place produces a business "in
+ * ההסתדרות" from a street name, and a wrong city is worse than no city: it sends every
+ * generated question to a town the business does not serve.
+ *
+ * Returns matches ordered by how often each city appears, so a page that names its own
+ * city repeatedly outranks a passing reference to somewhere else.
+ */
+export const findCities = (text: string): readonly CityMatch[] => {
+  const found: CityMatch[] = []
+  for (const city of HEBREW_CITIES) {
+    const occurrences = text.match(cityPattern(city))?.length ?? 0
+    if (occurrences > 0) found.push({ city, occurrences })
+  }
+  // Longer names contain shorter ones ("תל אביב-יפו" and "תל אביב" both match): keep the
+  // most specific reading and drop the substring.
+  const kept: CityMatch[] = []
+  for (const match of found) {
+    if (kept.some((k) => k.city.includes(match.city))) continue
+    kept.push(match)
+  }
+  return kept.sort((a, b) => b.occurrences - a.occurrences)
+}

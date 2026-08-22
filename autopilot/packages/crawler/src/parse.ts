@@ -36,6 +36,12 @@ export interface ParsedPage {
   readonly headings: readonly PageHeading[]
   readonly bodyText: string
   readonly wordCount: number
+  /**
+   * The page delivered an empty application shell: the content a visitor sees is written
+   * by JavaScript after load. Recorded because the audit must not report the consequences
+   * ("no heading", "hardly any text") as if they were the problem.
+   */
+  readonly clientRendered: boolean
   readonly language: string | null
   readonly declaredLanguage: string | null
   readonly links: readonly PageLink[]
@@ -103,6 +109,42 @@ const schemaTypesOf = (blocks: readonly Record<string, unknown>[]): string[] => 
   return [...types]
 }
 
+/**
+ * Recognises an empty application shell.
+ *
+ * A React, Vue or Wix Studio site can serve a document containing one empty div and a
+ * script tag: everything a customer reads is written after load. To anything that does not
+ * execute JavaScript — which includes most of the crawlers that feed AI answers — that
+ * page says nothing at all.
+ *
+ * Two signals must agree: a mount point that frameworks conventionally use, and almost no
+ * text outside it. Either alone produces false positives on ordinary pages that happen to
+ * be short or happen to use `id="app"`.
+ */
+const MOUNT_SELECTORS = [
+  '#root:empty',
+  '#app:empty',
+  '#__next:empty',
+  '#__nuxt:empty',
+  '[data-reactroot]:empty',
+  'div[id][class=""]:empty',
+]
+
+const looksClientRendered = ($: cheerio.CheerioAPI): boolean => {
+  const hasScripts = $('script[src]').length > 0
+  if (!hasScripts) return false
+
+  const hasEmptyMount = MOUNT_SELECTORS.some((selector) => $(selector).length > 0)
+  const noscriptAsksForJs = /javascript/i.test($('noscript').text())
+
+  const visible = $('body').clone()
+  visible.find('script, style, noscript, template, svg').remove()
+  const words = visible.text().trim().split(/\s+/).filter(Boolean).length
+
+  // Under ~25 words there is nothing for a reader, human or machine, to learn.
+  return words < 25 && (hasEmptyMount || noscriptAsksForJs)
+}
+
 export const parseHtml = (html: string, url: string): ParsedPage => {
   const $ = cheerio.load(html)
   const origin = (() => {
@@ -115,6 +157,10 @@ export const parseHtml = (html: string, url: string): ParsedPage => {
 
   // JSON-LD is read before stripping <script>, which the text extraction below removes.
   const structuredData = extractJsonLd($)
+
+  // Whether this is an application shell has to be decided while the scripts are still in
+  // the document, so it is measured here rather than inferred later from thin text alone.
+  const clientRendered = looksClientRendered($)
 
   // Strip non-content elements before reading body text, or navigation dominates the signal.
   $('script, style, noscript, template, svg').remove()
@@ -175,6 +221,7 @@ export const parseHtml = (html: string, url: string): ParsedPage => {
     headings,
     bodyText,
     wordCount: bodyText.length === 0 ? 0 : bodyText.split(/\s+/).length,
+    clientRendered,
     language: detectLanguage(bodyText),
     declaredLanguage,
     links,

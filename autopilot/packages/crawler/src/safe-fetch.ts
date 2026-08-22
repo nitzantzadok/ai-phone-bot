@@ -159,6 +159,45 @@ const discardBody = (body: { destroy: () => void; on: (event: string, cb: () => 
   body.destroy()
 }
 
+/**
+ * Decodes a response body using the charset the server (or the document) declares.
+ *
+ * Decoding everything as UTF-8 is right almost everywhere and wrong in exactly the market
+ * this product launches in: a large number of older Israeli business sites still serve
+ * windows-1255. Read as UTF-8 those pages become mojibake, so the business name, the city
+ * and every Hebrew attribute silently fail to extract — and the report tells a business
+ * with a perfectly good site that it states nothing about itself. A confidently false
+ * report is worse than none, so the declared charset is honoured.
+ *
+ * The header wins when it names a charset. Otherwise the first bytes are sniffed for a
+ * meta declaration, which is where a page served without one puts it.
+ */
+const META_CHARSET = /<meta[^>]+charset=["']?\s*([\w-]+)/i
+const META_HTTP_EQUIV = /<meta[^>]+content=["'][^"']*charset=\s*([\w-]+)/i
+
+const charsetFrom = (contentType: string | null, head: Buffer): string => {
+  const declared = contentType?.match(/charset=\s*"?([\w-]+)"?/i)?.[1]
+  if (declared) return declared.toLowerCase()
+
+  // Latin-1 never fails, and the meta tag is ASCII in every encoding we care about.
+  const ascii = head.toString('latin1')
+  const sniffed = ascii.match(META_CHARSET)?.[1] ?? ascii.match(META_HTTP_EQUIV)?.[1]
+  return (sniffed ?? 'utf-8').toLowerCase()
+}
+
+const decodeBody = (buffer: Buffer, contentType: string | null, logger: Logger): string => {
+  const charset = charsetFrom(contentType, buffer.subarray(0, 2048))
+  if (charset === 'utf-8' || charset === 'utf8') return buffer.toString('utf8')
+  try {
+    return new TextDecoder(charset).decode(buffer)
+  } catch {
+    // An unknown label is not a reason to fail the fetch; UTF-8 is the better guess than
+    // nothing, and the page may well be UTF-8 with a mislabelled header.
+    logger.debug('unknown charset, falling back to utf-8', { charset })
+    return buffer.toString('utf8')
+  }
+}
+
 export const safeFetch = async (
   input: string,
   options: SafeFetchOptions = {},
@@ -244,7 +283,7 @@ export const safeFetch = async (
         finalUrl: target.url.toString(),
         status: response.statusCode,
         headers,
-        body: Buffer.concat(chunks).toString('utf8'),
+        body: decodeBody(Buffer.concat(chunks), contentType, logger),
         contentType,
         bytes,
         redirects,

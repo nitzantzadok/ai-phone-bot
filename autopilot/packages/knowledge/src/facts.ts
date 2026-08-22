@@ -10,6 +10,7 @@ import type { ConfidenceLevel, SourceType } from '@autopilot/shared/domain.ts'
 import type { CrawledPage, CrawlResult } from '@autopilot/crawler/crawler.ts'
 import { registrableDomain } from '@autopilot/crawler/ssrf.ts'
 import { findAttributeEvidence } from './attributes.ts'
+import { findCities } from '@autopilot/shared/il-cities.ts'
 
 export interface CandidateFact {
   readonly factKind: string
@@ -233,6 +234,39 @@ export const extractFacts = (input: ExtractionInput): CandidateFact[] => {
         sourceType: 'OWN_PROPERTY',
         sourceUrl: page.url,
         excerpt: phone,
+      })
+    }
+  }
+
+  // The city, read from the words on the page.
+  //
+  // Structured data gives it to us cleanly, but most small business sites have none — and
+  // without a city there is no local question to ask, so the entire measurement half of
+  // the product silently switches itself off for the majority of real customers. The page
+  // almost always says it ("מוסך בחיפה"); it just does not say it in a machine-readable
+  // place. Confidence stays below the structured-data path, and below the threshold that
+  // lets a fact be published as an owner-confirmed claim.
+  if (!facts.some((f) => f.factKind === 'city')) {
+    const headline = [home?.title ?? '', home?.metaDescription ?? '', home?.h1 ?? ''].join(' ')
+    const body = input.crawl.pages
+      .map((p) => `${p.title ?? ''} ${p.metaDescription ?? ''} ${p.bodyText}`)
+      .join(' ')
+      .slice(0, 100_000)
+
+    // A city named in the title or description is the business stating where it is. One
+    // found only in body text might be a service area, a supplier or a customer story.
+    const inHeadline = findCities(headline)[0]
+    const inBody = findCities(body)[0]
+    const chosen = inHeadline ?? inBody
+
+    if (chosen) {
+      add({
+        factKind: 'city',
+        value: chosen.city,
+        confidence: inHeadline ? 'MEDIUM' : 'LOW',
+        sourceType: 'OWN_PROPERTY',
+        sourceUrl: home?.url ?? input.crawl.rootUrl,
+        excerpt: inHeadline ? headline.trim().slice(0, 200) : undefined,
       })
     }
   }
