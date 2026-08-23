@@ -157,74 +157,219 @@ body {
   animation-delay: var(--delay, 0ms);
 }
 
-/* ---------------------------------------------------------------------- intro --- */
+/* ----------------------------------------------------------------------- gate --- */
 
 /**
- * The scan.
+ * The door.
  *
- * A line travels down the wordmark and the mark resolves behind it. It is a picture of what
- * the product does — something reading a page from top to bottom — and it lasts well under
- * two seconds, because an intro that outstays a single breath stops being an entrance and
- * becomes a toll.
+ * A field of scattered sources, a question travelling out through them, the whole network
+ * collapsing into one answer, and the product's name resolving out of the collapse. The
+ * motion is drawn by one canvas on one clock (`gate-field.ts`) rather than by keyframes,
+ * because a sequence this long assembled from independent CSS animations drifts out of step
+ * with itself — the flash arriving a few frames before the collapse it belongs to. What
+ * lives here is only the furniture the canvas draws behind.
  */
-@keyframes sweep {
-  0% {
-    transform: translate3d(0, -120%, 0);
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(0, 120%, 0);
-    opacity: 0;
-  }
-}
-
-@keyframes resolve {
-  from {
-    opacity: 0;
-    letter-spacing: 0.34em;
-    filter: blur(7px);
-  }
-  to {
-    opacity: 1;
-    letter-spacing: normal;
-    filter: blur(0);
-  }
-}
-
-@keyframes curtain {
-  to {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-
-.intro {
+.gate {
   position: fixed;
   inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: var(--color-accent-deep);
-  animation: curtain 0.55s var(--ease-settle) 1.5s both;
+  z-index: 80;
+  overflow: hidden;
+  cursor: pointer;
+  background: radial-gradient(ellipse at 50% 45%, #0a3a46 0%, #041f27 58%, #020f14 100%);
 }
 
-.intro-mark {
-  animation: resolve 1s var(--ease-settle) 0.12s both;
+/** Somebody chose not to wait. The cover lifts; it does not blink out. */
+.gate-leaving {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: opacity 0.62s var(--ease-settle);
 }
 
-.intro-sweep {
+.gate-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/**
+ * Film grain: static, cheap, and the one thing that stops a large dark gradient from
+ * banding into visible stripes on an ordinary monitor.
+ */
+.gate-grain {
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
+  animation: gate-grain 1.1s steps(3) infinite;
+}
+
+@keyframes gate-grain {
+  0% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(-3%, 2%);
+  }
+  66% {
+    transform: translate(2%, -3%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.gate-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, transparent 42%, rgba(1, 8, 11, 0.72) 100%);
+}
+
+.gate-plate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.5rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+/**
+ * The name starts wide and closes up as it lands, which is what makes it read as coming
+ * into focus rather than fading in. How wide it starts has to depend on the screen: at the
+ * desktop spread a Hebrew wordmark is about 415px across, and on a 390px phone that is
+ * clipped at both ends for the whole second it is resolving. The spread is a token so the
+ * clock can scale it without knowing anything about the viewport.
+ */
+.gate-mark {
+  --gate-spread: 0.3em;
+  position: relative;
+  font-size: clamp(1.5rem, 5.6vw, 2.9rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .gate-mark {
+    --gate-spread: 0.1em;
+  }
+}
+
+/**
+ * Chromatic split: two coloured copies behind the white one, pulled apart while the name is
+ * still resolving and driven to zero as it lands. It reads as a lens settling.
+ */
+.gate-mark::before,
+.gate-mark::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.gate-mark::before {
+  color: #ff4d6d;
+  transform: translateX(var(--split, 0px));
+}
+
+.gate-mark::after {
+  color: #4de1ff;
+  transform: translateX(calc(var(--split, 0px) * -1));
+}
+
+.gate-kicker {
+  margin-top: 0.95rem;
+  font-size: 0.8rem;
+  font-weight: 300;
+  letter-spacing: 0.34em;
+  color: #7fb3bf;
+  opacity: 0;
+}
+
+.gate-rule {
+  width: min(400px, 70vw);
+  height: 1px;
+  margin-top: 1.25rem;
+  opacity: 0;
+  transform: scaleX(0.15);
+  background: linear-gradient(90deg, transparent, var(--color-signal), transparent);
+}
+
+/** The way in. Held out of the tab order until there is something to go in to. */
+.gate-enter {
+  margin-top: 2.25rem;
+  padding: 0.7rem 1.9rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #eafbff;
+  cursor: pointer;
+  pointer-events: auto;
+  background: rgba(95, 208, 224, 0.09);
+  border: 1px solid rgba(95, 208, 224, 0.42);
+  border-radius: 0.6rem;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.5s var(--ease-settle),
+    transform 0.5s var(--ease-settle),
+    background-color 0.22s var(--ease-settle);
+}
+
+.gate-enter-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.gate-enter:hover {
+  background: rgba(95, 208, 224, 0.18);
+}
+
+.gate-enter:focus-visible,
+.gate-skip:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 3px;
+}
+
+/**
+ * The skip control is on screen from the first frame and reachable by keyboard. An escape
+ * hatch that only appears once the thing is nearly over is not an escape hatch.
+ */
+.gate-skip {
+  position: absolute;
+  top: 1.25rem;
+  inset-inline-end: 1.5rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  color: rgba(191, 225, 233, 0.72);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.4rem;
+}
+
+.gate-skip:hover {
+  color: #eafbff;
+}
+
+.gate-foot {
   position: absolute;
   inset-inline: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--color-signal), transparent);
-  box-shadow: 0 0 22px 3px oklch(0.72 0.13 197 / 0.55);
-  animation: sweep 1.35s var(--ease-settle) both;
+  bottom: 1.6rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  color: rgba(127, 179, 191, 0.4);
+  text-align: center;
 }
 
 /* ------------------------------------------------------------- micro-behaviour --- */
@@ -295,8 +440,7 @@ body {
 
   .reveal,
   .reveal.revealed,
-  .rise,
-  .intro-mark {
+  .rise {
     opacity: 1 !important;
     animation: none !important;
     transform: none !important;
@@ -305,7 +449,7 @@ body {
   }
 
   .field,
-  .intro,
+  .gate,
   .sheen::after {
     display: none !important;
   }

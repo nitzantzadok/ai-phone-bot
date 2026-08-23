@@ -1,4 +1,5 @@
 import { starterChecklist } from '@autopilot/insights/playbook.ts'
+import { Gate } from '@/components/gate'
 import { Shell, languageFrom } from '@/components/shell'
 
 export default async function Home({
@@ -12,6 +13,10 @@ export default async function Home({
 
   return (
     <Shell language={language}>
+      {/* The entrance. This is the way into the product, so it is the one page that gets a
+          door — and the door opens onto a page that is already fully rendered behind it. */}
+      <Gate language={language} />
+
       <main className="mx-auto max-w-5xl px-6 py-16">
         <h1 className="max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
           {he
