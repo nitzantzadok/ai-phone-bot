@@ -110,3 +110,47 @@ the trade is visible rather than silent.
   not generated either.
 - It will not report a contradiction that is only a formatting difference. `+972-3-555-0123`
   and `03-555-0123` are one phone number.
+
+## Where the words come from
+
+A finding is produced in one vocabulary and read in another. The crawler emits
+`MISSING_CANONICAL`; a dentist in Haifa needs a sentence about their shop. Every piece of
+text a customer reads is written down in one of five places, so changing what the product
+says never means hunting through components:
+
+| What the reader sees | Where it is written |
+| --- | --- |
+| The verdict that opens the report, the score bands, the name of the field the business is in | `packages/insights/src/verdict.ts` |
+| Per finding: what it is, what it costs, the steps, how many minutes, who does it | `packages/insights/src/explain.ts` |
+| The note to forward to whoever built the site, and the JSON-LD block | `packages/insights/src/handoff.ts` |
+| The general advice that is not about this particular site | `packages/insights/src/catalogue.ts` |
+| Score component labels, and what a customer is told when the AI half did not run | `apps/web/src/lib/report-view.ts` |
+
+Both languages are written out in full at each of these, never translated at the point of
+display. A Hebrew customer receiving a Hebrew heading over an English paragraph is the
+thing that arrangement exists to prevent.
+
+### Impact is not severity
+
+The crawler's `severity` ranks how broken something is. `impact` in `explain.ts` ranks how
+much fixing it changes whether an assistant can recommend the business, and the report is
+ordered by the second. They disagree often, and where they do the customer needs ours.
+
+`CRITICAL` means one thing only, because the sentence attached to it says so: the content
+cannot enter an answer at all. Three findings earn that — a page that asks to be excluded,
+a page whose text does not exist until a browser draws it, and a page that does not load.
+A missing machine-readable business card is the highest-leverage finding in the table and
+is still not that; a site with well-written plain text gets recommended without one every
+day. It is `IMPORTANT`, and `leverage` orders it to the top of that level.
+
+The distinction is not pedantry. A customer who acts on a claim and discovers it was
+overstated has learned to discount every other number in the report, including the honest
+ones.
+
+### Adding a finding
+
+`packages/insights/test/explain.test.ts` reads `packages/crawler/src/audit.ts` and fails if
+the crawler can emit a `findingType` with no guide behind it. A new finding therefore needs
+its guide in the same change — otherwise it reaches customers in the crawler's vocabulary,
+and the only person who notices is a business owner who quietly decides the report is not
+for them.

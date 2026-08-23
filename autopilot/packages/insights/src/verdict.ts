@@ -155,11 +155,20 @@ const missingFactsOf = (input: VerdictInput): string[] => {
   return missing
 }
 
-const list = (items: readonly string[], language: Language): string => {
+/**
+ * Joins a list for the sentence it sits in.
+ *
+ * `negative` matters only in English, where a list under a negation takes "or": "could not
+ * find the name, the city, a phone number or an address". With "and" the sentence reads as
+ * though all four together were missing but some individually might not be — the opposite
+ * of what the scan found. Hebrew takes ו either way.
+ */
+const list = (items: readonly string[], language: Language, negative = false): string => {
   if (items.length <= 1) return items[0] ?? ''
   const last = items[items.length - 1]!
   const rest = items.slice(0, -1).join(', ')
-  return language === 'he' ? `${rest} ו${last}` : `${rest} and ${last}`
+  if (language === 'he') return `${rest} ו${last}`
+  return `${rest} ${negative ? 'or' : 'and'} ${last}`
 }
 
 /* ---------------------------------------------------------- what to do first -- */
@@ -229,7 +238,7 @@ export const buildVerdict = (input: VerdictInput): Verdict => {
       parts.push(
         he
           ? `קראנו ${input.pagesRead} עמודים באתר ולא הצלחנו למצוא בהם ${list(missing, 'he')}.`
-          : `We read ${input.pagesRead} pages of the site and could not find ${list(missing, 'en')} on them.`,
+          : `We read ${input.pagesRead} pages of the site and could not find ${list(missing, 'en', true)} on them.`,
       )
       parts.push(
         he

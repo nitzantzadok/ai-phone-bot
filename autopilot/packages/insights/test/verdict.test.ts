@@ -160,3 +160,29 @@ describe('naming the field the business is in', () => {
     expect(verticalLabel('unknown_vertical', 'en')).toBe('businesses in your field')
   })
 })
+
+describe('the list of missing facts, as a sentence', () => {
+  it('joins with "or" under a negation in English', () => {
+    // "could not find A, B, C and D" reads as though the four together were missing but
+    // some individually might not be — the opposite of what the scan found.
+    const v = buildVerdict({ ...base, language: 'en', vertical: 'a dental clinic' })
+    expect(v.explanation).toContain('a phone number or an address')
+    expect(v.explanation).not.toContain('a phone number and an address')
+  })
+
+  it('reads correctly when only one fact is missing', () => {
+    const v = buildVerdict({
+      ...base,
+      language: 'en',
+      businessName: 'Hadar Dental',
+      city: 'Haifa',
+      address: 'Herzl 12',
+    })
+    expect(v.explanation).toContain('could not find a phone number on them')
+  })
+
+  it('reads correctly when exactly two are missing', () => {
+    const v = buildVerdict({ ...base, language: 'en', businessName: 'Hadar Dental', city: 'Haifa' })
+    expect(v.explanation).toContain('a phone number or an address')
+  })
+})

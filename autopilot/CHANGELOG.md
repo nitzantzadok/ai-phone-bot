@@ -56,6 +56,13 @@ them that the report is not meant for them.
   instructions.
 - **"Which pages" listed `/sitemap.xml`** for a site-level finding, inviting the reader to
   go and look at a 404.
+- **The header did not fit on a phone.** As one unwrapping flex row it ran about fifty
+  pixels past the edge of a 390px screen. In Hebrew it overflowed to the *left*, where
+  `scrollWidth` does not count it — so in the direction this product is mostly read, no
+  overflow check could see it. It wraps now, and the check measures element boxes.
+- **An English list under a negation joined with "and".** "Could not find the name, the
+  city, a phone number and an address" reads as though the four together were missing but
+  some individually might not be, which is the opposite of what the scan found.
 - **An empty question set rendered as silence.** No questions is itself the strongest
   finding available: they are built from the field, the city and the services the site
   states, so an empty set means the site did not state enough to ask about — which is
