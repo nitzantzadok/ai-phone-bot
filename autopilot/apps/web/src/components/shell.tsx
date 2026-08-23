@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Intro } from './intro'
 import type { ReactNode } from 'react'
 
 /**
@@ -18,14 +19,20 @@ export const Shell = ({
   const he = language === 'he'
   const other = he ? 'en' : 'he'
 
+  const wordmark = he ? 'אוטופיילוט המלצות AI' : 'AI Recommendation Autopilot'
+
   return (
     <div dir={he ? 'rtl' : 'ltr'} className="min-h-screen">
+      {/* Behind everything, costing the layout nothing: see `.field` in globals.css. */}
+      <div className="field" aria-hidden="true" />
+      <Intro wordmark={wordmark} />
+
       {/* The header wraps rather than scrolls. As one unwrapping flex row it ran about
           fifty pixels past the edge of a 390px phone, which is what most of this product's
           audience reads it on. In Hebrew it overflowed to the *left*, where `scrollWidth`
           does not count it — so the direction that matters most here was the one no
           overflow check could see. */}
-      <nav className="border-b border-line">
+      <nav className="rise border-b border-line bg-surface/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-4">
           <Link href={`/?lang=${language}`} className="order-1 text-sm font-semibold tracking-tight">
             {he ? 'אוטופיילוט המלצות AI' : 'AI Recommendation Autopilot'}

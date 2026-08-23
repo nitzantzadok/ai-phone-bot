@@ -159,8 +159,8 @@ const GUIDES: readonly FixGuide[] = [
       en: 'The site is built so the text arrives only after the page loads, through code running in the browser. You see a full site. The programs that read sites for ChatGPT and Gemini mostly do not wait for that, and to them the page is entirely blank.',
     },
     costs: {
-      he: 'זו הבעיה הכי גדולה שיכולה להיות לאתר בהקשר הזה, כי אין מה לתקן בתוכן — אין תוכן. כל שאר השיפורים לא ישנו כלום עד שזה ייפתר.',
-      en: 'This is the largest problem a site can have here, because there is nothing to fix in the content — there is no content. Nothing else you improve matters until this is resolved.',
+      he: 'וזה מסביר את המצב הכי מבלבל שיש: האתר שלכם יכול להיות מצוין בגוגל ולגמרי ריק בשביל ChatGPT. הסורק של גוגל כן מריץ את הקוד ומחכה לטקסט; הסורקים של ChatGPT, Claude ו-Perplexity לא. אז אתם רואים את עצמכם בגוגל, מסיקים שהכול בסדר, ולא מבינים למה שום מערכת AI לא מכירה אתכם. כל שאר השיפורים בדוח לא ישנו כלום עד שזה ייפתר — אין מה לתקן בתוכן כשאין תוכן.',
+      en: 'And it explains the most confusing result there is: your site can be excellent in Google and completely empty to ChatGPT. Google’s crawler runs the code and waits for the text; the crawlers behind ChatGPT, Claude and Perplexity do not. So you find yourself in Google, conclude everything is fine, and cannot work out why no AI system knows you exist. Nothing else in this report matters until this is resolved — there is nothing to fix in content that is not there.',
     },
     steps: [
       {

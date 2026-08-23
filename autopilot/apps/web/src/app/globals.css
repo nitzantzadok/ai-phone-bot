@@ -1,22 +1,46 @@
 @import 'tailwindcss';
 
 /**
- * Design tokens.
+ * Design tokens and the motion system.
  *
- * Restrained on purpose: this is a tool a business owner checks between service and
- * closing, not a dashboard to admire. One accent colour, generous whitespace, and type
- * that stays legible in Hebrew, where the default sans stacks are noticeably worse.
+ * The palette moved off indigo deliberately. Indigo-to-violet is the house colour of every
+ * AI product shipped since 2023, and a tool whose whole promise is "we tell you the truth
+ * other people are guessing at" should not arrive dressed identically to the guessers.
+ *
+ * What replaced it comes from the subject rather than the category: deep petrol, the colour
+ * of instruments — depth gauges, oscilloscopes, the dark glass of something that measures.
+ * Against it a single luminous cyan does the work of a signal, and a warm brass carries
+ * caution. The neutrals are biased very slightly towards the petrol so nothing on the page
+ * reads as an unconsidered grey.
+ *
+ * The motion rules underneath are one idea repeated: things arrive, they never perform.
+ * Every entrance is short, eased out, and offset by a few pixels rather than sliding across
+ * the screen — a report about somebody's livelihood should feel like an instrument warming
+ * up, not a slide deck. Everything animates `transform` and `opacity` only, so none of it
+ * touches layout, and all of it is switched off wholesale under `prefers-reduced-motion`.
  */
 @theme {
-  --color-ink: oklch(0.22 0.02 260);
-  --color-muted: oklch(0.52 0.02 260);
-  --color-line: oklch(0.91 0.005 260);
-  --color-surface: oklch(0.99 0.002 260);
-  --color-accent: oklch(0.55 0.16 265);
-  --color-positive: oklch(0.58 0.13 155);
-  --color-caution: oklch(0.68 0.14 75);
-  --color-negative: oklch(0.55 0.19 25);
+  /* Neutrals, carrying a trace of the accent's hue so grey never reads as default grey. */
+  --color-ink: oklch(0.21 0.018 220);
+  --color-muted: oklch(0.52 0.022 220);
+  --color-line: oklch(0.91 0.008 220);
+  --color-surface: oklch(0.985 0.004 220);
+
+  /* Petrol: instrument glass. The one colour that carries the brand. */
+  --color-accent: oklch(0.47 0.084 213);
+  --color-accent-deep: oklch(0.33 0.062 218);
+
+  /* The signal. Used sparingly and only where something is being measured or revealed. */
+  --color-signal: oklch(0.72 0.13 197);
+
+  --color-positive: oklch(0.57 0.115 160);
+  --color-caution: oklch(0.66 0.125 68);
+  --color-negative: oklch(0.55 0.185 25);
+
   --font-sans: 'Assistant', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* One easing curve everywhere: a firm settle, no overshoot, no bounce. */
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root {
@@ -32,4 +56,261 @@ body {
 /* Hebrew is read right to left; the layout follows the content, not the other way round. */
 [dir='rtl'] {
   text-align: right;
+}
+
+/* ------------------------------------------------------------------ background --- */
+
+/**
+ * The field behind everything.
+ *
+ * Three very large, very faint petrol washes drifting on a minute-long cycle. At this
+ * opacity it is not a picture of anything and is not meant to be noticed directly — it
+ * exists so that a long scroll never passes over dead flat white, which is what makes a
+ * page of cards feel like a printout. Fixed and `pointer-events: none`, so it costs the
+ * layout and the interaction nothing.
+ */
+.field {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.field::before,
+.field::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+}
+
+.field::before {
+  width: 46rem;
+  height: 46rem;
+  top: -14rem;
+  inset-inline-start: -10rem;
+  background: radial-gradient(circle, oklch(0.72 0.13 197 / 0.16), transparent 68%);
+  animation: drift-a 34s var(--ease-settle) infinite alternate;
+}
+
+.field::after {
+  width: 38rem;
+  height: 38rem;
+  bottom: -12rem;
+  inset-inline-end: -8rem;
+  background: radial-gradient(circle, oklch(0.47 0.084 213 / 0.13), transparent 68%);
+  animation: drift-b 44s var(--ease-settle) infinite alternate;
+}
+
+@keyframes drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(5rem, 4rem, 0) scale(1.14);
+  }
+}
+
+@keyframes drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-4rem, -5rem, 0) scale(1);
+  }
+}
+
+/* ------------------------------------------------------------------- entrances --- */
+
+/**
+ * Everything that arrives, arrives the same way: eight pixels up, over a third of a second.
+ *
+ * `--delay` staggers a group without needing a class per position. Kept under 60ms per step
+ * and capped at a handful of steps, because a stagger long enough to watch is a stagger the
+ * reader is waiting on.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.rise {
+  animation: rise 0.42s var(--ease-settle) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/** Held at zero until the observer says the element has been reached. */
+.reveal {
+  opacity: 0;
+}
+
+.reveal.revealed {
+  animation: rise 0.5s var(--ease-settle) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* ---------------------------------------------------------------------- intro --- */
+
+/**
+ * The scan.
+ *
+ * A line travels down the wordmark and the mark resolves behind it. It is a picture of what
+ * the product does — something reading a page from top to bottom — and it lasts well under
+ * two seconds, because an intro that outstays a single breath stops being an entrance and
+ * becomes a toll.
+ */
+@keyframes sweep {
+  0% {
+    transform: translate3d(0, -120%, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 120%, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes resolve {
+  from {
+    opacity: 0;
+    letter-spacing: 0.34em;
+    filter: blur(7px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: normal;
+    filter: blur(0);
+  }
+}
+
+@keyframes curtain {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: var(--color-accent-deep);
+  animation: curtain 0.55s var(--ease-settle) 1.5s both;
+}
+
+.intro-mark {
+  animation: resolve 1s var(--ease-settle) 0.12s both;
+}
+
+.intro-sweep {
+  position: absolute;
+  inset-inline: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-signal), transparent);
+  box-shadow: 0 0 22px 3px oklch(0.72 0.13 197 / 0.55);
+  animation: sweep 1.35s var(--ease-settle) both;
+}
+
+/* ------------------------------------------------------------- micro-behaviour --- */
+
+/** A card lifts a hair on hover. Any more and a list of nine becomes a trampoline. */
+.lift {
+  transition:
+    transform 0.22s var(--ease-settle),
+    box-shadow 0.22s var(--ease-settle),
+    border-color 0.22s var(--ease-settle);
+}
+
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -12px oklch(0.33 0.062 218 / 0.28);
+}
+
+/** A slow sheen crossing the progress bar, so it reads as live rather than painted. */
+@keyframes sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+.sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.45), transparent);
+  animation: sheen 2.6s ease-in-out infinite;
+}
+
+/** The dial's arc draws itself once, from empty. */
+@keyframes draw {
+  from {
+    stroke-dashoffset: var(--circumference);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.draw {
+  animation: draw 1.15s var(--ease-settle) 0.25s both;
+}
+
+/* -------------------------------------------------------------------- respect --- */
+
+/**
+ * Off, wholesale.
+ *
+ * Not "faster" and not "reduced": somebody who has asked their system for less motion is
+ * frequently asking because motion makes them ill, and a tastefully shortened version of
+ * the thing that makes them ill is still that thing. Every element stays exactly where the
+ * layout puts it, fully visible.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .reveal,
+  .reveal.revealed,
+  .rise,
+  .intro-mark {
+    opacity: 1 !important;
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
+    letter-spacing: normal !important;
+  }
+
+  .field,
+  .intro,
+  .sheen::after {
+    display: none !important;
+  }
+
+  .lift:hover {
+    transform: none;
+  }
 }

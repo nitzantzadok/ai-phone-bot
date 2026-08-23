@@ -132,3 +132,34 @@ describe('robustness', () => {
     expect(chatgpt.verdict).toBe('BLOCKED')
   })
 })
+
+describe('the order they are read in', () => {
+  it('groups the blocked ones first', () => {
+    // Scattered through a grid, two blocked assistants among three healthy ones make the
+    // reader hunt for the bad news. Grouped, it reads as one fact.
+    const report = check(`User-agent: *
+Allow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+`)
+    const verdicts = report.assistants.map((a) => a.verdict)
+    expect(verdicts.slice(0, 2)).toEqual(['BLOCKED', 'BLOCKED'])
+    expect(verdicts.slice(2).every((v) => v === 'ALLOWED')).toBe(true)
+  })
+
+  it('puts training-only between blocked and allowed', () => {
+    const report = check(`User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+`)
+    const order = report.assistants.map((a) => a.verdict)
+    expect(order.indexOf('TRAINING_ONLY_BLOCKED')).toBeGreaterThan(order.indexOf('BLOCKED'))
+    expect(order.indexOf('TRAINING_ONLY_BLOCKED')).toBeLessThan(order.indexOf('ALLOWED'))
+  })
+})

@@ -1,5 +1,49 @@
 # CHANGELOG
 
+## Unreleased — asking the right question, and looking like we mean it
+
+### Fixed
+
+- **The product was checking the wrong thing.** The crawl asked "is *our* crawler allowed"
+  and reported on that. A site that says `User-agent: *` / `Allow: /` and then
+  `User-agent: OAI-SearchBot` / `Disallow: /` crawls perfectly for us and is invisible to
+  ChatGPT — we read every page, found the business well described, and called the site
+  healthy while the assistant the customer cares about had been told in writing to stay
+  out. Each assistant's own crawlers are now evaluated by name, and reported per assistant
+  because the answer differs per assistant and the next action depends on which is blocked.
+- **Training and retrieval are no longer conflated.** Blocking `GPTBot` opts a site out of
+  OpenAI's training data and changes nothing about how ChatGPT answers a question about the
+  business today. Many block it deliberately and are right to; reporting that as lost
+  visibility would be alarming and false.
+- **Sections could stay invisible forever.** A jump to an anchor or a flick to the bottom
+  of a long report moves the viewport past a reveal without ever intersecting it. Elements
+  already passed now reveal, and a failsafe shows everything regardless after a couple of
+  seconds — content hidden because an animation did not fire is far worse than no animation.
+
+### Changed
+
+- **The palette moved off indigo.** Indigo-to-violet is the house colour of every AI product
+  shipped since 2023, and a tool whose promise is "we tell you the truth other people are
+  guessing at" should not arrive dressed identically to the guessers. It is deep petrol now
+  — instrument glass — with one luminous cyan doing the work of a signal, and neutrals
+  biased slightly towards the accent so no grey reads as default grey.
+- **A motion system**, built on one idea: things arrive, they never perform. An entrance
+  where a scan line travels down the wordmark and the mark resolves behind it; a drifting
+  field behind the page so a long scroll never crosses dead flat white; sections that rise
+  as they are reached; the score dial drawing its own arc; a sheen on the progress bar while
+  work remains. Everything animates `transform` and `opacity` only, and all of it is off
+  wholesale under `prefers-reduced-motion` — not shortened, off, because a tastefully brief
+  version of the thing that makes somebody ill is still that thing.
+- **The intro never plays late.** It mounts after hydration, so on a slow connection the page
+  can already be on screen and read — and a curtain dropping over content somebody is
+  already reading is an interruption, not an entrance. Past 700ms it does not play at all.
+  Once per session, skippable on any click.
+- **The most confusing result a customer can get is now explained where they meet it:** a
+  site can be excellent in Google and completely empty to ChatGPT, because Google's crawler
+  runs the page's code and waits for the text and the AI crawlers do not.
+- **Blocked assistants are grouped first**, so two blocked among three healthy read as one
+  fact rather than something to hunt for in a grid.
+
 ## Unreleased — a checklist that points at the thing
 
 ### Added

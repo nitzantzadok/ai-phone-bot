@@ -21,6 +21,7 @@
 import { useMemo, useState } from 'react'
 import type { ReportTask } from '@/lib/report-view'
 import { ChecklistProgress, TaskCheckbox, useChecklist } from './checklist'
+import { Reveal } from './reveal'
 
 type Lang = 'he' | 'en'
 
@@ -166,10 +167,10 @@ const TaskCard = ({
   language: Lang
 }) => (
   <li
-    className={`rounded-xl border transition-all ${
+    className={`lift rounded-xl border ${
       checked
         ? 'border-positive/30 bg-positive/5'
-        : 'border-line bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)]'
+        : 'border-line bg-white/90 shadow-[0_1px_2px_rgba(0,0,0,0.03)] backdrop-blur-sm'
     }`}
   >
     <div className="flex items-start gap-3 p-5 sm:p-6">
@@ -320,7 +321,7 @@ export const TaskBoard = ({
       <ChecklistProgress done={doneCount} total={tasks.length} language={language} />
 
       {groups.map(({ group, items }) => (
-        <section key={group} className="rounded-xl border border-line bg-surface/60 p-4 sm:p-6">
+        <Reveal key={group} className="rounded-xl border border-line bg-surface/50 p-4 backdrop-blur-sm sm:p-6">
           <h2 className="text-xl font-semibold tracking-tight">
             {t(GROUP_COPY[group].title.he, GROUP_COPY[group].title.en, language)}
           </h2>
@@ -340,7 +341,7 @@ export const TaskBoard = ({
               />
             ))}
           </ol>
-        </section>
+        </Reveal>
       ))}
     </div>
   )

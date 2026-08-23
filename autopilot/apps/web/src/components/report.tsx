@@ -27,6 +27,7 @@ import {
 import type { Verdict } from '@autopilot/insights/verdict.ts'
 import { bandMeaning } from '@autopilot/insights/verdict.ts'
 import { CopyBox } from './copy-box'
+import { Reveal } from './reveal'
 
 type Lang = 'he' | 'en'
 
@@ -43,11 +44,13 @@ export const Section = ({
   lead?: string
   children: ReactNode
 }) => (
-  <section className="rounded-xl border border-line bg-white p-6 sm:p-8">
+  /* Revealed here rather than at each call site, so a page cannot forget to do it and no
+     section is left as the one that snaps in while its neighbours arrive. */
+  <Reveal className="rounded-xl border border-line bg-white/90 p-6 backdrop-blur-sm sm:p-8">
     <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
     {lead ? <p className="mt-2 text-[15px] leading-relaxed text-muted">{lead}</p> : null}
     <div className="mt-6">{children}</div>
-  </section>
+  </Reveal>
 )
 
 const IMPACT_STYLE: Record<Impact, string> = {
@@ -84,9 +87,10 @@ export const VerdictBlock = ({
 
   return (
     <section
-      className={`rounded-xl border p-6 sm:p-8 ${
+      className={`rise rounded-xl border p-6 backdrop-blur-sm sm:p-8 ${
         alarming ? 'border-negative/30 bg-negative/5' : 'border-positive/30 bg-positive/5'
       }`}
+      style={{ '--delay': '90ms' } as React.CSSProperties}
     >
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">
         {t('השורה התחתונה', 'The bottom line', language)}

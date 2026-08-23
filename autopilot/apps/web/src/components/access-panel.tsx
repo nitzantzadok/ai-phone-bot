@@ -54,8 +54,8 @@ export const AccessPanel = ({
 
   return (
     <section
-      className={`rounded-xl border p-6 sm:p-8 ${
-        anyBlocked ? 'border-negative/40 bg-negative/5' : 'border-line bg-white'
+      className={`rise rounded-xl border p-6 backdrop-blur-sm sm:p-8 ${
+        anyBlocked ? 'border-negative/40 bg-negative/5' : 'border-line bg-white/90'
       }`}
     >
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">
@@ -93,7 +93,7 @@ export const AccessPanel = ({
           return (
             <li
               key={assistant.assistant}
-              className={`flex items-start gap-3 rounded-lg border p-4 ${state.ring}`}
+              className={`lift flex items-start gap-3 rounded-lg border p-4 ${state.ring}`}
             >
               <span className={`mt-0.5 shrink-0 text-lg font-bold leading-none ${state.text}`}>
                 {state.mark}

@@ -91,6 +91,16 @@ export const checkAiAccess = (
     return { assistant, name: ASSISTANT_NAME[assistant], verdict, crawlers, blockedAgents }
   })
 
+  /* Blocked first, then training-only, then allowed. A grid that scatters two blocked
+     assistants among three healthy ones makes the reader hunt for the bad news; grouped,
+     it reads as one fact. */
+  const ORDER: Record<AccessVerdict, number> = {
+    BLOCKED: 0,
+    TRAINING_ONLY_BLOCKED: 1,
+    ALLOWED: 2,
+  }
+  assistants.sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict])
+
   return {
     assistants,
     blocked: assistants.filter((a) => a.verdict === 'BLOCKED'),

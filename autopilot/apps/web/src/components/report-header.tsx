@@ -69,7 +69,10 @@ const Dial = ({ score, band }: { score: number; band: Band }) => {
           strokeWidth="10"
           strokeLinecap="round"
           strokeDasharray={`${filled} ${circumference}`}
-          className="transition-[stroke-dasharray] duration-700"
+          /* Drawn from empty rather than appearing complete: the arc's growth is what
+             gives the number a felt size, and it only reads once. */
+          className="draw"
+          style={{ '--circumference': `${filled}` } as React.CSSProperties}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -110,7 +113,7 @@ export const ReportHeader = ({
   pagesRead: number
   language: Lang
 }) => (
-  <section className="rounded-xl border border-line bg-white p-6 sm:p-8">
+  <section className="rise rounded-xl border border-line bg-white/90 p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)] backdrop-blur-sm sm:p-8">
     <p className="text-xs font-semibold uppercase tracking-widest text-muted">
       {t('נסרק עכשיו', 'Scanned just now', language)}
     </p>

@@ -95,7 +95,7 @@ export const ChecklistProgress = ({
 
   return (
     <div
-      className={`rounded-xl border p-5 transition-colors ${
+      className={`rounded-xl border p-5 backdrop-blur-sm transition-colors ${
         complete ? 'border-positive/40 bg-positive/5' : 'border-line bg-white'
       }`}
     >
@@ -116,10 +116,12 @@ export const ChecklistProgress = ({
 
       <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-line">
         <div
-          className={`h-full rounded-full transition-[width] duration-500 ${
-            complete ? 'bg-positive' : 'bg-accent'
+          /* The sheen runs only while there is work left. Once everything is ticked a
+             moving highlight stops meaning "live" and starts meaning "still going". */
+          className={`relative h-full overflow-hidden rounded-full transition-[width] duration-700 ${
+            complete ? 'bg-positive' : `bg-accent ${pct > 0 ? 'sheen' : ''}`
           }`}
-          style={{ width: `${pct}%` }}
+          style={{ width: `${pct}%`, transitionTimingFunction: 'var(--ease-settle)' }}
         />
       </div>
 
