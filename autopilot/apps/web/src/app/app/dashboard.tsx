@@ -13,6 +13,7 @@ import {
 } from '@/components/report'
 import { TaskBoard } from '@/components/task-board'
 import { ReportHeader } from '@/components/report-header'
+import { AccessPanel } from '@/components/access-panel'
 
 /**
  * The working dashboard.
@@ -159,6 +160,10 @@ export const Dashboard = async ({
 
   return (
     <div className="space-y-6">
+      {report.crawl.aiAccess.blocked.length > 0 ? (
+        <AccessPanel access={report.crawl.aiAccess} language={language} />
+      ) : null}
+
       <ReportHeader
         url={report.requestedUrl}
         score={report.readiness.score}
@@ -310,6 +315,10 @@ export const Dashboard = async ({
           </div>
         )}
       </Section>
+
+      {report.crawl.aiAccess.blocked.length === 0 ? (
+        <AccessPanel access={report.crawl.aiAccess} language={language} />
+      ) : null}
 
       {/* ---------------------------------------------------------- facts --- */}
       <FactsBlock

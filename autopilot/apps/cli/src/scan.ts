@@ -157,6 +157,14 @@ export interface ScanReport {
      * part of that we can observe from a crawl without guessing.
      */
     readonly outboundLinks: readonly string[]
+    /**
+     * Whether each assistant's own crawlers are permitted to read this site.
+     *
+     * The one measurement that can invalidate every other number in the report: a site
+     * that welcomes generic crawlers and singles out the ones feeding ChatGPT scores
+     * perfectly here and is invisible there.
+     */
+    readonly aiAccess: CrawlResult['aiAccess']
   }
 
   readonly business: {
@@ -596,6 +604,7 @@ export const scanBusiness = async (options: ScanOptions): Promise<ScanReport> =>
       stoppedBecause: crawl.stoppedBecause,
       errors: crawl.errors,
       durationMs: crawl.finishedAt.getTime() - crawl.startedAt.getTime(),
+      aiAccess: crawl.aiAccess,
       outboundLinks: [
         ...new Set(
           crawl.pages.flatMap((p) => p.links.filter((l) => !l.internal).map((l) => l.href)),

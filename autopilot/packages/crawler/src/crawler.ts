@@ -11,6 +11,7 @@ import type { Logger } from '@autopilot/shared/logger.ts'
 import { noopLogger } from '@autopilot/shared/logger.ts'
 import { safeFetch, type SafeFetchOptions } from './safe-fetch.ts'
 import { EMPTY_ROBOTS, crawlDelayFor, isAllowed, parseRobotsTxt, type RobotsTxt } from './robots.ts'
+import { checkAiAccess, type AiAccessReport } from './ai-access.ts'
 import { classifyPage, parseHtml, parseSitemap, type ParsedPage } from './parse.ts'
 import { auditSite, discoverabilityScore, type TechnicalFinding } from './audit.ts'
 
@@ -38,6 +39,14 @@ export interface CrawlResult {
   readonly pages: readonly CrawledPage[]
   readonly findings: readonly TechnicalFinding[]
   readonly robotsTxtFound: boolean
+  /**
+   * Whether each assistant's own crawlers are permitted to read this site.
+   *
+   * Distinct from `robotsTxtFound` and from whether *we* were allowed: a site can welcome
+   * every generic crawler and single out the ones that feed ChatGPT. That configuration
+   * crawls perfectly for us and is invisible to the assistant the customer cares about.
+   */
+  readonly aiAccess: AiAccessReport
   readonly sitemapFound: boolean
   readonly sitemapUrls: readonly string[]
   readonly discoverability: number
@@ -224,12 +233,14 @@ export const crawlSite = async (rootUrl: string, options: CrawlOptions = {}): Pr
   }
 
   const findings = auditSite({ pages, robotsTxtFound, sitemapFound, statusByUrl })
+  const aiAccess = checkAiAccess(robots, origin, robotsTxtFound)
 
   return {
     rootUrl,
     pages,
     findings,
     robotsTxtFound,
+    aiAccess,
     sitemapFound,
     sitemapUrls,
     discoverability: discoverabilityScore(findings, pages.length),
