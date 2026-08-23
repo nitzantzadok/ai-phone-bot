@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## Unreleased — a checklist that points at the thing
+
+### Added
+
+- **Every finding now says exactly where it is.** Which page, by the name a person calls it
+  ("your About page", not a URL); where on that page to look, in the words of somebody
+  standing in front of their own site editor; what is written there right now, quoted back
+  verbatim so they recognise their own site; and — where one can be written truthfully —
+  a ready replacement with a copy button. A report that names a problem without saying
+  which bit of the site it lives in sends its reader hunting, and most of them stop.
+- **Presence beyond the website** (`insights/offsite.ts`). Whether a site can be read is
+  half of what decides an assistant's answer; the other half is whether anywhere else
+  corroborates it — a maps listing, reviews, a directory. Detected from the links the site
+  itself points at, and turned into tasks: claim the Google profile, ask ten customers for
+  reviews, list in the Israeli directories. Strictly bounded to what a crawl can see: every
+  claim is "your site does not link X", never "you do not have X", because a business with
+  a thriving profile it never linked would know we were wrong and stop believing the rest.
+- **The report is a checklist.** Every task, on the site and off it, has a checkbox that
+  survives a reload, a progress bar, and a count. A report is read once; a checklist gets
+  opened again on Thursday because there are two items left on it. Stored per site in the
+  browser, and the page says so rather than implying a sync that does not exist.
+- **A summary header** with the score as a dial rather than a digit, and the three counts
+  people ask for before they start reading: how much work, how many sources, how much of
+  the site we read.
+
+### Fixed
+
+- **The business name was found only in structured data or the page title**, so a site
+  titled "ברוכים הבאים" — the most common home-page title in the country — was told we
+  could not find its name, with the name written across every page of it in the header.
+  That was not only wrong: no name means no measurement and no suggested title, so one weak
+  extractor was quietly switching off half the product. The logo link and the home page's
+  main heading are now read too, at a confidence below structured data, and refused when
+  the candidate looks like navigation rather than a name.
+- **Three things wrong with generated text**, each of which a customer would have pasted
+  onto their live site under our instruction: the generic vertical stand-in appearing in a
+  suggestion ("מספרת רוזה — עסקים בתחום שלכם בפתח תקווה"), a phone number rendered as the
+  normalised digit string, and one identical description suggested for every page — which
+  the report elsewhere raises as a finding in its own right.
+- **"Which pages" repeated the same "where to look" sentence under every page name**, four
+  times the height for none of the information.
+
 ## Unreleased — the report is written for the person who has to act on it
 
 ### Changed
