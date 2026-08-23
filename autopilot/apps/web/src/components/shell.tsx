@@ -26,11 +26,22 @@ export const Shell = ({
           does not count it — so the direction that matters most here was the one no
           overflow check could see. */}
       <nav className="border-b border-line">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:px-6 sm:py-4">
-          <Link href={`/?lang=${language}`} className="text-sm font-semibold tracking-tight">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-4">
+          <Link href={`/?lang=${language}`} className="order-1 text-sm font-semibold tracking-tight">
             {he ? 'אוטופיילוט המלצות AI' : 'AI Recommendation Autopilot'}
           </Link>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+
+          {/* On a phone the brand and the call to action share the first row and the links
+              drop to a second one. Letting the links wrap on their own instead pushed the
+              button onto a third row of its own, which reads as a mistake. */}
+          <Link
+            href={`/join?lang=${language}`}
+            className="order-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white sm:order-3"
+          >
+            {he ? 'סריקה חינם' : 'Free scan'}
+          </Link>
+
+          <div className="order-3 flex w-full items-center gap-x-4 text-sm sm:order-2 sm:w-auto">
             <Link href={`/insights?lang=${language}`} className="text-muted hover:text-ink">
               {he ? 'איך זה עובד' : 'How it works'}
             </Link>
@@ -42,12 +53,6 @@ export const Shell = ({
             </Link>
             <Link href={`/?lang=${other}`} className="text-muted hover:text-ink">
               {he ? 'English' : 'עברית'}
-            </Link>
-            <Link
-              href={`/join?lang=${language}`}
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white"
-            >
-              {he ? 'סריקה חינם' : 'Free scan'}
             </Link>
           </div>
         </div>
