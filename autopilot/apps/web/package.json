@@ -6,7 +6,8 @@
     "dev": "node scripts/serve.mjs dev",
     "build": "next build",
     "start": "node scripts/serve.mjs start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fresh": "node scripts/serve.mjs dev --fresh"
   },
   "dependencies": {
     "@autopilot/shared": "workspace:*",

@@ -91,3 +91,23 @@ Without a key that section says NOT MEASURED and explains why. It is never simul
 
 That is `DEPLOY-SCAN.md` — the same app, hosted, so a business owner can scan their own
 site without touching a terminal.
+
+## When your changes do not appear
+
+You pull, you reload, and the page looks exactly as it did. Almost always this is the build
+cache rather than anything you did: Tailwind generates its utilities from the `@theme` block
+at build time, so a new design token or a class the project has never used before needs that
+cache rebuilt. Until it is, the running server serves the new markup with the old
+stylesheet — old colours, missing spacing, on a layout that has already changed underneath
+it. It looks precisely like "nothing I changed had any effect", and no amount of reloading
+the browser fixes it.
+
+Stop the server with `Ctrl + C`, then:
+
+```bash
+pnpm web:fresh
+```
+
+That deletes the cache and starts again. The first page takes a few seconds longer; after
+that it behaves normally. Then reload the browser with `Cmd + Shift + R`, which bypasses the
+browser's own cache — an ordinary reload can still serve you the old stylesheet from disk.

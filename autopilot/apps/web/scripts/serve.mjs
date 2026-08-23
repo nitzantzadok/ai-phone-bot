@@ -13,8 +13,23 @@
  */
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
+import { rm } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 
 const MODE = process.argv[2] === 'start' ? 'start' : 'dev'
+
+/**
+ * `--fresh` deletes the build cache before starting.
+ *
+ * Tailwind generates its utilities from the `@theme` block at build time, so a change to a
+ * design token or a class that has never been used before needs the cache rebuilt. When it
+ * is not, the running server keeps serving the previous stylesheet: the markup is the new
+ * markup, the CSS is the old CSS, and the page comes out with the old colours and missing
+ * spacing on a layout that has already changed underneath it. It looks exactly like
+ * "nothing I changed had any effect", which is the single most misleading way for a build
+ * to fail, and no amount of reloading the browser fixes it.
+ */
+const FRESH = process.argv.includes('--fresh')
 const FIRST_PORT = 3100
 const ATTEMPTS = 20
 
@@ -32,6 +47,12 @@ const findPort = async () => {
     if (await isFree(port)) return port
   }
   return null
+}
+
+if (FRESH) {
+  const cache = fileURLToPath(new URL('../.next', import.meta.url))
+  await rm(cache, { recursive: true, force: true })
+  console.log('Cleared the build cache. The first page will take a few seconds longer.\n')
 }
 
 const port = await findPort()

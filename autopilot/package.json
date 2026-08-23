@@ -19,7 +19,8 @@
     "scan": "pnpm -s --filter @autopilot/cli run scan",
     "worker": "pnpm --filter @autopilot/worker run start",
     "web": "pnpm --filter @autopilot/web run dev",
-    "build": "pnpm --filter @autopilot/web run build"
+    "build": "pnpm --filter @autopilot/web run build",
+    "web:fresh": "pnpm --filter @autopilot/web run fresh"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
