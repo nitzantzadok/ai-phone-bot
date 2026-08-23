@@ -148,6 +148,15 @@ export interface ScanReport {
     readonly stoppedBecause: CrawlResult['stoppedBecause']
     readonly errors: CrawlResult['errors']
     readonly durationMs: number
+    /**
+     * Every address the site links out to, deduplicated.
+     *
+     * Kept because the question "can a machine read your site" is only half of what
+     * decides whether an assistant recommends a business. The other half is whether
+     * anywhere else corroborates it, and the links a site chooses to point at are the one
+     * part of that we can observe from a crawl without guessing.
+     */
+    readonly outboundLinks: readonly string[]
   }
 
   readonly business: {
@@ -587,6 +596,11 @@ export const scanBusiness = async (options: ScanOptions): Promise<ScanReport> =>
       stoppedBecause: crawl.stoppedBecause,
       errors: crawl.errors,
       durationMs: crawl.finishedAt.getTime() - crawl.startedAt.getTime(),
+      outboundLinks: [
+        ...new Set(
+          crawl.pages.flatMap((p) => p.links.filter((l) => !l.internal).map((l) => l.href)),
+        ),
+      ],
     },
     business: {
       name,

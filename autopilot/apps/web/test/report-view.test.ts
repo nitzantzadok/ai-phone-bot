@@ -26,6 +26,7 @@ const report = (over: Partial<ScanReport> = {}): ScanReport =>
       stoppedBecause: 'COMPLETE',
       errors: [],
       durationMs: 1200,
+      outboundLinks: [],
     },
     business: {
       name: 'דנטל סנטר הדר',
@@ -60,7 +61,27 @@ const report = (over: Partial<ScanReport> = {}): ScanReport =>
       disclosure: 'Site readiness measures…',
     },
     diagnosis: {} as ScanReport['diagnosis'],
-    playbook: { headline: '', items: [], outsideOurControl: [] },
+    playbook: {
+      headline: '',
+      items: [
+        {
+          kind: 'MEASURED',
+          title: 'אין באתר כרטיס ביקור שמחשב יכול לקרוא',
+          why: 'זו הסיבה הכי שקטה שעסק טוב לא מופיע.',
+          steps: ['שלחו את הקוד המוכן למי שבנה את האתר.'],
+          controllability: 'CONTROLLED',
+          weDoThisForYou: true,
+          howYouWillKnow: 'נמדוד מחדש.',
+          evidence: { findingType: 'NO_STRUCTURED_DATA', affectedUrls: [] },
+          impact: 'IMPORTANT',
+          leverage: 0.9,
+          who: 'WEB_PERSON',
+          minutes: 20,
+          what: 'קטע קוד קטן שיושב בעמוד.',
+        },
+      ],
+      outsideOurControl: [],
+    } as unknown as ScanReport['playbook'],
     ...over,
   }) as ScanReport
 
@@ -149,5 +170,117 @@ describe('the handoff built from a real report', () => {
     const view = buildReportView(report(), 'he')
     expect(view.handoff.jsonLd).toContain('דנטל סנטר הדר')
     expect(view.handoff.jsonLd).toContain('04-8123456')
+  })
+})
+
+describe('the task list the checklist renders', () => {
+  it('gives every task an id that survives a re-scan', () => {
+    // A tick is stored against the id. If the id moved when the list reordered, a customer
+    // who ticked six items and re-scanned would watch the product forget all six.
+    const view = buildReportView(report(), 'he')
+    const ids = view.tasks.map((t) => t.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids.every((id) => !/^\w+:idx:/.test(id) || id.startsWith('general:'))).toBe(true)
+  })
+
+  it('carries off-site work alongside work on the site', () => {
+    const view = buildReportView(report(), 'he')
+    expect(view.tasks.some((t) => t.group === 'SITE')).toBe(true)
+    expect(view.tasks.some((t) => t.group === 'OFFSITE')).toBe(true)
+  })
+
+  it('says a site linking nothing external is leaning on one source', () => {
+    expect(buildReportView(report(), 'he').offsite.summary).toContain('מקור אחד')
+  })
+
+  it('notices the profiles a site does link', () => {
+    const linked = buildReportView(
+      report({
+        crawl: {
+          ...report().crawl,
+          outboundLinks: ['https://maps.app.goo.gl/x', 'https://facebook.com/y'],
+        },
+      }),
+      'he',
+    )
+    expect(linked.offsite.linkedCount).toBe(2)
+  })
+
+  it('locates a site finding on the pages it was actually seen on', () => {
+    const view = buildReportView(report(), 'he')
+    const structured = view.tasks.find((t) => t.id === 'site:NO_STRUCTURED_DATA')
+    expect(structured?.locations?.map((l) => l.url)).toEqual([
+      'https://dental-hadar.co.il/',
+      'https://dental-hadar.co.il/about',
+    ])
+    expect(structured?.locations?.[1]!.page).toBe('עמוד "אודות"')
+  })
+})
+
+describe('the suggestion reaching the page', () => {
+  /**
+   * The unit tests prove `locate()` writes a good suggestion. This proves the report
+   * actually hands it the business's facts — the integration point where a suggestion
+   * silently becomes null and nobody notices, because an absent suggestion looks exactly
+   * like a suggestion we deliberately withheld.
+   */
+  const withWeakTitles = () =>
+    report({
+      findings: [
+        {
+          findingType: 'TITLE_LENGTH',
+          url: 'https://dental-hadar.co.il/',
+          severity: 'LOW',
+          where: { he: 'בלשונית הדפדפן', en: 'in the browser tab' },
+          current: 'ברוכים הבאים',
+        },
+      ] as unknown as ScanReport['findings'],
+      playbook: {
+        headline: '',
+        items: [
+          {
+            kind: 'MEASURED',
+            title: 'הכותרת קצרה מדי',
+            why: 'משפיע קצת.',
+            steps: ['קצרו או הרחיבו.'],
+            controllability: 'CONTROLLED',
+            weDoThisForYou: true,
+            howYouWillKnow: 'נמדוד מחדש.',
+            evidence: { findingType: 'TITLE_LENGTH', affectedUrls: [] },
+            impact: 'MINOR',
+            leverage: 0.2,
+            who: 'YOU',
+            minutes: 5,
+          },
+        ],
+        outsideOurControl: [],
+      } as unknown as ScanReport['playbook'],
+    })
+
+  it('writes a real title from the real business facts', () => {
+    const task = buildReportView(withWeakTitles(), 'he').tasks.find(
+      (t) => t.id === 'site:TITLE_LENGTH',
+    )
+    expect(task?.locations?.[0]!.suggested).toBe('דנטל סנטר הדר – מרפאות שיניים בחיפה')
+  })
+
+  it('quotes what is on the page today next to it', () => {
+    const task = buildReportView(withWeakTitles(), 'he').tasks.find(
+      (t) => t.id === 'site:TITLE_LENGTH',
+    )
+    expect(task?.locations?.[0]!.current).toBe('ברוכים הבאים')
+    expect(task?.locations?.[0]!.page).toBe('עמוד הבית')
+    expect(task?.locations?.[0]!.where).toBe('בלשונית הדפדפן')
+  })
+
+  it('withholds the suggestion when the scan never learned the name', () => {
+    const nameless = withWeakTitles()
+    const task = buildReportView(
+      { ...nameless, business: { ...nameless.business, name: null } } as ScanReport,
+      'he',
+    ).tasks.find((t) => t.id === 'site:TITLE_LENGTH')
+    expect(task?.locations?.[0]!.suggested).toBeNull()
+    // The location still helps: they can go and look even without a written replacement.
+    expect(task?.locations?.[0]!.current).toBe('ברוכים הבאים')
   })
 })

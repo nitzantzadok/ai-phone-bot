@@ -50,10 +50,19 @@ describe('scanning a site that says nothing about itself', () => {
     expect(beforeReport.crawl.robotsTxtFound).toBe(true)
   })
 
-  it('reports no business name rather than publishing the page greeting as one', () => {
+  it('never publishes the page greeting as the business name', () => {
     // The home page is titled "ברוכים הבאים". A greeting is not a name, and reporting it
     // as one would put it into every question we later generate about this business.
-    expect(beforeReport.business.name).toBeNull()
+    expect(beforeReport.business.name).not.toBe('ברוכים הבאים')
+  })
+
+  it('reads the name out of the header the site puts on every page', () => {
+    // The title yields nothing here, which is the common case: most Israeli small-business
+    // home pages are titled with a greeting. The name is nonetheless written across every
+    // page of the site, as the link back to the home page — where a human reads it without
+    // thinking. Telling such a business we could not find its name is both wrong and,
+    // downstream, expensive: no name means no measurement and no suggested title.
+    expect(beforeReport.business.name).toBe('דנטל סנטר הדר')
   })
 
   it('finds no city, phone or address, because none are written down', () => {

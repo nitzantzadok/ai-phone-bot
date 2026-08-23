@@ -23,6 +23,22 @@ export interface TechnicalFinding {
   readonly plainLanguageHe: string
   readonly confidence: number
   readonly autoFixable: boolean
+  /**
+   * Where a person should look to find this, in the words of somebody standing in front of
+   * their own site editor — "the browser tab", "the big heading at the top", "the footer".
+   *
+   * A report that says a page is missing something and does not say where the something
+   * lives sends the reader hunting. Most of them stop hunting.
+   */
+  readonly where?: { readonly he: string; readonly en: string }
+  /**
+   * What is there right now, verbatim and untruncated at this layer.
+   *
+   * The difference between "this page title is too short" and "this page title is
+   * «Welcome»" is the difference between a claim the reader has to take on trust and one
+   * they recognise on sight.
+   */
+  readonly current?: string | null
 }
 
 export interface SiteAuditInput {
@@ -45,6 +61,10 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
   if (!input.robotsTxtFound) {
     add({
       findingType: 'NO_ROBOTS_TXT',
+      where: {
+        he: 'קובץ בשורש האתר — הכתובת שלכם עם ‎/robots.txt בסוף.',
+        en: 'A file at the site root — your address with /robots.txt on the end.',
+      },
       severity: 'LOW',
       url: '/robots.txt',
       detail: 'No robots.txt was found at the site root.',
@@ -60,6 +80,10 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
   if (!input.sitemapFound) {
     add({
       findingType: 'NO_SITEMAP',
+      where: {
+        he: 'קובץ בשורש האתר — הכתובת שלכם עם ‎/sitemap.xml בסוף.',
+        en: 'A file at the site root — your address with /sitemap.xml on the end.',
+      },
       severity: 'MEDIUM',
       url: '/sitemap.xml',
       detail: 'No XML sitemap was discovered via robots.txt or the common locations.',
@@ -85,6 +109,10 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (page.clientRendered) {
       add({
         findingType: 'CLIENT_RENDERED',
+        where: {
+          he: 'בכל העמוד. קליק ימני ← "הצג מקור הדף" ותראו שהטקסט שעל המסך לא נמצא שם.',
+          en: 'The whole page. Right-click → "View page source" and the text on screen is not in there.',
+        },
         severity: 'HIGH',
         url: page.url,
         detail: 'Page body is an empty application shell; content is written by JavaScript.',
@@ -104,6 +132,7 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (status !== undefined && status >= 400) {
       add({
         findingType: 'BROKEN_PAGE',
+        where: { he: 'העמוד עצמו — נסו לפתוח את הכתובת.', en: 'The page itself — try opening the address.' },
         severity: 'HIGH',
         url: page.url,
         detail: `Page returned HTTP ${status}.`,
@@ -119,6 +148,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (!page.title) {
       add({
         findingType: 'MISSING_TITLE',
+        where: {
+          he: 'הכותרת שמופיעה בלשונית הדפדפן. בעורך האתר: הגדרות העמוד ← "כותרת" / "Title".',
+          en: 'The heading shown in the browser tab. In the site editor: page settings → "Title".',
+        },
+        current: null,
         severity: 'HIGH',
         url: page.url,
         detail: 'Page has no <title>.',
@@ -137,6 +171,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
           severity: 'LOW',
           url: page.url,
           detail: `Title is ${page.title.length} characters (recommended ${TITLE_MIN}-${TITLE_MAX}).`,
+          where: {
+            he: 'הכותרת שמופיעה בלשונית הדפדפן. בעורך האתר: הגדרות העמוד ← "כותרת" / "Title".',
+            en: 'The heading shown in the browser tab. In the site editor: page settings → "Title".',
+          },
+          current: page.title,
           plainLanguage: 'This page title is unusually short or long, so it may be cut off.',
         plainLanguageHe:
           'הכותרת של העמוד הזה קצרה או ארוכה מהרגיל, ולכן היא עלולה להיחתך.',
@@ -149,6 +188,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (!page.metaDescription) {
       add({
         findingType: 'MISSING_META_DESCRIPTION',
+        where: {
+          he: 'המשפט האפור מתחת לשם שלכם בגוגל. בעורך האתר: הגדרות העמוד ← "תיאור" / "Description".',
+          en: 'The grey sentence under your name in Google. In the site editor: page settings → "Description".',
+        },
+        current: null,
         severity: 'MEDIUM',
         url: page.url,
         detail: 'Page has no meta description.',
@@ -173,6 +217,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
           severity: 'LOW',
           url: page.url,
           detail: `Meta description is ${page.metaDescription.length} characters.`,
+          where: {
+            he: 'המשפט האפור מתחת לשם שלכם בגוגל. בעורך האתר: הגדרות העמוד ← "תיאור".',
+            en: 'The grey sentence under your name in Google. In the site editor: page settings → "Description".',
+          },
+          current: page.metaDescription,
           plainLanguage: 'This page summary is unusually short or long.',
         plainLanguageHe:
           'התיאור הקצר של העמוד הזה קצר או ארוך מהרגיל.',
@@ -185,6 +234,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (!page.canonical) {
       add({
         findingType: 'MISSING_CANONICAL',
+        where: {
+          he: 'בקוד של העמוד, בחלק ה-<head>.',
+          en: 'In the page source, inside <head>.',
+        },
+        current: null,
         severity: 'MEDIUM',
         url: page.url,
         detail: 'Page has no canonical link.',
@@ -200,6 +254,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (!page.h1) {
       add({
         findingType: 'MISSING_H1',
+        where: {
+          he: 'הכותרת הגדולה בראש גוף העמוד — לא זו שבלשונית.',
+          en: 'The big heading at the top of the page body — not the one in the tab.',
+        },
+        current: null,
         severity: 'MEDIUM',
         url: page.url,
         detail: 'Page has no H1 heading.',
@@ -214,6 +273,10 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (!page.indexable) {
       add({
         findingType: 'NOINDEX',
+        where: {
+          he: 'בקוד העמוד. בוורדפרס: תוסף Yoast/Rank Math ← מתג "הצג בתוצאות חיפוש".',
+          en: 'In the page source. On WordPress: Yoast/Rank Math → the "show in search results" switch.',
+        },
         severity: 'HIGH',
         url: page.url,
         detail: `Page carries robots meta "${page.robotsMeta}".`,
@@ -233,6 +296,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         severity: 'LOW',
         url: page.url,
         detail: `Page has only ${page.wordCount} words.`,
+        where: {
+          he: 'גוף העמוד — כל הטקסט שמבקר קורא.',
+          en: 'The page body — all the text a visitor reads.',
+        },
+        current: `${page.wordCount} מילים`,
         plainLanguage:
           'This page has very little text, so there is not much for an AI to learn from it.',
         plainLanguageHe:
@@ -245,6 +313,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (page.structuredData.length === 0) {
       add({
         findingType: 'NO_STRUCTURED_DATA',
+        where: {
+          he: 'בקוד של העמוד, בחלק ה-<head>. אף מבקר לא רואה את זה — רק מכונות.',
+          en: 'In the page source, inside <head>. No visitor sees it — only machines.',
+        },
+        current: null,
         severity: 'MEDIUM',
         url: page.url,
         detail: 'Page has no JSON-LD structured data.',
@@ -260,6 +333,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
     if (page.declaredLanguage === null) {
       add({
         findingType: 'MISSING_LANG_ATTRIBUTE',
+        where: {
+          he: 'בקוד של העמוד, בשורה הראשונה — התגית <html>.',
+          en: 'In the page source, on the first line — the <html> tag.',
+        },
+        current: null,
         severity: 'LOW',
         url: page.url,
         detail: 'The <html> element has no lang attribute.',
@@ -279,6 +357,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         severity: 'MEDIUM',
         url: page.url,
         detail: `Declared "${page.declaredLanguage}" but the content reads as "${page.language}".`,
+        where: {
+          he: 'בקוד של העמוד, בשורה הראשונה — התגית <html>.',
+          en: 'In the page source, on the first line — the <html> tag.',
+        },
+        current: page.declaredLanguage,
         plainLanguage:
           'This page says it is in one language but is written in another, which confuses AI systems.',
         plainLanguageHe:
@@ -295,6 +378,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         severity: 'LOW',
         url: page.url,
         detail: `${missingAlt} of ${page.images.length} images have no alt text.`,
+        where: {
+          he: 'התמונות בעמוד. בעורך האתר: לחצו על תמונה ← שדה "טקסט חלופי" / "Alt text".',
+          en: 'The images on the page. In the site editor: click an image → the "alt text" field.',
+        },
+        current: `${missingAlt} מתוך ${page.images.length} תמונות`,
         plainLanguage: 'Some images have no description, so their content is invisible to AI.',
         plainLanguageHe:
           'לחלק מהתמונות אין תיאור, ולכן מה שיש בהן בלתי נראה ל-AI.',
@@ -311,6 +399,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         severity: 'MEDIUM',
         url: urls[0]!,
         detail: `${urls.length} pages share the title "${title}".`,
+        where: {
+          he: 'הכותרת בלשונית הדפדפן, באותם עמודים.',
+          en: 'The browser-tab title, on those pages.',
+        },
+        current: title,
         plainLanguage:
           'Several pages have the same title, so they look like the same page to an AI.',
         plainLanguageHe:
@@ -328,6 +421,10 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         severity: 'LOW',
         url: urls[0]!,
         detail: `${urls.length} pages share the same meta description.`,
+        where: {
+          he: 'התיאור הקצר בהגדרות העמוד, באותם עמודים.',
+          en: 'The short description in page settings, on those pages.',
+        },
         plainLanguage: 'Several pages have identical summaries.',
         plainLanguageHe:
           'לכמה עמודים יש תיאור קצר זהה.',
@@ -348,6 +445,11 @@ export const auditSite = (input: SiteAuditInput): TechnicalFinding[] => {
         severity: 'MEDIUM',
         url: target,
         detail: `Internal link target returned HTTP ${status}.`,
+        where: {
+          he: 'הקישור שמוביל לכתובת הזאת, באחד מהעמודים באתר.',
+          en: 'The link pointing at this address, somewhere on the site.',
+        },
+        current: target,
         plainLanguage: 'A link on your site points to a page that no longer works.',
         plainLanguageHe:
           'קישור באתר שלכם מוביל לעמוד שכבר לא עובד.',

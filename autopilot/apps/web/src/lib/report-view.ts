@@ -9,6 +9,14 @@
 import type { ScanReport, SkipReason } from '@autopilot/cli/scan.ts'
 import { buildHandoff, type Handoff } from '@autopilot/insights/handoff.ts'
 import {
+  IMPACT_LABEL,
+  IMPACT_MEANING,
+  OWNER_LABEL,
+  type Impact,
+} from '@autopilot/insights/explain.ts'
+import { locateAll, type BusinessFacts, type Located } from '@autopilot/insights/locate.ts'
+import { buildOffsite, type OffsiteReport } from '@autopilot/insights/offsite.ts'
+import {
   bandLabel,
   buildVerdict,
   verticalLabel,
@@ -17,11 +25,47 @@ import {
 
 type Lang = 'he' | 'en'
 
+/**
+ * One task shape for everything the customer has to do.
+ *
+ * Work on the site and work off it used to be different types rendered by different code,
+ * which is how a report ends up telling somebody to fix a page title in one visual
+ * language and claim a Google profile in another. To the person holding the list they are
+ * the same kind of thing: something to do, that takes a while, that somebody has to do.
+ *
+ * Flattened to plain data on purpose — the checklist that renders it runs in the browser,
+ * so everything here has to survive being serialised across that boundary.
+ */
+export interface ReportTask {
+  /** Stable across scans of the same site, so a tick survives re-running the scan. */
+  readonly id: string
+  readonly group: 'SITE' | 'OFFSITE' | 'GENERAL'
+  readonly title: string
+  readonly why: string
+  readonly steps: readonly string[]
+  readonly impact?: Impact
+  readonly impactLabel?: string
+  readonly impactMeaning?: string
+  readonly minutes?: number
+  readonly whoLabel?: string
+  readonly what?: string
+  readonly example?: string
+  readonly reach?: { readonly questions: number; readonly of: number }
+  /** Exactly where this is, per page, with what is there now and what to put instead. */
+  readonly locations?: readonly Located[]
+  readonly moreLocations?: number
+  /** Set on off-site work the site already links to: a strengthening step, not a gap. */
+  readonly alreadyDone?: boolean
+}
+
 export interface ReportView {
   readonly verdict: Verdict
   readonly bandLabel: string
   /** Why the AI half is missing, said to a customer rather than to an operator. */
   readonly aiSkipMessage: string | null
+  /** Everything to do, in one shape, ordered by what matters. */
+  readonly tasks: readonly ReportTask[]
+  readonly offsite: OffsiteReport
   readonly handoff: Handoff
   readonly facts: readonly { label: string; value: string | null }[]
   readonly components: readonly { label: string; value: number; meaning: string }[]
@@ -162,9 +206,96 @@ export const buildReportView = (report: ScanReport, language: Lang): ReportView 
     }
   })
 
+  /* ------------------------------------------------------------------ tasks --- */
+
+  const businessFacts: BusinessFacts = {
+    name: b.name,
+    city: b.city,
+    phone: b.phone,
+    address: b.address,
+    // Null when the scan could not tell what field this is. `verticalLabel` returns a
+    // readable stand-in for that case, which is right in a sentence we write and wrong in
+    // one the customer pastes onto their own site.
+    verticalLabel: b.vertical === 'local_business' ? null : verticalLabel(b.vertical, language),
+    attributes: b.statedAttributes,
+  }
+
+  /* Findings grouped by type, so one instruction carries every page it applies to rather
+     than repeating itself once per page. */
+  const findingsByType = new Map<string, typeof report.findings[number][]>()
+  for (const f of report.findings) {
+    findingsByType.set(f.findingType, [...(findingsByType.get(f.findingType) ?? []), f])
+  }
+
+  const labelFor = (value: { he: string; en: string }) =>
+    language === 'he' ? value.he : value.en
+
+  const siteTasks: ReportTask[] = report.playbook.items
+    .filter((item) => item.kind === 'MEASURED')
+    .map((item, index) => {
+      const findingType =
+        typeof item.evidence?.findingType === 'string' ? item.evidence.findingType : null
+      const group = findingType ? (findingsByType.get(findingType) ?? []) : []
+      const { located, more } = locateAll(group, businessFacts, language)
+
+      return {
+        // Keyed on the finding type where there is one, so ticking survives a re-scan
+        // that reorders the list. Position is the fallback and a poor one; a task whose
+        // id moves loses its tick, which reads as the product forgetting.
+        id: findingType ? `site:${findingType}` : `site:idx:${index}`,
+        group: 'SITE' as const,
+        title: item.title,
+        why: item.why,
+        steps: [...item.steps],
+        ...(item.impact ? { impact: item.impact, impactLabel: labelFor(IMPACT_LABEL[item.impact]), impactMeaning: labelFor(IMPACT_MEANING[item.impact]) } : {}),
+        ...(item.minutes === undefined ? {} : { minutes: item.minutes }),
+        ...(item.who ? { whoLabel: labelFor(OWNER_LABEL[item.who]) } : {}),
+        ...(item.what ? { what: item.what } : {}),
+        ...(item.example ? { example: item.example } : {}),
+        ...(item.reach ? { reach: item.reach } : {}),
+        ...(located.length > 0 ? { locations: located, moreLocations: more } : {}),
+      }
+    })
+
+  const offsite = buildOffsite({
+    links: report.crawl.outboundLinks,
+    siteUrl: report.requestedUrl,
+    language,
+    // The readable stand-in is correct here: these are sentences we write and the customer
+    // reads, not sentences they paste onto their own site.
+    verticalLabel: verticalLabel(b.vertical, language),
+    city: b.city,
+  })
+
+  const offsiteTasks: ReportTask[] = offsite.tasks.map((task) => ({
+    id: task.id,
+    group: 'OFFSITE' as const,
+    title: task.title,
+    why: task.why,
+    steps: [...task.steps],
+    minutes: task.minutes,
+    whoLabel: labelFor(OWNER_LABEL.YOU),
+    alreadyDone: task.alreadyLinked,
+  }))
+
+  const generalTasks: ReportTask[] = report.playbook.items
+    .filter((item) => item.kind === 'GENERAL')
+    .slice(0, 4)
+    .map((item, index) => ({
+      id: `general:${index}`,
+      group: 'GENERAL' as const,
+      title: item.title,
+      why: item.why,
+      steps: [...item.steps],
+      ...(item.minutes === undefined ? {} : { minutes: item.minutes }),
+      ...(item.who ? { whoLabel: labelFor(OWNER_LABEL[item.who]) } : {}),
+    }))
+
   const skipped = report.aiVisibilitySkipped
 
   return {
+    tasks: [...siteTasks, ...offsiteTasks, ...generalTasks],
+    offsite,
     verdict,
     bandLabel: bandLabel(verdict.band, language),
     aiSkipMessage: skipped

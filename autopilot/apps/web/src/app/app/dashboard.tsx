@@ -5,13 +5,14 @@ import type { BusinessSession } from '@/lib/session'
 import { dashboardBudget } from '@/lib/spend'
 import { buildReportView } from '@/lib/report-view'
 import {
-  ActionItem,
   FactsBlock,
   HandoffBlock,
   ScoreBlock,
   Section,
   VerdictBlock,
 } from '@/components/report'
+import { TaskBoard } from '@/components/task-board'
+import { ReportHeader } from '@/components/report-header'
 
 /**
  * The working dashboard.
@@ -56,6 +57,23 @@ const guideFor = (report: ScanReport): PlatformGuide => {
   if (generators.includes('wix')) return platformById('wix')
 
   return platformById('custom')
+}
+
+/** What to call each kind of external presence, in a sentence a person would use. */
+const OFFSITE_LABELS_HE: Record<string, string> = {
+  MAPS: 'גוגל מפות / פרופיל עסק',
+  REVIEWS: 'ביקורות של לקוחות',
+  DIRECTORY: 'מדריכים ואינדקסים',
+  SOCIAL: 'רשתות חברתיות',
+  NAVIGATION: 'Waze',
+}
+
+const OFFSITE_LABELS_EN: Record<string, string> = {
+  MAPS: 'Google Maps / Business Profile',
+  REVIEWS: 'Customer reviews',
+  DIRECTORY: 'Directories and indexes',
+  SOCIAL: 'Social networks',
+  NAVIGATION: 'Waze',
 }
 
 export const Dashboard = async ({
@@ -138,59 +156,75 @@ export const Dashboard = async ({
   const b = report.business
   const guide = guideFor(report)
   const view = buildReportView(report, language)
-  const measured = report.playbook.items.filter((i) => i.kind === 'MEASURED')
-  const general = report.playbook.items.filter((i) => i.kind === 'GENERAL')
 
   return (
     <div className="space-y-6">
+      <ReportHeader
+        url={report.requestedUrl}
+        score={report.readiness.score}
+        band={view.verdict.band}
+        bandLabel={view.bandLabel}
+        taskCount={view.tasks.length}
+        linkedCount={view.offsite.linkedCount}
+        totalSources={view.offsite.totalCount}
+        pagesRead={report.crawl.pagesFetched}
+        language={language}
+      />
+
       <VerdictBlock verdict={view.verdict} language={language} />
 
-      {/* -------------------------------------------------------- playbook --- */}
+
+
+
+      <TaskBoard tasks={view.tasks} siteKey={report.requestedUrl} language={language} />
+
+      {/* --------------------------------------------------------- off site --- */}
       <Section
-        title={he ? 'מה לעשות, לפי הסדר' : 'What to do, in order'}
-        lead={
-          he
-            ? 'לפי מה שמשנה, לא לפי מה שקל. לכל שורה כתוב כמה זמן זה לוקח ומי צריך לעשות את זה.'
-            : 'Ordered by what matters, not by what is easy. Each item says how long it takes and who has to do it.'
-        }
+        title={he ? 'איפה עוד מדברים עליכם' : 'Where else you are talked about'}
+        lead={view.offsite.summary}
       >
-        {measured.length > 0 ? (
-          <ol className="space-y-6">
-            {measured.map((item, index) => (
-              <ActionItem key={item.title} item={item} index={index} language={language} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {view.offsite.signals
+            .filter((s) => s.kind !== 'NAVIGATION' || b.city !== null)
+            .map((signal) => (
+              <div
+                key={signal.kind}
+                className={`flex items-start gap-3 rounded-lg border p-4 ${
+                  signal.status === 'LINKED'
+                    ? 'border-positive/30 bg-positive/5'
+                    : 'border-line bg-surface'
+                }`}
+              >
+                <span
+                  className={`mt-0.5 shrink-0 font-semibold ${
+                    signal.status === 'LINKED' ? 'text-positive' : 'text-muted'
+                  }`}
+                >
+                  {signal.status === 'LINKED' ? '✓' : '—'}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {(he ? OFFSITE_LABELS_HE : OFFSITE_LABELS_EN)[signal.kind]}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted">
+                    {signal.status === 'LINKED'
+                      ? he
+                        ? 'האתר מקשר לשם'
+                        : 'Your site links to it'
+                      : he
+                        ? 'האתר לא מקשר לשם'
+                        : 'Your site does not link to it'}
+                  </p>
+                </div>
+              </div>
             ))}
-          </ol>
-        ) : (
-          <p className="text-[15px] leading-relaxed">
-            {he
-              ? 'לא מצאנו באתר שום דבר טכני שחוסם מערכת AI מלקרוא אתכם.'
-              : 'We found nothing technical on the site blocking an AI from reading you.'}
-          </p>
-        )}
+        </div>
+        <p className="mt-5 text-sm leading-relaxed text-muted">
+          {he
+            ? 'שימו לב: אנחנו רואים רק מה שהאתר שלכם מקשר אליו. אם יש לכם פרופיל שהאתר פשוט לא מקשר אליו — הוא קיים, ואנחנו לא יכולים לראות אותו. בשני המקרים התיקון דומה, והמשימות למטה אומרות איזה מהם.'
+            : 'Note: we can only see what your site links to. If you have a profile your site simply never links, it exists and we cannot see it. Either way the fix is similar, and the tasks below say which is which.'}
+        </p>
       </Section>
-
-
-      {/* -------------------------------------------------- general advice --- */}
-      {general.length > 0 ? (
-        <Section
-          title={
-            he
-              ? 'ומעבר לזה: מה שהכי משפיע בעסקים כמו שלכם'
-              : 'And beyond that: what matters most for businesses like yours'
-          }
-          lead={
-            he
-              ? 'את החלק הזה לא מדדנו אצלכם — הוא לא נמצא בקוד של האתר אלא בתוכן שלו. אלה הדברים שחוזרים אצל עסקים שכן מופיעים בתשובות, לפי הסדר שבו הם משפיעים.'
-              : 'We did not measure this part on your site — it lives in the content rather than the code. These are what recurs among businesses that do appear in answers, in the order they matter.'
-          }
-        >
-          <ol className="space-y-6">
-            {general.map((item, index) => (
-              <ActionItem key={item.title} item={item} index={index} language={language} />
-            ))}
-          </ol>
-        </Section>
-      ) : null}
 
       {/* --------------------------------------------------------- handoff --- */}
       <HandoffBlock

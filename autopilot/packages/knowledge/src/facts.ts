@@ -10,6 +10,7 @@ import type { ConfidenceLevel, SourceType } from '@autopilot/shared/domain.ts'
 import type { CrawledPage, CrawlResult } from '@autopilot/crawler/crawler.ts'
 import { registrableDomain } from '@autopilot/crawler/ssrf.ts'
 import { findAttributeEvidence } from './attributes.ts'
+import { detectBrand } from './brand.ts'
 import { findCities } from '@autopilot/shared/il-cities.ts'
 
 export interface CandidateFact {
@@ -332,6 +333,27 @@ export const extractFacts = (input: ExtractionInput): CandidateFact[] => {
     sourceType: 'OWN_PROPERTY',
     sourceUrl: input.crawl.rootUrl,
   })
+
+  /* The name as the site's own markup states it — the logo link, or failing that the home
+     page's main heading. Added at MEDIUM so any structured-data name outranks it, and
+     omitted entirely when nothing plausible was found: a missing name is a finding the
+     customer needs, a wrong one propagates into everything we generate for them. */
+  if (home) {
+    const brand = detectBrand(input.crawl.pages, home.url)
+    if (brand) {
+      add({
+        factKind: 'business_name',
+        value: brand.value,
+        confidence: 'MEDIUM',
+        sourceType: 'OWN_PROPERTY',
+        sourceUrl: home.url,
+        excerpt:
+          brand.source === 'HOME_LINK'
+            ? `Header link to the home page, on ${brand.seenOn} page(s): ${brand.value}`
+            : `Home page main heading: ${brand.value}`,
+      })
+    }
+  }
 
   return facts
 }

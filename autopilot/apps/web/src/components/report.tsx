@@ -374,13 +374,16 @@ export const ScoreBlock = ({
       language,
     )}
   >
-    <div className="flex items-baseline gap-3">
-      <span className="text-5xl font-semibold tabular-nums">{score}</span>
-      <span className="text-lg text-muted">/ 100</span>
-      <span className="text-[15px] font-medium">· {bandLabel}</span>
-    </div>
+    {/* No second giant number: the dial at the top of the report is the one people
+        remember, and repeating it here just pushes the breakdown — which is the only
+        thing this section adds — further down the page. */}
+    <p className="text-[15px]">
+      <span className="font-semibold tabular-nums">{score}</span>
+      <span className="text-muted"> / 100 · </span>
+      <span className="font-medium">{bandLabel}</span>
+    </p>
 
-    <div className="mt-8 space-y-6">
+    <div className="mt-6 space-y-6">
       {components.map((c) => (
         <div key={c.label}>
           <div className="flex items-baseline justify-between gap-4">
