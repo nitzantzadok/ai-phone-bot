@@ -43,6 +43,8 @@
   }
 
   *{box-sizing:border-box}
+  /* בעמוד מוטמע אין לנו תגית <html dir="rtl"> משלנו, ולכן הכיווניות נקבעת כאן */
+  body, .wrap, header.bar, .log{direction:rtl}
   body{
     margin:0; background:var(--ground); color:var(--ink);
     font:var(--step-0)/1.55 Assistant, "Segoe UI", system-ui, sans-serif;
