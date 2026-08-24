@@ -6,7 +6,7 @@
  * הכול דטרמיניסטי לפי seed — אותה קלט תמיד מייצרת את אותה תכנית.
  */
 
-import { FATIGUE_COST } from '../domain/taxonomy.js';
+import { FATIGUE_COST, SPORTS } from '../domain/taxonomy.js';
 
 /** מחולל אקראיות דטרמיניסטי (mulberry32) — מאפשר גיוון יציב וניתן לשחזור. */
 export function makeRng(seedStr) {
@@ -34,7 +34,18 @@ const GOAL_TAG_BONUS = {
   hypertrophy: {},
   power: { power: 4 },
   general_fitness: { functional: 2, beginner_friendly: 1 },
+  mobility: { mobility: 4, warmup: 2, cooldown: 2, rehab_friendly: 2 },
+  bone_density: { bone_loading: 5, functional: 1 },
+  active_aging: { active_aging: 5, balance_training: 4, functional: 3, beginner_friendly: 2, joint_friendly: 2 },
+  athletic_performance: { power: 3, functional: 2 },
+  stress_relief: { stress_relief: 5, conditioning: 2, low_impact: 1 },
 };
+
+/** מדד מסת גוף, כשיש נתוני גובה ומשקל. */
+function bmiOf(trainee) {
+  if (!trainee.heightCm || !trainee.weightKg) return null;
+  return trainee.weightKg / ((trainee.heightCm / 100) ** 2);
+}
 
 /** העדפת סוג ציוד לפי מטרה ורמה. */
 function equipmentAffinity(ex, trainee, studio) {
@@ -81,6 +92,16 @@ export function scoreCandidate(cand, slot, ctx) {
     if (slot.type === 'compound' && ex.type === 'isolation') { score -= 8; detail.type = -8; }
     else if (slot.type === 'isolation' && ex.type === 'compound') { score -= 4; detail.type = -4; }
   } else if (slot.type) { score += 3; detail.type = 3; }
+
+  // 2ב. התאמת תפקיד המשבצת: חימום פותח את האימון, שחרור סוגר אותו.
+  //     בלי זה תרגיל נשימות לסיום עלול לנחות דווקא בפתיחה.
+  if (slot.role === 'warmup') {
+    if (ex.tags.includes('warmup')) { score += 5; detail.slotRole = 5; }
+    if (ex.tags.includes('cooldown') && !ex.tags.includes('warmup')) { score -= 8; detail.slotRole = -8; }
+  } else if (slot.role === 'cooldown') {
+    if (ex.tags.includes('cooldown')) { score += 5; detail.slotRole = 5; }
+    if (ex.tags.includes('warmup') && !ex.tags.includes('cooldown')) { score -= 4; detail.slotRole = -4; }
+  }
 
   // 3. שריר מטרה של המשבצת
   if (slot.muscles) {
@@ -143,7 +164,38 @@ export function scoreCandidate(cand, slot, ctx) {
   // 14. היסטוריה: תרגיל שכבר יש לו משקלי עבודה מוכרים קל יותר לתפעל
   if (trainee.history[ex.id]) { score += 2; detail.known = 2; }
 
-  // 15. רעש דטרמיניסטי קטן לשבירת שוויון ולגיוון בין שבועות
+  // 15. ספורט מחוץ לסטודיו: עבודת מניעה לענף מקבלת עדיפות,
+  //     ורגליים מקבלות פחות כשהמתאמן ממילא רץ או רוכב שלוש פעמים בשבוע.
+  const sport = SPORTS[trainee.sport];
+  if (sport && trainee.sport !== 'none') {
+    if (sport.prehab.includes(ex.pattern)) { score += 3; detail.sportPrehab = 3; }
+    const legPattern = ['squat', 'lunge', 'hinge'].includes(ex.pattern);
+    if (sport.legLoad === 'high' && legPattern && trainee.externalSessions >= 3) {
+      score -= 3; detail.sportLegLoad = -3;
+    }
+    if (sport.impact && ex.flags.includes('impact')) { score -= 3; detail.sportImpact = -3; }
+  }
+
+  // 16. אי-סימטריה: כשיש פציעה בצד אחד, עבודה חד-צדדית מאפשרת לעבוד
+  //     סביב הפער במקום להסתיר אותו מאחורי הצד החזק.
+  if (ex.unilateral && trainee.constraints.some((c) => c.side)) { score += 4; detail.asymmetry = 4; }
+
+  // 17. משקל גוף גבוה: העדפה לעמדות נתמכות ולתרגילים ללא זעזוע ובלי ירידה לרצפה.
+  const bmi = bmiOf(trainee);
+  if (bmi && bmi >= 35) {
+    let bm = 0;
+    for (const t of ['low_impact', 'joint_friendly', 'beginner_friendly']) if (ex.tags.includes(t)) bm += 3;
+    if (ex.flags.includes('floor_transition')) bm -= 3;
+    if (ex.flags.includes('impact')) bm -= 5;
+    if (bm) { score += bm; detail.bodyMass = bm; }
+  }
+
+  // 18. אורח חיים יושבני: עבודת גב עליון ופתיחת ירך שוות יותר.
+  if (trainee.lifestyle === 'sedentary') {
+    if (ex.tags.includes('posture')) { score += 2; detail.lifestyle = 2; }
+  }
+
+  // 19. רעש דטרמיניסטי קטן לשבירת שוויון ולגיוון בין שבועות
   const noise = ctx.rng() * 1.5;
   score += noise; detail.noise = +noise.toFixed(2);
 

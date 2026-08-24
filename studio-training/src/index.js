@@ -13,7 +13,8 @@ export { buildCandidatePool, constraintCheck, equipmentCheck } from './engine/fi
 export { prescribe, weeklyVolumeTargets, recoveryScore, volumeMultiplier, isDeloadWeek } from './engine/prescription.js';
 export { applyFeedback, advanceWeek, EVENT_TYPES, PAIN_TO_CONSTRAINT } from './engine/feedback.js';
 export { nextTarget, needsDeload, loadIncrement } from './engine/progression.js';
-export { runQualityChecks, muscleLabel } from './engine/validate.js';
+export { runQualityChecks } from './engine/validate.js';
+export * from './domain/labels.js';
 export { Db } from './store/db.js';
 
 import { normalizeStudio, normalizeTrainee, validateInput } from './domain/models.js';

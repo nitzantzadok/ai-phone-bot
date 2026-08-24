@@ -5,7 +5,7 @@
 
 import { CONSTRAINTS } from './constraints.js';
 import { BY_ID } from './exercises.js';
-import { ALWAYS_AVAILABLE, EQUIPMENT, GOALS, LEVELS, SPLITS } from './taxonomy.js';
+import { ALWAYS_AVAILABLE, CYCLE_PHASES, EQUIPMENT, GOALS, LEVELS, LIFESTYLES, SPLITS, SPORTS } from './taxonomy.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const WEEK_DAYS = DAYS;
@@ -38,11 +38,30 @@ export function normalizeStudio(raw = {}) {
     sessionMinutes: raw.sessionMinutes ?? 60,
     /** העדפת חלוקה ברירת מחדל של הסטודיו (אופציונלי). */
     preferredSplit: raw.preferredSplit || null,
-    /** סגנון הסטודיו: 'gym' | 'functional' | 'small_group' | 'personal' | 'reformer' */
+    /** סגנון: gym | functional | small_group | personal | pilates | boxing | senior | rehab */
     style: raw.style || 'gym',
+    /** מאמנים על הרצפה בו-זמנית — קובע כמה תשומת לב כל מתאמן מקבל. */
+    trainersOnFloor: raw.trainersOnFloor ?? 1,
+    /** גובה תקרה בס"מ — חוסם לחיצות מעל הראש בעמידה, קפיצות וחבל. */
+    ceilingHeightCm: raw.ceilingHeightCm ?? 280,
+    /** שטח פנוי: small (עמדות בלבד) | medium | large (מסלול הליכה/מזחלת) */
+    spaceLevel: raw.spaceLevel || 'medium',
+    /** מגבלת רעש (בניין מגורים, שכנים, שעות) — חוסם הטחות, קפיצות והנחת משקל. */
+    noiseRestricted: raw.noiseRestricted ?? false,
+    /** המשקולת הכבדה ביותר בסטודיו (ק"ג) — תקרה אמיתית לפרוגרסיה. */
+    dumbbellMaxKg: raw.dumbbellMaxKg ?? null,
+    /** קפיצת המשקל הקטנה ביותר שאפשר להוסיף בפועל (ק"ג). */
+    weightIncrementKg: raw.weightIncrementKg ?? 2.5,
+    /** האם המקום ממוזג — רלוונטי לטרשת נפוצה, הריון ומצבים לבביים. */
+    climateControlled: raw.climateControlled ?? true,
     trainers: raw.trainers || [],
     notes: raw.notes || '',
   };
+}
+
+/** יחס מאמן-מתאמנים: כמה מתאמנים על כל מאמן באותו רגע. */
+export function coachLoad(studio) {
+  return studio.concurrentTrainees / Math.max(1, studio.trainersOnFloor);
 }
 
 /** ברירות מחדל למתאמן + נרמול. */
@@ -83,6 +102,21 @@ export function normalizeTrainee(raw = {}) {
     mesocycleLength: raw.mesocycleLength ?? 4,
     medicalClearance: raw.medicalClearance ?? true,
     equipmentBlocklist: raw.equipmentBlocklist || [],
+    /** ענף ספורט מחוץ לסטודיו — משנה נפח רגליים ועבודת מניעה. */
+    sport: SPORTS[raw.sport] ? raw.sport : 'none',
+    /** כמה אימוני ספורט חיצוניים בשבוע — עומס שהמערכת חייבת לספור. */
+    externalSessions: clamp(raw.externalSessions ?? 0, 0, 14),
+    /** אורח חיים תעסוקתי. */
+    lifestyle: LIFESTYLES[raw.lifestyle] ? raw.lifestyle : 'sedentary',
+    /** שלב במחזור החודשי — קלט אופציונלי לוויסות עדין בלבד. */
+    cyclePhase: CYCLE_PHASES.includes(raw.cyclePhase) ? raw.cyclePhase : 'unknown',
+    /** תרופות רלוונטיות (טקסט חופשי) — מוצג למאמן, לא מפורש אוטומטית. */
+    medications: raw.medications || [],
+    /** אורך אימון שונה בימים מסוימים: { sun: 30, thu: 75 } */
+    sessionMinutesByDay: raw.sessionMinutesByDay || {},
+    /** שבוע נסיעה/מלון — תכנית ממשקל גוף וגומיות בלבד. */
+    travelWeek: raw.travelWeek ?? false,
+    units: raw.units === 'lb' ? 'lb' : 'kg',
     notes: raw.notes || '',
     /** היסטוריית משקלי עבודה: exerciseId -> { load, reps, date } */
     history: raw.history || {},
@@ -123,6 +157,42 @@ export function validateInput(trainee, studio) {
   const acute = trainee.constraints.filter((c) => c.severity === 'acute');
   if (acute.length >= 3) {
     warnings.push('שלוש מגבלות חריפות ומעלה — מומלץ אימון בהתאמה אישית ובליווי גורם רפואי.');
+  }
+
+  // --- שערי בטיחות
+  const systemicAcute = trainee.constraints.filter(
+    (c) => c.severity === 'acute' && CONSTRAINTS[c.id]?.region === 'systemic');
+  if (systemicAcute.length && !trainee.medicalClearance) {
+    errors.push(`מצב רפואי מערכתי בשלב חריף (${systemicAcute.map((c) => CONSTRAINTS[c.id].name).join(', ')}) ללא אישור רפואי — לא ניתן להפיק תכנית לפני קבלת אישור.`);
+  }
+  if (trainee.age < 13) {
+    errors.push('גיל מתחת ל-13 — נדרשת תכנית ייעודית לילדים בליווי גורם מוסמך; המערכת אינה מפיקה תכנית התנגדות בגיל זה.');
+  } else if (trainee.age < 16) {
+    warnings.push('מתאמן/ת מתחת לגיל 16 — התכנית נבנית ללא עומסים מרביים, בדגש על לימוד טכניקה ועל טווח חזרות בינוני.');
+  }
+  if (trainee.age >= 65) {
+    warnings.push('גיל 65 ומעלה — נוספה עבודת שיווי משקל וכוח מהיר, שמפחיתה סיכון נפילות.');
+  }
+  if (trainee.heightCm && trainee.weightKg) {
+    const bmi = trainee.weightKg / ((trainee.heightCm / 100) ** 2);
+    if (bmi >= 35) warnings.push(`מדד מסת גוף ${bmi.toFixed(1)} — התכנית מעדיפה תרגילים ללא זעזועים ובעמדות נתמכות. שווה לוודא עם המתאמן שזה מתאים לו.`);
+    if (bmi < 16) warnings.push('מדד מסת גוף נמוך מאוד — מומלץ בירור תזונתי/רפואי לפני העלאת עומסים.');
+  }
+  if (trainee.level === 'beginner' && trainee.daysPerWeek >= 5) {
+    warnings.push('חמישה ימי אימון ומעלה למתחיל — סיכון לעומס יתר ולנטישה; 3 ימים איכותיים עדיפים.');
+  }
+  const totalSessions = trainee.daysPerWeek + trainee.externalSessions;
+  if (totalSessions >= 8) {
+    warnings.push(`${totalSessions} אימונים שבועיים בסך הכול (כולל ספורט חיצוני) — הנפח בסטודיו הופחת כדי לאפשר התאוששות.`);
+  }
+  if (trainee.sessionMinutes <= 30 && trainee.daysPerWeek <= 2) {
+    warnings.push('פחות משעה שבועית של אימון — הגירוי מוגבל; מומלץ להוסיף יום או להאריך אימון.');
+  }
+  if (trainee.travelWeek) {
+    warnings.push('שבוע נסיעה — התכנית מוגבלת למשקל גוף, גומיות וציוד נייד.');
+  }
+  if (studio.style === 'pilates' && ['strength', 'hypertrophy', 'power'].includes(trainee.primaryGoal)) {
+    warnings.push('מטרת כוח/מסה בסטודיו פילאטיס — הציוד מגביל את הפרוגרסיה בעומס; שווה לתאם ציפיות או להוסיף ציוד התנגדות.');
   }
 
   return { ok: errors.length === 0, errors, warnings };

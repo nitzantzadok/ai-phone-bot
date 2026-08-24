@@ -7,6 +7,8 @@
  * לפי הציוד שיש בסטודיו ולפי המגבלות של המתאמן.
  */
 
+import { SPORTS } from '../domain/taxonomy.js';
+
 const S = (role, patterns, opts = {}) => ({
   role,                                  // warmup|main|secondary|accessory|core|conditioning|prehab
   patterns,                              // דפוסים אפשריים למשבצת
@@ -196,6 +198,18 @@ export const DAY_ARCHETYPES = {
       S('core', ['core_flexion', 'core_antiextension'], { label: 'ליבה', optional: true }),
     ],
   },
+  mobility_flow: {
+    label: 'ניידות ותנועה',
+    slots: [
+      S('warmup', ['mobility'], { label: 'חימום כללי' }),
+      S('main', ['mobility'], { label: 'ניידות ירך' }),
+      S('main', ['mobility'], { label: 'ניידות חזה וכתף' }),
+      S('secondary', ['squat', 'lunge', 'hinge'], { label: 'שליטה בטווח — פלג תחתון' }),
+      S('secondary', ['horizontal_pull', 'vertical_pull'], { label: 'שליטה בטווח — משיכה' }),
+      S('core', ['core_antiextension', 'core_antirotation', 'core_antilateralflexion'], { label: 'יציבות ליבה' }),
+      S('cooldown', ['mobility'], { label: 'סיום ונשימה', optional: true }),
+    ],
+  },
   circuit: {
     label: 'מעגל תחנות',
     slots: [
@@ -221,6 +235,7 @@ const SPLIT_SEQUENCES = {
   push_pull_legs: (d) => Array.from({ length: d }, (_, i) => ['push', 'pull', 'legs'][i % 3]),
   bro_split: (d) => ['chest_tri', 'back_bi', 'legs', 'shoulders', 'arms', 'full_body'].slice(0, d),
   hybrid_circuit: (d) => Array.from({ length: d }, () => 'circuit'),
+  mobility_flow: (d) => Array.from({ length: d }, () => 'mobility_flow'),
 };
 
 /**
@@ -271,10 +286,32 @@ export function chooseSplit(trainee, studio) {
     reason = 'שישה ימים — סבב כפול שמאפשר נפח שבועי גבוה עם תדירות של פעמיים לכל שריר.';
   }
 
-  // תיקוני בטיחות: מטרות שיקום/יציבה לא נכנסות לספליטים בעצימות גבוהה.
+  // תיקוני בטיחות והתאמות מטרה — גוברים על בחירת ברירת המחדל.
   if ((goal === 'rehab' || goal === 'posture') && ['bro_split', 'push_pull_legs'].includes(split)) {
     split = 'full_body';
     reason = 'מטרת שיקום/יציבה — גוף מלא בתדירות גבוהה ובעומס נמוך עדיף על חלוקה מפוצלת.';
+  }
+  if (goal === 'mobility' && !forced) {
+    split = 'mobility_flow';
+    reason = 'מטרת ניידות — מבנה זרימה שמשלב טווח תנועה עם שליטה בעומס קל.';
+  }
+  if (goal === 'active_aging' && !forced) {
+    split = 'full_body';
+    reason = 'תפקוד ועצמאות — גוף מלא בכל אימון, עם שיווי משקל וקימה מכיסא בכל פגישה.';
+  }
+  if (goal === 'athletic_performance' && !forced && d >= 3 && !['upper_lower', 'full_body'].includes(split)) {
+    split = 'upper_lower';
+    reason = 'ביצועים בענף ספורט — עליון/תחתון משאיר ימים נקיים לאימוני הענף עצמו.';
+  }
+  // עומס חיצוני גבוה: לא בונים חמישה-שישה ימי סטודיו על גבי אימוני ענף.
+  if (trainee.externalSessions >= 3 && d >= 4 && !forced && split !== 'upper_lower') {
+    split = 'upper_lower';
+    reason = `${trainee.externalSessions} אימוני ספורט חיצוניים בשבוע — עליון/תחתון מרכז את עומס הסטודיו למינימום ימים תובעניים.`;
+  }
+  // מגבלות חריפות מרובות: מבנה פשוט וניתן לניהול.
+  if (trainee.constraints.filter((c) => c.severity === 'acute').length >= 2 && !forced) {
+    split = d <= 3 ? 'full_body' : 'upper_lower';
+    reason = 'שתי מגבלות חריפות ומעלה — מבנה פשוט שמאפשר מעקב צמוד ובקרת עומס.';
   }
 
   const days = SPLIT_SEQUENCES[split](d);
@@ -300,6 +337,39 @@ export function scheduleDays(trainee) {
   const base = patterns[d] || order.slice(0, d);
   const out = [...new Set([...preferred, ...base])].slice(0, d);
   return out.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+
+/**
+ * התאמת שלד היום למתאמן הספציפי:
+ * חימום אירובי כללי, עבודת שיווי משקל בגיל השלישי, מניעה לענף הספורט,
+ * וסיום מווסת. אלה תוספות שמאמן אנושי עושה אוטומטית ולא מופיעות בארכיטיפ.
+ */
+export function augmentSlots(slots, trainee, ageAdj) {
+  const out = slots.slice();
+
+  // שיווי משקל וכוח מהיר — הגורם מספר אחת בהפחתת נפילות בגיל השלישי
+  if (ageAdj.needsBalance || trainee.primaryGoal === 'active_aging') {
+    const at = Math.min(2, out.length);
+    out.splice(at, 0, S('prehab', ['core_antilateralflexion', 'squat'], {
+      muscles: ['core_lateral', 'quads'], label: 'שיווי משקל וקימה', weight: 1,
+    }));
+  }
+
+  // עבודת מניעה לענף הספורט של המתאמן
+  const sport = SPORTS[trainee.sport];
+  if (sport && sport.prehab.length && trainee.externalSessions > 0) {
+    out.splice(Math.max(1, out.length - 2), 0, S('prehab', sport.prehab, {
+      label: `מניעת פציעות — ${trainee.sport}`, optional: true,
+    }));
+  }
+
+  // סיום: ניידות ונשימה. חשוב במיוחד למטרות הפגה, יציבה, שיקום וגיל שלישי.
+  const wantsCooldown = ['stress_relief', 'posture', 'rehab', 'active_aging', 'mobility'].includes(trainee.primaryGoal)
+    || ageAdj.needsBalance;
+  if (wantsCooldown && !out.some((x) => x.role === 'cooldown')) {
+    out.push(S('cooldown', ['mobility'], { label: 'שחרור וסיום', optional: true }));
+  }
+  return out;
 }
 
 /** הרחבת דפוסים כשאין תרגיל מתאים — כדי שמשבצת לא תישאר ריקה סתם. */

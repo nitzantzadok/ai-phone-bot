@@ -3,16 +3,22 @@
  * מפרידים בין שלילה קשה (התרגיל נפסל) לבין קנס רך (התרגיל אפשרי אך פחות מועדף).
  */
 
-import { getConstraint } from '../domain/constraints.js';
-import { LEVEL_MAX_SKILL } from './prescription.js';
-import { SEVERITY_STRICTNESS } from '../domain/constraints.js';
+import { getConstraint, SEVERITY_STRICTNESS } from '../domain/constraints.js';
+import { coachLoad } from '../domain/models.js';
+import { ageAdjustments, LEVEL_MAX_SKILL } from './prescription.js';
+
+/** ציוד שאפשר לקחת לנסיעה / שקיים בכל חדר מלון. */
+const TRAVEL_EQUIPMENT = new Set(['bodyweight', 'resistance_band', 'mini_band', 'mat', 'chair', 'wall', 'step', 'stable_support', 'jump_rope']);
 
 /**
  * האם הציוד לתרגיל קיים בסטודיו.
  * @returns {{ok: boolean, option: string[]|null, missing: string[]}}
  */
-export function equipmentCheck(exercise, studio, blocklist = []) {
+export function equipmentCheck(exercise, studio, blocklist = [], opts = {}) {
   const blocked = new Set(blocklist);
+  if (opts.travelWeek && !exercise.eq.some((o) => o.every((it) => TRAVEL_EQUIPMENT.has(it)))) {
+    return { ok: false, option: null, missing: ['ציוד נייד בלבד בשבוע נסיעה'] };
+  }
   let bestMissing = null;
   for (const option of exercise.eq) {
     const missing = option.filter((it) => blocked.has(it) || !(studio.equipment.get(it) > 0));
@@ -111,10 +117,40 @@ const JOINT_LABELS = {
 export function flagLabel(f) { return FLAG_LABELS[f] || f; }
 export function jointLabel(j) { return JOINT_LABELS[j] || j; }
 
-/** האם רמת המיומנות של התרגיל מתאימה למתאמן. */
-export function skillCheck(exercise, trainee) {
-  const max = LEVEL_MAX_SKILL[trainee.level] ?? 3;
-  return { ok: exercise.skill <= max, max };
+/**
+ * האם התרגיל אפשרי במרחב הפיזי של הסטודיו:
+ * גובה תקרה, שטח פנוי ומגבלת רעש (סטודיו בבניין מגורים).
+ */
+export function spaceCheck(exercise, studio) {
+  const reasons = [];
+  if (exercise.ceilingCm && studio.ceilingHeightCm && exercise.ceilingCm > studio.ceilingHeightCm) {
+    reasons.push(`דורש תקרה של ${exercise.ceilingCm} ס"מ, בסטודיו ${studio.ceilingHeightCm} ס"מ`);
+  }
+  const rank = { small: 1, medium: 2, large: 3 };
+  if (rank[exercise.space] > rank[studio.spaceLevel]) {
+    reasons.push(`דורש שטח ${exercise.space} והסטודיו מוגדר ${studio.spaceLevel}`);
+  }
+  if (exercise.noisy && studio.noiseRestricted) reasons.push('תרגיל רועש בסטודיו עם מגבלת רעש');
+  return { ok: reasons.length === 0, reasons };
+}
+
+/**
+ * תקרת מיומנות בפועל.
+ * מעבר לרמת המתאמן, גיל ויחס מאמן-מתאמנים מגבילים: מאמן שמשגיח על עשרה
+ * אנשים לא יכול ללמד תרגיל טכני, ולכן התכנית לא תציע כזה מלכתחילה.
+ */
+export function skillCheck(exercise, trainee, studio) {
+  const byLevel = LEVEL_MAX_SKILL[trainee.level] ?? 3;
+  const byAge = ageAdjustments(trainee).skillCap;
+  let byCoach = 5;
+  if (studio) {
+    const load = coachLoad(studio);
+    byCoach = load > 8 ? 2 : load > 5 ? 3 : load > 3 ? 4 : 5;
+  }
+  const max = Math.min(byLevel, byAge, byCoach);
+  const limiter = max === byCoach && byCoach < byLevel ? 'יחס מאמן-מתאמנים'
+    : max === byAge && byAge < byLevel ? 'גיל' : 'רמת ניסיון';
+  return { ok: exercise.skill <= max, max, limiter };
 }
 
 /**
@@ -126,14 +162,17 @@ export function buildCandidatePool(exercises, trainee, studio) {
   const rejected = [];
 
   for (const ex of exercises) {
-    const eq = equipmentCheck(ex, studio, trainee.equipmentBlocklist);
+    const eq = equipmentCheck(ex, studio, trainee.equipmentBlocklist, { travelWeek: trainee.travelWeek });
     if (!eq.ok) { rejected.push({ id: ex.id, reason: 'equipment', detail: eq.missing }); continue; }
+
+    const sp = spaceCheck(ex, studio);
+    if (!sp.ok) { rejected.push({ id: ex.id, reason: 'space', detail: sp.reasons }); continue; }
 
     const cc = constraintCheck(ex, trainee);
     if (!cc.allowed) { rejected.push({ id: ex.id, reason: 'constraint', detail: cc.reasons }); continue; }
 
-    const sk = skillCheck(ex, trainee);
-    if (!sk.ok) { rejected.push({ id: ex.id, reason: 'skill', detail: [`דורש רמה ${ex.skill}, מקסימום לרמת המתאמן ${sk.max}`] }); continue; }
+    const sk = skillCheck(ex, trainee, studio);
+    if (!sk.ok) { rejected.push({ id: ex.id, reason: 'skill', detail: [`דורש רמה ${ex.skill}; התקרה בפועל ${sk.max} (${sk.limiter})`] }); continue; }
 
     if (trainee.dislikes.includes(ex.id)) { rejected.push({ id: ex.id, reason: 'disliked', detail: [] }); continue; }
 
@@ -146,7 +185,20 @@ export function buildCandidatePool(exercises, trainee, studio) {
       bonuses: cc.bonuses,
     });
   }
-  return { eligible, rejected };
+  return { eligible, rejected, coverage: poolCoverage(eligible) };
+}
+
+/**
+ * מפת הכיסוי של מאגר המועמדים: כמה תרגילים נשארו לכל דפוס תנועה.
+ * דפוס עם אפס מועמדים הוא ההסבר לכל "משבצת חלופית" בהמשך, ולכן הוא
+ * מדווח למאמן במקום להיעלם בשקט.
+ */
+export function poolCoverage(eligible) {
+  const byPattern = {};
+  for (const c of eligible) byPattern[c.exercise.pattern] = (byPattern[c.exercise.pattern] || 0) + 1;
+  const missing = ['squat', 'hinge', 'horizontal_push', 'vertical_push', 'horizontal_pull', 'vertical_pull']
+    .filter((p) => !byPattern[p]);
+  return { total: eligible.length, byPattern, missingPatterns: missing };
 }
 
 /** תרגילים שהמגבלות ממליצות לשלב באופן אקטיבי (עבודת פרה-האב). */

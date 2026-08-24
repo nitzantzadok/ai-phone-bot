@@ -68,6 +68,13 @@ export const EQUIPMENT = [
   'foam_roller', 'step', 'mat',
   // קרדיו
   'treadmill', 'bike', 'rower', 'ski_erg', 'elliptical', 'air_bike', 'stair_climber', 'jump_rope',
+  'recumbent_bike', 'arm_ergometer',
+  // פילאטיס / ריפורמר
+  'reformer', 'pilates_mat', 'pilates_ring', 'pilates_chair', 'cadillac', 'pilates_barrel', 'small_ball',
+  // אגרוף / קרב
+  'heavy_bag', 'boxing_pads', 'speed_bag',
+  // נגישות ותמיכה
+  'chair', 'wall', 'parallel_bars', 'stable_support',
   // ריק
   'bodyweight',
 ];
@@ -88,15 +95,47 @@ export const GOALS = [
   'power',           // כוח מתפרץ / ספורטיבי
   'rehab',           // חזרה מפציעה / שיקום מודרך
   'posture',         // יציבה וכאבי גב
+  'mobility',        // ניידות וגמישות
+  'bone_density',    // צפיפות עצם (אוסטאופניה)
+  'active_aging',    // תפקוד ועצמאות בגיל השלישי
+  'athletic_performance', // ביצועים בענף ספורט
+  'stress_relief',   // הפגה, בריאות נפשית, שינה
 ];
 
 /** רמות ניסיון. */
 export const LEVELS = ['beginner', 'novice', 'intermediate', 'advanced'];
 
+/** ענפי ספורט שהמתאמן עוסק בהם מחוץ לסטודיו — משפיעים על נפח ועל עבודת מניעה. */
+export const SPORTS = {
+  running:    { legLoad: 'high', prehab: ['calf', 'hip_abduction', 'hinge'], impact: true },
+  cycling:    { legLoad: 'high', prehab: ['hinge', 'core_antiextension', 'shoulder_isolation'], impact: false },
+  swimming:   { legLoad: 'low', prehab: ['shoulder_isolation', 'horizontal_pull'], impact: false },
+  football:   { legLoad: 'high', prehab: ['hinge', 'hip_abduction', 'core_antirotation'], impact: true },
+  basketball: { legLoad: 'high', prehab: ['hinge', 'calf', 'hip_abduction'], impact: true },
+  tennis:     { legLoad: 'moderate', prehab: ['shoulder_isolation', 'core_antirotation', 'hip_abduction'], impact: true },
+  crossfit:   { legLoad: 'high', prehab: ['shoulder_isolation', 'core_antiextension'], impact: true },
+  martial_arts: { legLoad: 'moderate', prehab: ['hip_abduction', 'core_antirotation', 'shoulder_isolation'], impact: true },
+  dance:      { legLoad: 'moderate', prehab: ['calf', 'hip_abduction', 'core_antilateralflexion'], impact: true },
+  climbing:   { legLoad: 'moderate', prehab: ['horizontal_pull', 'shoulder_isolation', 'elbow_extension'], impact: false },
+  hiking:     { legLoad: 'moderate', prehab: ['calf', 'hinge', 'core_antilateralflexion'], impact: false },
+  none:       { legLoad: 'none', prehab: [], impact: false },
+};
+
+/** אורח חיים תעסוקתי — עומס הבסיס שהמתאמן מגיע איתו. */
+export const LIFESTYLES = {
+  sedentary:    { volumeFactor: 1.0, prehab: ['hinge', 'shoulder_isolation'], note: 'ישיבה ממושכת — דגש על פתיחת ירך וחיזוק גב עליון.' },
+  active:       { volumeFactor: 1.0, prehab: [], note: '' },
+  physical_job: { volumeFactor: 0.85, prehab: [], note: 'עבודה פיזית — נפח מופחת כדי לא להצטבר על עומס היומיום.' },
+  shift_work:   { volumeFactor: 0.9, prehab: [], note: 'עבודת משמרות — התאוששות פגיעה, נפח מתון ומעקב אחרי עייפות.' },
+};
+
+/** שלב במחזור החודשי — קלט אופציונלי בלבד, לוויסות עדין של עצימות. */
+export const CYCLE_PHASES = ['unknown', 'menstrual', 'follicular', 'ovulation', 'luteal', 'perimenopause', 'postmenopause'];
+
 /** סוגי חלוקה שבועית נתמכים. */
 export const SPLITS = [
   'full_body', 'upper_lower', 'push_pull', 'push_pull_legs',
-  'ab', 'abc', 'abcd', 'bro_split', 'hybrid_circuit',
+  'ab', 'abc', 'abcd', 'bro_split', 'hybrid_circuit', 'mobility_flow',
 ];
 
 /** סוגי סט מיוחדים. */

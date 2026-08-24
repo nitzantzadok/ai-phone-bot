@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מסך המאמן</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    color-scheme: light dark;
+    --ground:#EFEFED; --surface:#FFFFFF; --surface-2:#F6F6F4; --line:#D9DAD7;
+    --ink:#14171A; --ink-2:#4A525A; --muted:#6E767E;
+    --accent:#1F5F8B; --accent-soft:#E4EDF4; --accent-ink:#FFFFFF;
+    --ok:#2E7D5B; --ok-soft:#E2F0E9;
+    --warn:#A9701B; --warn-soft:#F6ECDA;
+    --crit:#A33A2F; --crit-soft:#F7E4E1;
+    --shadow:0 1px 2px rgba(20,23,26,.06), 0 8px 24px -16px rgba(20,23,26,.28);
+    --radius:10px;
+    --step--1:.8125rem; --step-0:.9375rem; --step-1:1.0625rem;
+    --step-2:1.375rem; --step-3:1.875rem;
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme: dark){
+      --ground:#101315; --surface:#171B1E; --surface-2:#1D2226; --line:#2A3136;
+      --ink:#E7EAEC; --ink-2:#B3BBC2; --muted:#8A939B;
+      --accent:#6FA8CF; --accent-soft:#1B2A36; --accent-ink:#0B1013;
+      --ok:#68C79B; --ok-soft:#15251E;
+      --warn:#E0AB5F; --warn-soft:#2A2114;
+      --crit:#E58175; --crit-soft:#2C1815;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#101315; --surface:#171B1E; --surface-2:#1D2226; --line:#2A3136;
+    --ink:#E7EAEC; --ink-2:#B3BBC2; --muted:#8A939B;
+    --accent:#6FA8CF; --accent-soft:#1B2A36; --accent-ink:#0B1013;
+    --ok:#68C79B; --ok-soft:#15251E;
+    --warn:#E0AB5F; --warn-soft:#2A2114;
+    --crit:#E58175; --crit-soft:#2C1815;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font:var(--step-0)/1.55 Assistant, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:"Frank Ruhl Libre", Georgia, serif; font-weight:700; text-wrap:balance; margin:0}
+  .mono{font-family:"IBM Plex Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums}
+
+  /* ---------- שלד ---------- */
+  header.bar{
+    position:sticky; top:0; z-index:20; background:var(--surface);
+    border-bottom:1px solid var(--line); padding:.7rem 1.1rem;
+    display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;
+  }
+  header.bar h1{font-size:var(--step-1); letter-spacing:-.01em; margin-inline-end:.4rem}
+  .wrap{max-width:1240px; margin:0 auto; padding:1.1rem}
+  .cols{display:grid; grid-template-columns:320px minmax(0,1fr); gap:1.1rem; align-items:start}
+  @media (max-width:900px){ .cols{grid-template-columns:1fr} }
+
+  /* ---------- פקדים ---------- */
+  select,button,input{font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--line);
+    border-radius:8px; padding:.42rem .6rem}
+  select{max-width:190px}
+  button{cursor:pointer; transition:border-color .12s, background .12s}
+  button:hover{border-color:var(--accent)}
+  button:focus-visible, select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  button.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:700}
+  button.primary:hover{filter:brightness(1.08)}
+  button.ghost{background:transparent}
+  .spacer{flex:1}
+
+  /* ---------- כרטיסים ---------- */
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:1rem; margin-bottom:1rem}
+  .card > h2{font-size:var(--step-2); letter-spacing:-.015em}
+  .rail .card{padding:.9rem}
+  .eyebrow{font-size:var(--step--1); letter-spacing:.09em; text-transform:uppercase; color:var(--muted); font-weight:600}
+
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:.3rem .7rem; font-size:var(--step--1); margin-top:.6rem}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0; font-weight:600}
+
+  .score{display:flex; align-items:baseline; gap:.5rem; margin-top:.15rem}
+  .score b{font-family:"IBM Plex Mono", monospace; font-size:var(--step-3); line-height:1; font-variant-numeric:tabular-nums}
+
+  .chip{display:inline-flex; align-items:center; gap:.3rem; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--ink-2); border-radius:999px;
+    padding:.12rem .55rem; font-size:var(--step--1); white-space:nowrap}
+  .chip.mono{letter-spacing:-.01em}
+  .chip.key{background:var(--accent-soft); border-color:transparent; color:var(--accent); font-weight:600}
+  .chip.ok{background:var(--ok-soft); color:var(--ok); border-color:transparent}
+  .chip.warn{background:var(--warn-soft); color:var(--warn); border-color:transparent}
+  .chip.crit{background:var(--crit-soft); color:var(--crit); border-color:transparent}
+  .chips{display:flex; flex-wrap:wrap; gap:.35rem}
+
+  .note{font-size:var(--step--1); color:var(--ink-2); margin:.5rem 0 0}
+  .rule{height:1px; background:var(--line); border:0; margin:.85rem 0}
+
+  /* ---------- ממצאי איכות ---------- */
+  ul.findings{list-style:none; margin:.6rem 0 0; padding:0; display:flex; flex-direction:column; gap:.4rem}
+  ul.findings li{display:grid; grid-template-columns:auto 1fr; gap:.5rem; font-size:var(--step--1);
+    border-inline-start:3px solid var(--line); padding-inline-start:.55rem}
+  li.lv-error{border-color:var(--crit)} li.lv-warning{border-color:var(--warn)} li.lv-info{border-color:var(--accent)}
+
+  /* ---------- ימי אימון ---------- */
+  .days{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:1rem}
+  .day header{display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap}
+  .day h3{font-size:var(--step-1)}
+  .day .meta{font-size:var(--step--1); color:var(--muted)}
+
+  .ex{border-top:1px solid var(--line); padding:.7rem 0 .55rem; display:grid;
+    grid-template-columns:1.6rem 1fr; gap:.1rem .55rem}
+  .ex:last-child{padding-bottom:0}
+  .ex .idx{font-family:"IBM Plex Mono", monospace; font-size:var(--step--1); color:var(--muted); padding-top:.15rem}
+  .ex .name{font-weight:700; font-size:var(--step-0)}
+  .ex .role{font-size:var(--step--1); color:var(--muted)}
+  .ex .body{grid-column:2}
+  .rx{display:flex; flex-wrap:wrap; gap:.3rem; margin:.4rem 0 0}
+  .load{background:var(--accent-soft); color:var(--accent); border-radius:6px; padding:.1rem .45rem;
+    font-family:"IBM Plex Mono", monospace; font-weight:600; font-size:var(--step--1)}
+  ul.cues{margin:.45rem 0 0; padding-inline-start:1.1rem; font-size:var(--step--1); color:var(--ink-2)}
+  ul.cues li{margin-bottom:.12rem}
+
+  .acts{display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.55rem}
+  .acts button{padding:.2rem .55rem; font-size:var(--step--1); border-radius:999px; background:var(--surface-2)}
+  .acts button.act-key{background:var(--accent-soft); color:var(--accent); border-color:transparent; font-weight:600}
+  .acts button.act-alert{color:var(--crit)}
+  .acts button.act-alert:hover{border-color:var(--crit)}
+  details.more{margin-top:.35rem}
+  details.more summary{list-style:none; display:inline-flex; align-items:center; gap:.25rem;
+    font-size:var(--step--1); color:var(--muted); padding:.1rem 0}
+  details.more summary::-webkit-details-marker{display:none}
+  details.more summary::before{content:'⌄'; font-size:.9em}
+  details.more[open] summary::before{content:'⌃'}
+  details.more summary:hover{color:var(--accent)}
+  .swap{display:flex; gap:.35rem; margin-top:.45rem}
+  .swap select{flex:1; font-size:var(--step--1); max-width:none}
+
+  /* ---------- יומן ---------- */
+  .log{position:fixed; inset-block-end:1rem; inset-inline-start:1rem; width:min(390px,calc(100vw - 2rem));
+    max-height:44vh; overflow:auto; background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); padding:.8rem; font-size:var(--step--1); z-index:30}
+  .log[hidden]{display:none}
+  .log h4{margin:0 0 .4rem; font-size:var(--step--1); letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+  .log .entry{border-top:1px solid var(--line); padding:.45rem 0}
+  .log .entry:first-of-type{border-top:0}
+  .log b{color:var(--accent)}
+
+  table{width:100%; border-collapse:collapse; font-size:var(--step--1)}
+  th,td{text-align:start; padding:.28rem .4rem; border-bottom:1px solid var(--line)}
+  th{color:var(--muted); font-weight:600}
+  td.num{font-family:"IBM Plex Mono", monospace; font-variant-numeric:tabular-nums}
+  .bar-track{height:5px; background:var(--surface-2); border-radius:3px; overflow:hidden; min-width:60px}
+  .bar-fill{height:100%; background:var(--accent)}
+  .bar-fill.over{background:var(--warn)}
+  details summary{cursor:pointer; color:var(--muted); font-size:var(--step--1)}
+  .empty{color:var(--muted); font-size:var(--step--1)}
+  @media (prefers-reduced-motion:reduce){ *{transition:none !important; animation:none !important} }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>מסך המאמן</h1>
+  <select id="studio" aria-label="בחירת סטודיו"></select>
+  <select id="trainee" aria-label="בחירת מתאמן"></select>
+  <button class="primary" id="gen">בנה תכנית</button>
+  <button id="genAll">כל הסטודיו</button>
+  <button id="next">שבוע הבא</button>
+  <span class="spacer"></span>
+  <span id="status" class="chip"></span>
+  <button class="ghost" id="theme" aria-label="מצב תצוגה">◐</button>
+</header>
+
+<main class="wrap">
+  <div class="cols">
+    <aside class="rail" id="rail"></aside>
+    <section id="days"></section>
+  </div>
+</main>
+
+<aside class="log" id="log" hidden>
+  <h4>משוב מהשטח</h4>
+  <div id="logBody"></div>
+</aside>
+
+<script type="module">
+/*ENGINE*/
+
+/* ==================================================================
+   מסך המאמן — כל המנוע רץ כאן בדפדפן. אין שרת ואין שליחת נתונים החוצה.
+   ================================================================== */
+
+const $ = (s) => document.querySelector(s);
+const STORE_KEY = 'studio-training/trainees/v1';
+
+const state = { studios: STUDIOS, trainees: null, program: null };
+
+/** טעינת מתאמנים מהדפדפן, עם נפילה חיננית לנתוני הדמו. */
+function loadTrainees() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* דפדפן שחוסם אחסון — ממשיכים עם נתוני הדמו */ }
+  return structuredClone(TRAINEES);
+}
+function saveTrainees() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state.trainees)); } catch { /* לא קריטי */ }
+}
+
+const studioById = (id) => state.studios.find((s) => s.id === id);
+const traineeById = (id) => state.trainees.find((t) => t.id === id);
+
+function log(title, lines) {
+  const el = $('#log');
+  el.hidden = false;
+  const body = Array.isArray(lines) ? lines : [lines];
+  $('#logBody').insertAdjacentHTML('afterbegin',
+    `<div class="entry"><b>${title}</b><br>${body.filter(Boolean).join('<br>')}</div>`);
+}
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ---------------------------------------------------------------- הפעלה */
+function boot() {
+  state.trainees = loadTrainees();
+  $('#studio').innerHTML = state.studios.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  fillTrainees();
+  $('#studio').onchange = () => { fillTrainees(); generate(); };
+  $('#trainee').onchange = generate;
+  $('#gen').onclick = generate;
+  $('#genAll').onclick = generateAll;
+  $('#next').onclick = nextWeek;
+  $('#theme').onclick = toggleTheme;
+  generate();
+}
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+}
+
+function fillTrainees() {
+  const list = state.trainees.filter((t) => t.studioId === $('#studio').value);
+  $('#trainee').innerHTML = list.length
+    ? list.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')
+    : '<option value="">— אין מתאמנים —</option>';
+}
+
+function status(text, kind = '') {
+  const el = $('#status');
+  el.className = `chip ${kind}`;
+  el.textContent = text;
+}
+
+/* ---------------------------------------------------------------- יצירה */
+function generate() {
+  const t = traineeById($('#trainee').value);
+  if (!t) { $('#rail').innerHTML = ''; $('#days').innerHTML = '<p class="empty">אין מתאמנים בסטודיו הזה.</p>'; return; }
+  const res = buildProgram(t, studioById(t.studioId));
+  if (!res.ok) {
+    state.program = null;
+    $('#rail').innerHTML = '';
+    $('#days').innerHTML = `<div class="card"><h2>לא ניתן להפיק תכנית</h2>
+      <ul class="findings">${res.errors.map((e) => `<li class="lv-error"><span class="chip crit">חסימה</span><span>${esc(e)}</span></li>`).join('')}</ul></div>`;
+    status('נדרשת פעולה', 'crit');
+    return;
+  }
+  state.program = res.program;
+  render();
+  status(`תכנית מוכנה · ציון ${res.program.qa.score}`, res.program.qa.passed ? 'ok' : 'warn');
+}
+
+function generateAll() {
+  const studio = studioById($('#studio').value);
+  const list = state.trainees.filter((t) => t.studioId === studio.id);
+  const batch = buildStudioPrograms(list, studio);
+  log(`${esc(studio.name)} — ${batch.total} תכניות`, batch.results.map((r) => (r.ok
+    ? `${esc(r.name)}: ציון ${r.program.qa.score}${r.program.qa.passed ? '' : ' — נדרשת בדיקה'}`
+    : `${esc(r.name)}: ${esc(r.errors[0])}`)));
+}
+
+function nextWeek() {
+  const raw = traineeById($('#trainee').value);
+  if (!raw) return;
+  const events = (raw._events || []).slice();
+  const { trainee, changes, flags } = applyFeedback(normalizeTrainee(raw), events);
+  const advanced = advanceWeek(trainee, flags);
+  Object.assign(raw, advanced, { _events: [] });
+  saveTrainees();
+  generate();
+  log(`מעבר לשבוע ${advanced.mesocycleWeek}`,
+    [...changes.map((c) => esc(c.message)), flags.deloadRecommended ? '<b>מומלץ שבוע הורדת עומס.</b>' : ''].filter(Boolean)
+    .slice(0, 8).concat(changes.length ? [] : ['לא נרשם משוב מהשטח — התכנית התקדמה לפי הפריודיזציה בלבד.']));
+}
+
+/* ---------------------------------------------------------------- תצוגה */
+const LEVEL_CHIP = { error: 'crit', warning: 'warn', info: 'key' };
+const LEVEL_WORD = { error: 'חסימה', warning: 'לתשומת לב', info: 'מידע' };
+
+function render() {
+  const p = state.program;
+  renderRail(p);
+  $('#days').innerHTML = `<div class="days">${p.days.map(dayCard).join('')}</div>`;
+  document.querySelectorAll('[data-act]').forEach((el) => { el.onclick = () => onAction(el.dataset); });
+  document.querySelectorAll('[data-swap]').forEach((el) => { el.onclick = () => onSwap(el.dataset); });
+}
+
+function renderRail(p) {
+  const m = p.meta;
+  const vol = Object.entries(p.weeklyVolume).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(p.volumeTarget.max, ...vol.map((v) => v[1]));
+
+  $('#rail').innerHTML = `
+    <div class="card">
+      <p class="eyebrow">מתאמן</p>
+      <h2>${esc(p.traineeName)}</h2>
+      <div class="score">
+        <b class="${p.qa.passed ? '' : 'warn'}">${p.qa.score}</b>
+        <span class="chip ${p.qa.passed ? 'ok' : 'crit'}">${p.qa.passed ? 'עבר בקרת איכות' : `${p.qa.errors} שגיאות`}</span>
+      </div>
+      <div class="chips" style="margin-top:.6rem">
+        <span class="chip key">${esc(m.goalLabel)}</span>
+        <span class="chip">${esc(levelLabel(m.level))}</span>
+        <span class="chip mono">${m.daysPerWeek}×${m.sessionMinutes}′</span>
+        <span class="chip mono">שבוע ${p.week} · ${esc(phaseLabel(m.phase))}</span>
+        ${m.deload ? '<span class="chip warn">הורדת עומס</span>' : ''}
+        ${m.travelWeek ? '<span class="chip warn">שבוע נסיעה</span>' : ''}
+      </div>
+      <dl class="kv">
+        <dt>חלוקה</dt><dd>${esc(splitLabel(m.split))}</dd>
+        <dt>התאוששות</dt><dd>${Math.round(m.recoveryScore * 100)}%</dd>
+        <dt>מכפיל נפח</dt><dd class="mono">${m.volumeMultiplier}</dd>
+        ${m.externalLoad.sessions ? `<dt>עומס חיצוני</dt><dd>${esc(sportLabel(m.externalLoad.sport))} · ${m.externalLoad.sessions} בשבוע</dd>` : ''}
+        <dt>מאגר מותאם</dt><dd>${m.eligibleExercises} מתוך ${m.eligibleExercises + m.rejectedExercises}</dd>
+      </dl>
+      <p class="note">${esc(m.splitReason)}</p>
+      ${m.ageNote ? `<p class="note">${esc(m.ageNote)}</p>` : ''}
+      ${m.externalLoad.note ? `<p class="note">${esc(m.externalLoad.note)}</p>` : ''}
+    </div>
+
+    ${p.constraints.length ? `<div class="card">
+      <p class="eyebrow">מגבלות פעילות</p>
+      <div class="chips" style="margin-top:.45rem">
+        ${p.constraints.map((c) => `<span class="chip ${c.severity === 'acute' ? 'crit' : c.severity === 'subacute' ? 'warn' : ''}">${esc(c.name)} · ${esc(severityLabel(c.severity))}</span>`).join('')}
+      </div>
+      <ul class="cues">${p.constraints.map((c) => `<li><b>${esc(c.name)}:</b> ${esc(c.note)}</li>`).join('')}</ul>
+    </div>` : ''}
+
+    ${p.qa.issues.length ? `<div class="card">
+      <p class="eyebrow">בקרת איכות</p>
+      <ul class="findings">${p.qa.issues.map((i) => `<li class="lv-${i.level}">
+        <span class="chip ${LEVEL_CHIP[i.level]}">${LEVEL_WORD[i.level]}</span><span>${esc(i.message)}</span></li>`).join('')}</ul>
+    </div>` : ''}
+
+    ${p.repairs?.length ? `<div class="card">
+      <p class="eyebrow">תיקון אוטומטי</p>
+      <ul class="cues">${p.repairs.map((r) => `<li>${esc(r.note)}</li>`).join('')}</ul>
+    </div>` : ''}
+
+    <div class="card">
+      <p class="eyebrow">נפח שבועי · יעד ${p.volumeTarget.min}–${p.volumeTarget.max} סטים</p>
+      <table><tbody>
+        ${vol.map(([mus, sets]) => `<tr>
+          <td>${esc(muscleLabel(mus))}</td>
+          <td class="num">${sets}</td>
+          <td style="width:40%"><div class="bar-track"><div class="bar-fill ${sets > p.volumeTarget.max ? 'over' : ''}" style="width:${Math.min(100, (sets / max) * 100)}%"></div></div></td>
+        </tr>`).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+function dayCard(day, di) {
+  return `<article class="card day">
+    <header>
+      <h3>${esc(day.dayLabel)}</h3>
+      <span class="chip">${esc(day.label)}</span>
+      <span class="meta mono">${day.blocks.length} תרגילים · ${day.estimatedMinutes}′ מתוך ${day.sessionMinutes}′</span>
+    </header>
+    ${day.compressionNote ? `<p class="note">${esc(day.compressionNote)}</p>` : ''}
+    ${day.blocks.map((b, bi) => exerciseRow(b, di, bi)).join('')}
+  </article>`;
+}
+
+function exerciseRow(b, di, bi) {
+  const rx = b.prescription;
+  const load = b.suggestedLoad;
+  return `<div class="ex">
+    <div class="idx">${bi + 1}</div>
+    <div>
+      <div class="name">${esc(b.exercise.name)}</div>
+      <div class="role">${esc(b.slotLabel || roleLabel(b.role))} · ${esc(equipmentList(b.exercise.equipment))}${b.setType === 'superset' ? ' · סופרסט' : ''}${b.exercise.unilateral ? ' · לכל צד' : ''}</div>
+    </div>
+    <div class="body">
+      <div class="rx">
+        <span class="chip key mono">${rx.sets} × ${esc(rx.reps)}${rx.unit === 'seconds' && !String(rx.reps).includes('שניות') ? ' שנ׳' : ''}</span>
+        <span class="chip mono">מנוחה ${rx.restSec}″</span>
+        <span class="chip mono">RIR ${rx.rir}</span>
+        <span class="chip mono">קצב ${esc(rx.tempo)}</span>
+        ${load ? `<span class="load">משקל מוצע ${load.kg} ק״ג</span>` : ''}
+      </div>
+      ${b.rampUp ? `<ul class="cues"><li>${esc(b.rampUp.text)}</li></ul>` : ''}
+      ${b.coachingNotes.length ? `<ul class="cues">${b.coachingNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+      ${load?.hint ? `<ul class="cues"><li>${esc(load.hint)}</li></ul>` : ''}
+      <div class="acts">
+        <button class="act-key" data-act="log_set" data-d="${di}" data-b="${bi}">רישום סט</button>
+        <button data-act="too_easy" data-d="${di}" data-b="${bi}">קל מדי</button>
+        <button data-act="too_hard" data-d="${di}" data-b="${bi}">קשה מדי</button>
+        <button class="act-alert" data-act="pain" data-d="${di}" data-b="${bi}">כאב</button>
+      </div>
+      <details class="more">
+        <summary>עוד פעולות</summary>
+        <div class="acts">
+          <button data-act="form_breakdown" data-d="${di}" data-b="${bi}">טכניקה מתפרקת</button>
+          <button data-act="equipment_busy" data-d="${di}" data-b="${bi}">מכשיר תפוס</button>
+          <button data-act="skip" data-d="${di}" data-b="${bi}">דילוג</button>
+          <button data-act="love_it" data-d="${di}" data-b="${bi}">תרגיל מוצלח</button>
+        </div>
+        ${b.alternatives.length ? `<div class="swap">
+          <select id="alt_${di}_${bi}" aria-label="חלופות">${b.alternatives.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+          <button data-swap="1" data-d="${di}" data-b="${bi}">החלף תרגיל</button>
+        </div>` : ''}
+      </details>
+    </div>
+  </div>`;
+}
+
+/* ---------------------------------------------------------------- פעולות */
+function onSwap(ds) {
+  const raw = traineeById(state.program.traineeId);
+  const trainee = normalizeTrainee(raw);
+  const studio = normalizeStudio(studioById(raw.studioId));
+  try {
+    swapExercise(state.program, trainee, studio, {
+      dayIndex: +ds.d, blockIndex: +ds.b, alternativeId: $(`#alt_${ds.d}_${ds.b}`).value,
+    });
+    render();
+    log('הוחלף תרגיל', `ציון האיכות המעודכן: ${state.program.qa.score}`);
+  } catch (err) {
+    log('ההחלפה לא בוצעה', esc(err.message));
+  }
+}
+
+function onAction(ds) {
+  const block = state.program.days[+ds.d].blocks[+ds.b];
+  const raw = traineeById(state.program.traineeId);
+  const ev = { type: ds.act, exerciseId: block.exercise.id, dayIndex: +ds.d, prescription: block.prescription };
+
+  if (ds.act === 'log_set') {
+    const load = prompt(`${block.exercise.name} — משקל עבודה בק״ג:`, block.suggestedLoad?.kg ?? '');
+    if (load === null) return;
+    const reps = prompt('חזרות שבוצעו:', String(block.prescription.repsMin));
+    const rpe = prompt('RPE (1-10):', String(10 - block.prescription.rir));
+    ev.payload = { load: load ? +load : null, reps: reps ? +reps : null, rpe: rpe ? +rpe : null };
+  } else if (ds.act === 'pain') {
+    const joint = prompt('היכן הכאב?\nshoulder / low_back / knee / elbow / wrist / hip / ankle / neck', 'knee');
+    if (!joint) return;
+    ev.payload = { joint: joint.trim(), painLevel: +(prompt('עוצמת כאב 1-10:', '5') || 5) };
+  } else if (ds.act === 'equipment_busy') {
+    ev.payload = { equipment: block.exercise.equipment };
+  }
+
+  raw._events = [...(raw._events || []), ev];
+  const { trainee, changes, flags } = applyFeedback(normalizeTrainee(raw), [ev]);
+  Object.assign(raw, trainee);
+  saveTrainees();
+
+  const messages = changes.map((c) => esc(c.message));
+  if (flags.deloadRecommended) messages.push('<b>הצטברות סימני עומס — מומלץ שבוע הורדת עומס.</b>');
+  log(esc(block.exercise.name), messages.length ? messages : ['נרשם.']);
+
+  // משוב שמשנה את מרחב האפשרויות מחייב בנייה מחדש כדי שהמסך לא יציג תרגיל שנפסל
+  if (['pain', 'equipment_busy', 'skip', 'form_breakdown'].includes(ds.act)) generate();
+}
+
+boot();
+</script>
+</body>
+</html>

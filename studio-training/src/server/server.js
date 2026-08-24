@@ -18,6 +18,7 @@ import { Db } from '../store/db.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.resolve(HERE, '../web');
+const DIST_DIR = path.resolve(HERE, '../../dist');
 const db = new Db();
 
 const json = (res, code, body) => {
@@ -146,10 +147,14 @@ const server = http.createServer(async (req, res) => {
       const p = db.getProgram(url.searchParams.get('id'));
       return p ? json(res, 200, p) : json(res, 404, { error: 'תכנית לא נמצאה' });
     }
-    // קבצים סטטיים
-    const file = url.pathname === '/' ? 'trainer.html' : path.basename(url.pathname);
-    const full = path.join(WEB_DIR, file);
-    if (fs.existsSync(full) && fs.statSync(full).isFile()) {
+    // קבצים סטטיים: מסך המאמן הבנוי, ואחריו קבצי המקור
+    const file = url.pathname === '/' ? 'app.html' : path.basename(url.pathname);
+    const candidates = [path.join(DIST_DIR, file), path.join(WEB_DIR, file)];
+    const full = candidates.find((c) => fs.existsSync(c) && fs.statSync(c).isFile());
+    if (!full && url.pathname === '/') {
+      return json(res, 503, { error: 'מסך המאמן טרם נבנה. הרץ: npm run build' });
+    }
+    if (full) {
       const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
       res.writeHead(200, { 'content-type': types[path.extname(full)] || 'application/octet-stream' });
       return res.end(fs.readFileSync(full));

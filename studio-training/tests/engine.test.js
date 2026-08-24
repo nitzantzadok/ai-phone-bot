@@ -58,10 +58,10 @@ test('אין תרגיל כפול באותו אימון', () => {
 
 test('אורך האימון המשוער נשאר בתחום סביר סביב הזמן שהוקצה', () => {
   for (const t of TRAINEES) {
-    const trainee = normalizeTrainee(t);
     for (const day of buildProgram(t, studioOf(t)).program.days) {
-      assert.ok(day.estimatedMinutes <= trainee.sessionMinutes * 1.1,
-        `${t.name}/${day.dayLabel}: ${day.estimatedMinutes} דק' מול ${trainee.sessionMinutes}`);
+      // אורך האימון נמדד מול הזמן שהוקצה *לאותו יום* (ייתכן שונה מיום ליום)
+      assert.ok(day.estimatedMinutes <= day.sessionMinutes * 1.1,
+        `${t.name}/${day.dayLabel}: ${day.estimatedMinutes} דק' מול ${day.sessionMinutes}`);
     }
   }
 });

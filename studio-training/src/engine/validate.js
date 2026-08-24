@@ -7,8 +7,10 @@
  */
 
 import { getExercise } from '../domain/exercises.js';
-import { MUSCLE_ROLE } from '../domain/taxonomy.js';
-import { constraintCheck, equipmentCheck } from './filters.js';
+import { MUSCLE_ROLE, SPORTS } from '../domain/taxonomy.js';
+import { constraintCheck, equipmentCheck, spaceCheck } from './filters.js';
+import { ageAdjustments } from './prescription.js';
+import { muscleLabel } from '../domain/labels.js';
 
 const MAJOR = ['chest', 'back_lats', 'back_upper', 'delts_side', 'quads', 'hamstrings', 'glutes'];
 
@@ -34,8 +36,15 @@ export function runQualityChecks(program, trainee, studio) {
       if (!cc.allowed) {
         add('error', 'contraindicated', `${day.dayLabel}: "${ex.name}" אינו מתאים למגבלות המתאמן.`, cc.reasons);
       }
-      const eq = equipmentCheck(ex, studio, trainee.equipmentBlocklist);
+      const eq = equipmentCheck(ex, studio, trainee.equipmentBlocklist, { travelWeek: trainee.travelWeek });
       if (!eq.ok) add('error', 'equipment_missing', `${day.dayLabel}: אין בסטודיו ציוד ל"${ex.name}".`, eq.missing);
+
+      const sp = spaceCheck(ex, studio);
+      if (!sp.ok) add('error', 'space_conflict', `${day.dayLabel}: "${ex.name}" אינו מתאים למרחב הסטודיו.`, sp.reasons);
+
+      if (rxIntensityTooHigh(b.prescription, trainee)) {
+        add('error', 'intensity_over_age_cap', `${day.dayLabel}: "${ex.name}" בעצימות ${b.prescription.intensityPct[1]}% — מעל התקרה לגיל המתאמן.`);
+      }
 
       const rx = b.prescription;
       const rangeChecked = ex.type !== 'conditioning' && ex.type !== 'mobility';
@@ -52,10 +61,11 @@ export function runQualityChecks(program, trainee, studio) {
     }
     if (day.blocks.length < 3) add('warning', 'thin_day', `${day.dayLabel}: האימון דל מדי (${day.blocks.length} תרגילים).`);
 
-    const over = day.estimatedMinutes - trainee.sessionMinutes;
-    if (over > trainee.sessionMinutes * 0.15) {
-      add('warning', 'too_long', `${day.dayLabel}: אומדן ${day.estimatedMinutes} דק' מול ${trainee.sessionMinutes} דק' מתוכננות.`);
-    } else if (over < -trainee.sessionMinutes * 0.3) {
+    const planned = day.sessionMinutes || trainee.sessionMinutes;
+    const over = day.estimatedMinutes - planned;
+    if (over > planned * 0.15) {
+      add('warning', 'too_long', `${day.dayLabel}: אומדן ${day.estimatedMinutes} דק' מול ${planned} דק' מתוכננות.`);
+    } else if (over < -planned * 0.3) {
       add('info', 'short_session', `${day.dayLabel}: אומדן ${day.estimatedMinutes} דק' — יש מקום לתרגיל עזר נוסף.`);
     }
   }
@@ -71,7 +81,14 @@ export function runQualityChecks(program, trainee, studio) {
     if (ratio > 1.6) add('warning', 'push_pull_imbalance', `יחס דחיפה/משיכה ${ratio.toFixed(2)} — עודף דחיפה עלול להעמיס על הכתף הקדמית.`);
     if (ratio < 0.55) add('info', 'pull_dominant', `יחס דחיפה/משיכה ${ratio.toFixed(2)} — התכנית נוטה למשיכה, מקובל למטרת יציבה.`);
   } else if (roleSets.pull === 0 && roleSets.push > 0) {
-    add('error', 'no_pull', 'אין בתכנית עבודת משיכה כלל.');
+    const pullAvailable = ['horizontal_pull', 'vertical_pull']
+      .some((p) => (program.meta?.poolCoverage?.byPattern || {})[p]);
+    if (pullAvailable) {
+      add('error', 'no_pull', 'אין בתכנית עבודת משיכה כלל, למרות שקיימים תרגילי משיכה מתאימים.');
+    } else {
+      add('warning', 'no_pull_possible',
+        'אין בתכנית עבודת משיכה — לא קיים בסטודיו תרגיל משיכה שעומד במגבלות המתאמן. מומלץ להוסיף גומיית התנגדות או עמדת חתירה.');
+    }
   }
 
   // --- 3. כיסוי שרירים ותדירות
@@ -113,6 +130,50 @@ export function runQualityChecks(program, trainee, studio) {
   const perSession = workingSets.reduce((a, b) => a + b, 0) / Math.max(1, workingSets.length);
   if (perSession > 28) add('warning', 'session_volume_high', `ממוצע ${perSession.toFixed(0)} סטי עבודה לאימון — גבוה; שקול צמצום נפח.`);
 
+  // --- 6. התאמות אישיות שחייבות להופיע בתכנית
+  const ageAdj = ageAdjustments(trainee);
+  const allBlocks = program.days.flatMap((d) => d.blocks);
+
+  if (ageAdj.needsBalance) {
+    const hasBalance = allBlocks.some((b) => {
+      const ex = getExercise(b.exercise.id);
+      return ex.tags.includes('balance_training') || ex.flags.includes('balance');
+    });
+    if (!hasBalance) {
+      add('warning', 'no_balance_work', 'גיל 65+ ללא עבודת שיווי משקל — זהו המרכיב עם ההשפעה הגדולה ביותר על סיכון נפילות.');
+    }
+  }
+
+  if (trainee.sport !== 'none' && trainee.externalSessions > 0) {
+    const prehab = SPORTS[trainee.sport]?.prehab || [];
+    const covered = prehab.some((pat) => allBlocks.some((b) => b.exercise.pattern === pat));
+    if (!covered && prehab.length) {
+      add('info', 'no_sport_prehab', `לא נכנסה עבודת מניעה ייעודית ל${trainee.sport} — שווה לפנות לה מקום.`);
+    }
+    const weeklyTotal = trainee.daysPerWeek + trainee.externalSessions;
+    if (weeklyTotal >= 9) {
+      add('warning', 'total_load_high', `${weeklyTotal} אימונים שבועיים בסך הכול — סיכון להצטברות עומס; לוודא שינה ותזונה או להוריד יום.`);
+    }
+  }
+
+  if (trainee.travelWeek) {
+    const portable = allBlocks.every((b) => {
+      const eq = equipmentCheck(getExercise(b.exercise.id), studio, trainee.equipmentBlocklist, { travelWeek: true });
+      return eq.ok;
+    });
+    if (!portable) add('error', 'not_portable', 'שבוע נסיעה — התכנית כוללת תרגיל שדורש ציוד שאינו נייד.');
+  }
+
+  const coverage = program.meta?.poolCoverage;
+  if (coverage?.missingPatterns?.length) {
+    add('info', 'pattern_unavailable',
+      `אין תרגיל זמין לדפוסים: ${coverage.missingPatterns.join(', ')} — שילוב של הציוד בסטודיו והמגבלות של המתאמן. המערכת השתמשה בדפוסים חלופיים.`);
+  }
+  if (coverage && coverage.total < 20) {
+    add('warning', 'thin_pool',
+      `נותרו ${coverage.total} תרגילים מתאימים בלבד מתוך המאגר — התכנית מוגבלת מאוד; שווה לשקול התאמה אישית או הוספת ציוד.`);
+  }
+
   const errors = issues.filter((i) => i.level === 'error').length;
   const warnings = issues.filter((i) => i.level === 'warning').length;
   const score = Math.max(0, 100 - errors * 25 - warnings * 6 - issues.filter((i) => i.level === 'info').length * 1);
@@ -120,11 +181,10 @@ export function runQualityChecks(program, trainee, studio) {
   return { passed: errors === 0, score, errors, warnings, issues };
 }
 
-const MUSCLE_LABELS = {
-  chest: 'חזה', back_lats: 'רחב גבי', back_upper: 'גב עליון', delts_front: 'כתף קדמית',
-  delts_side: 'כתף צד', delts_rear: 'כתף אחורית', biceps: 'יד קדמית', triceps: 'יד אחורית',
-  forearms: 'אמות', quads: 'ארבע ראשי', hamstrings: 'אחורי ירך', glutes: 'ישבן',
-  adductors: 'מקרבים', abductors: 'מרחיקים', calves: 'תאומים', core_anterior: 'ליבה קדמית',
-  core_lateral: 'ליבה צידית', core_posterior: 'ליבה אחורית', neck: 'צוואר',
-};
-export function muscleLabel(m) { return MUSCLE_LABELS[m] || m; }
+/** האם העצימות שנרשמה חורגת מתקרת הגיל. */
+function rxIntensityTooHigh(rx, trainee) {
+  const cap = ageAdjustments(trainee).maxIntensityPct;
+  return Array.isArray(rx.intensityPct) && rx.intensityPct[1] > cap;
+}
+
+export { muscleLabel };
