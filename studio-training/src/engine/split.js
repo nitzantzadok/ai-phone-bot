@@ -353,19 +353,3 @@ export function fillerSlot(muscle) {
     muscles: [muscle], optional: true, label: 'השלמת נפח',
   });
 }
-
-/** כמה משבצות נכנסות בפועל בתקציב הזמן. */
-export function trimSlotsToTime(slots, sessionMinutes, avgSlotMinutes = 7) {
-  const capacity = Math.max(3, Math.floor(sessionMinutes / avgSlotMinutes));
-  if (slots.length <= capacity) return slots.slice();
-
-  const kept = slots.filter((s) => !s.optional);
-  const optional = slots.filter((s) => s.optional);
-  const out = [...kept];
-  for (const s of optional) {
-    if (out.length >= capacity) break;
-    out.push(s);
-  }
-  // שמירה על הסדר המקורי
-  return slots.filter((s) => out.includes(s)).slice(0, Math.max(capacity, kept.length));
-}
