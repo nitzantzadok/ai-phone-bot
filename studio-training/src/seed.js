@@ -140,6 +140,7 @@ export const STUDIOS = [
 export const TRAINEES = [
   {
     id: 'dana', name: 'דנה', studioId: 'full_gym', sex: 'female', age: 34, level: 'novice',
+    heightCm: 166, weightKg: 72,
     goals: ['fat_loss', 'general_fitness'], primaryGoal: 'fat_loss', daysPerWeek: 3, sessionMinutes: 60,
     constraints: [{ id: 'knee_pain_patellofemoral', severity: 'subacute', side: 'right' }],
     focusMuscles: ['glutes', 'core_anterior'], sleepQuality: 3, stressLevel: 4, nutritionAdherence: 3,
@@ -147,34 +148,40 @@ export const TRAINEES = [
   },
   {
     id: 'yossi', name: 'יוסי', studioId: 'full_gym', sex: 'male', age: 41, level: 'intermediate',
+    heightCm: 178, weightKg: 88,
     goals: ['hypertrophy'], primaryGoal: 'hypertrophy', daysPerWeek: 4, sessionMinutes: 75,
     constraints: [{ id: 'shoulder_impingement', severity: 'subacute' }, { id: 'hypertension', severity: 'managed' }],
     likes: ['leg_press'], varietyPreference: 'balanced', mesocycleWeek: 2,
   },
   {
     id: 'maya', name: 'מאיה', studioId: 'boutique_small', sex: 'female', age: 29, level: 'beginner',
+    heightCm: 170, weightKg: 63,
     goals: ['general_fitness'], primaryGoal: 'general_fitness', daysPerWeek: 2, sessionMinutes: 45,
     constraints: [{ id: 'pregnancy_t2_t3', severity: 'subacute', notes: 'שבוע 24, אישור רופא בתיק' }],
     medicalClearance: true,
   },
   {
     id: 'avi', name: 'אבי', studioId: 'full_gym', sex: 'male', age: 52, level: 'novice',
+    heightCm: 175, weightKg: 92,
     goals: ['posture', 'general_fitness'], primaryGoal: 'posture', daysPerWeek: 3, sessionMinutes: 50,
     constraints: [{ id: 'disc_herniation', severity: 'managed' }, { id: 'neck_pain', severity: 'subacute' }],
     focusMuscles: ['back_upper', 'glutes'],
   },
   {
     id: 'noa', name: 'נועה', studioId: 'functional_box', sex: 'female', age: 26, level: 'advanced',
+    heightCm: 169, weightKg: 64,
     goals: ['power', 'hypertrophy'], primaryGoal: 'power', daysPerWeek: 4, sessionMinutes: 60,
     constraints: [], varietyPreference: 'high', sleepQuality: 4, stressLevel: 2, nutritionAdherence: 4,
   },
   {
     id: 'tomer', name: 'תומר', studioId: 'functional_box', sex: 'male', age: 37, level: 'intermediate',
+    heightCm: 182, weightKg: 86,
     goals: ['strength'], primaryGoal: 'strength', daysPerWeek: 4, sessionMinutes: 70,
     constraints: [{ id: 'low_back_pain', severity: 'acute' }],
   },
   {
     id: 'rivka', name: 'רבקה', studioId: 'boutique_small', sex: 'female', age: 67, level: 'beginner',
+    heightCm: 160, weightKg: 68,
     goals: ['general_fitness'], primaryGoal: 'general_fitness', daysPerWeek: 2, sessionMinutes: 45,
     constraints: [{ id: 'osteoporosis', severity: 'managed' }, { id: 'limited_mobility_floor', severity: 'subacute' }, { id: 'hypertension', severity: 'managed' }],
     sleepQuality: 3, stressLevel: 2,

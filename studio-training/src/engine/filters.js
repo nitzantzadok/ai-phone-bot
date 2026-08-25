@@ -5,6 +5,7 @@
 
 import { getConstraint, SEVERITY_STRICTNESS } from '../domain/constraints.js';
 import { customToExercise } from '../domain/exercises.js';
+import { startingLoad } from './loads.js';
 import { coachLoad } from '../domain/models.js';
 import { ageAdjustments, LEVEL_MAX_SKILL } from './prescription.js';
 
@@ -141,6 +142,10 @@ export function spaceCheck(exercise, studio) {
  * אנשים לא יכול ללמד תרגיל טכני, ולכן התכנית לא תציע כזה מלכתחילה.
  */
 export function skillCheck(exercise, trainee, studio) {
+  // תרגיל שהמתאמן כבר מבצע נכון אינו "מורכב מדי" עבורו, גם אם רמתו הכללית נמוכה
+  if ((trainee.knownMovements || []).includes(exercise.id)) {
+    return { ok: true, max: 5, limiter: 'המתאמן כבר שולט בתרגיל' };
+  }
   const byLevel = LEVEL_MAX_SKILL[trainee.level] ?? 3;
   const byAge = ageAdjustments(trainee).skillCap;
   let byCoach = 5;
@@ -201,6 +206,11 @@ export function buildCandidatePool(exercises, trainee, studio) {
         : cc.reasons,
       bonuses: cc.bonuses,
       approved: isApproved,
+      /**
+       * האם המשקל הדרוש למתאמן הזה כבר עובר את הציוד הכבד ביותר בסטודיו.
+       * תרגיל כזה אינו מאפשר התקדמות אמיתית, ולכן הוא לא ישמש כתרגיל עיקרי.
+       */
+      ceilingLimited: atStudioCeiling(ex, trainee, studio),
     });
   }
   return { eligible, rejected, coverage: poolCoverage(eligible) };
@@ -217,6 +227,14 @@ export function poolCoverage(eligible) {
   const missing = ['squat', 'hinge', 'horizontal_push', 'vertical_push', 'horizontal_pull', 'vertical_pull']
     .filter((p) => !byPattern[p]);
   return { total: eligible.length, byPattern, missingPatterns: missing };
+}
+
+/** האם המשקל המוצע לתרגיל כבר מגיע לתקרת המשקולות של הסטודיו. */
+function atStudioCeiling(ex, trainee, studio) {
+  if (!studio.dumbbellMaxKg || !trainee.weightKg) return false;
+  if (!ex.eq.flat().includes('dumbbell')) return false;
+  const start = startingLoad(ex, trainee, studio);
+  return !!(start && start.kg >= studio.dumbbellMaxKg);
 }
 
 /**

@@ -15,6 +15,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** סדר תלויות — כל מודול מסתמך רק על אלה שלפניו. */
 const MODULES = [
   'src/domain/taxonomy.js',
+  'src/domain/notes.js',
   'src/domain/labels.js',
   'src/domain/descriptions.js',
   'src/domain/exercises.js',
@@ -24,6 +25,7 @@ const MODULES = [
   'src/engine/split.js',
   'src/engine/filters.js',
   'src/engine/select.js',
+  'src/engine/loads.js',
   'src/engine/probe.js',
   'src/engine/progression.js',
   'src/engine/feedback.js',

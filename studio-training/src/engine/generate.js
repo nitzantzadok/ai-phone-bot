@@ -27,6 +27,8 @@ import { coachLoad } from '../domain/models.js';
 import { alternativesFor, makeRng, pickForSlot } from './select.js';
 import { runQualityChecks } from './validate.js';
 import { buildProbes } from './probe.js';
+import { planLoad } from './loads.js';
+import { applyNotes } from '../domain/notes.js';
 import { FATIGUE_COST } from '../domain/taxonomy.js';
 
 /** כמה "עייפות" יום אחד יכול לספוג. */
@@ -165,7 +167,9 @@ function applySupersets(blocks, trainee, studio) {
  * @param {object} studio   אחרי normalizeStudio
  * @param {object} [opts]   { seed }
  */
-export function generateWeeklyProgram(trainee, studio, opts = {}) {
+export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
+  // ההערות הפעילות של המאמן מוחלות על הפרופיל לפני כל חישוב
+  const { trainee, effects: noteEffects } = applyNotes(rawTrainee);
   const seed = opts.seed || `${trainee.id}:${trainee.mesocycleWeek}`;
   const rng = makeRng(seed);
 
@@ -250,9 +254,10 @@ export function generateWeeklyProgram(trainee, studio, opts = {}) {
           id: ex.id, name: ex.name, nameEn: ex.nameEn, pattern: ex.pattern,
           primary: ex.primary, secondary: ex.secondary, type: ex.type,
           equipment: best.cand.equipmentOption, unilateral: ex.unilateral, skill: ex.skill,
+          loadable: ex.loadable, demand: ex.demand,
         },
         prescription: rx,
-        suggestedLoad: suggestLoad(ex, rx, trainee, studio),
+        load: withNoteAdjust(planLoad(ex, rx, trainee, studio), trainee),
         rampUp: ramp,
         estimatedMinutes: mins,
         coachingNotes: coachingNotes(ex, best.cand, trainee),
@@ -366,6 +371,8 @@ export function generateWeeklyProgram(trainee, studio, opts = {}) {
      * הן מוצגות למאמן בנפרד, והתוצאה שלהן משנה את התכניות הבאות.
      */
     probes: buildProbes(trainee, studio),
+    /** ההערות הפעילות וההשפעה שלהן על התכנית הזו. */
+    noteEffects,
     customExercises: {
       pending: (trainee.customExercises || []).filter((c) => c.status === 'draft'),
       approved: (trainee.customExercises || []).filter((c) => c.status === 'tested_ok'),
@@ -379,6 +386,15 @@ export function generateWeeklyProgram(trainee, studio, opts = {}) {
   recomputeVolume(program);
   program.qa = runQualityChecks(program, trainee, studio);
   return program;
+}
+
+/** התאמת משקל לפי הנחיה בהערה של המאמן. */
+function withNoteAdjust(load, trainee) {
+  const pct = trainee.loadAdjustPct || 0;
+  if (!pct || !load || load.kg == null) return load;
+  const kg = Math.max(1, Math.round((load.kg * (1 + pct / 100)) * 2) / 2);
+  const dir = pct > 0 ? `הועלה ב-${pct}%` : `הופחת ב-${Math.abs(pct)}%`;
+  return { ...load, kg, label: `${load.label} · ${dir} לפי הערת מאמן` };
 }
 
 const PULL_PATTERNS = ['horizontal_pull', 'vertical_pull'];
@@ -451,7 +467,7 @@ function ensurePullBalance(days, eligible, trainee, studio, volume, usedThisWeek
       equipment: best.cand.equipmentOption, unilateral: ex.unilateral, skill: ex.skill,
     },
     prescription: rx,
-    suggestedLoad: suggestLoad(ex, rx, trainee, studio),
+    load: withNoteAdjust(planLoad(ex, rx, trainee, studio), trainee),
     rampUp: null,
     estimatedMinutes: estimateMinutes(ex, rx),
     coachingNotes: coachingNotes(ex, best.cand, trainee),
@@ -526,6 +542,7 @@ export function swapExercise(program, trainee, studio, sel) {
       id: ex.id, name: ex.name, nameEn: ex.nameEn, pattern: ex.pattern,
       primary: ex.primary, secondary: ex.secondary, type: ex.type,
       equipment: cand.equipmentOption, unilateral: ex.unilateral, skill: ex.skill,
+      loadable: ex.loadable, demand: ex.demand,
     },
     prescription: rx,
     estimatedMinutes: estimateMinutes(ex, rx),

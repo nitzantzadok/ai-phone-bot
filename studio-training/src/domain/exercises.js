@@ -48,6 +48,23 @@ export const FLAGS = [
 const F = (...xs) => xs;
 
 /**
+ * חישוב דרישת התרגיל מתוך המאפיינים שכבר תיארנו אותו בהם:
+ * כמה עייפות הוא מייצר, האם אפשר להעמיס עליו, והאם הוא גרסה מוקלת.
+ */
+function computeDemand(d) {
+  const type = d.type || 'compound';
+  if (type === 'mobility') return 1;
+  let n = { low: 1, moderate: 2, high: 3, very_high: 4 }[d.fatigue || 'moderate'];
+  if (d.loadable !== false) n += 1;
+  if (type === 'compound') n += 1;
+  if ((d.tags || []).includes('regression')) n -= 1;
+  return Math.max(1, Math.min(5, n));
+}
+
+/** רצפת הדרישה לתרגיל עיקרי, לפי רמת המתאמן. */
+export const LEVEL_DEMAND_FLOOR = { beginner: 1, novice: 1, intermediate: 2, advanced: 3 };
+
+/**
  * @param {object} d
  */
 function ex(d) {
@@ -59,6 +76,12 @@ function ex(d) {
     description: d.description || DESCRIPTIONS[d.id] || '',
     /** תרגיל שנכתב על ידי מאמן ולא מגיע מהמאגר. */
     custom: !!d.custom,
+    /**
+     * דרישה (1-5): כמה גירוי אימון התרגיל מסוגל לספק.
+     * זה מה שמונע מלתת "שכיבות סמיכה לקיר" למתאמן מתקדם רק כי הן בטוחות.
+     * מחושב אוטומטית, וניתן לעקוף במפורש בתרגילים חריגים.
+     */
+    demand: d.demand ?? computeDemand(d),
     type: d.type || 'compound',           // compound | isolation | carry | conditioning | mobility
     pattern: d.pattern,
     primary: d.primary,
@@ -185,7 +208,7 @@ export const EXERCISES = [
   ex({ id: 'band_row', name: 'חתירה בגומייה', nameEn: 'Band Row',
     pattern: 'horizontal_pull', primary: ['back_upper'], secondary: ['biceps'],
     eq: [['resistance_band']], skill: 1, fatigue: 'low', repMin: 10, repMax: 30, loadable: false,
-    tags: ['rehab_friendly', 'no_equipment'] }),
+    tags: ['regression', 'rehab_friendly', 'no_equipment'] }),
 
   // ---------------------------------------------------------------- משיכה אנכית
   ex({ id: 'pullup', name: 'מתח באחיזה רחבה', nameEn: 'Pull-up',
@@ -215,7 +238,7 @@ export const EXERCISES = [
   ex({ id: 'band_pulldown', name: 'פולי עליון בגומייה', nameEn: 'Band Lat Pulldown',
     pattern: 'vertical_pull', primary: ['back_lats'], secondary: ['biceps'],
     eq: [['resistance_band']], skill: 1, fatigue: 'low', repMin: 10, repMax: 25, loadable: false,
-    flags: F('overhead'), tags: ['no_equipment'] }),
+    flags: F('overhead'), tags: ['regression', 'no_equipment'] }),
 
   // ---------------------------------------------------------------- דחיפה אנכית
   ex({ id: 'bb_ohp', name: 'לחיצת כתפיים במוט בעמידה', nameEn: 'Barbell Overhead Press',
@@ -255,7 +278,7 @@ export const EXERCISES = [
   ex({ id: 'lateral_raise_band', name: 'הרחקות צד בגומייה', nameEn: 'Band Lateral Raise',
     type: 'isolation', pattern: 'shoulder_isolation', primary: ['delts_side'],
     eq: [['resistance_band'], ['mini_band']], plane: 'frontal', skill: 1, fatigue: 'low',
-    repMin: 12, repMax: 30, loadable: false, tags: ['rehab_friendly'] }),
+    repMin: 12, repMax: 30, loadable: false, tags: ['regression', 'rehab_friendly'] }),
   ex({ id: 'rear_delt_fly_db', name: 'פרפר אחורי בהטיה', nameEn: 'Bent-over Rear Delt Fly',
     type: 'isolation', pattern: 'shoulder_isolation', primary: ['delts_rear'], secondary: ['back_upper'],
     eq: [['dumbbell']], plane: 'transverse', skill: 2, fatigue: 'low', repMin: 12, repMax: 25,
@@ -314,7 +337,7 @@ export const EXERCISES = [
   ex({ id: 'wall_sit', name: 'ישיבת קיר', nameEn: 'Wall Sit',
     type: 'isolation', pattern: 'squat', primary: ['quads'],
     eq: [['bodyweight']], skill: 1, fatigue: 'low', repMin: 20, repMax: 60, loadable: false,
-    stress: { knee: 1 }, tags: ['isometric', 'rehab_friendly'] }),
+    stress: { knee: 1 }, tags: ['regression', 'isometric', 'rehab_friendly'] }),
 
   // ---------------------------------------------------------------- מכרע / חד-צדדי
   ex({ id: 'split_squat', name: 'סקוואט בולגרי', nameEn: 'Bulgarian Split Squat',
@@ -440,7 +463,7 @@ export const EXERCISES = [
     repMin: 8, repMax: 15, stress: { elbow: 2 } }),
   ex({ id: 'band_curl', name: 'כפיפת מרפקים בגומייה', nameEn: 'Band Curl',
     type: 'isolation', pattern: 'elbow_flexion', primary: ['biceps'],
-    eq: [['resistance_band']], skill: 1, fatigue: 'low', repMin: 12, repMax: 25, loadable: false }),
+    eq: [['resistance_band']], skill: 1, fatigue: 'low', repMin: 12, repMax: 25, loadable: false, tags: ['regression']}),
 
   // ---------------------------------------------------------------- יד אחורית
   ex({ id: 'cable_pushdown', name: 'פשיטת מרפקים בפולי', nameEn: 'Cable Triceps Pushdown',
@@ -653,7 +676,7 @@ export const EXERCISES = [
   ex({ id: 'sit_to_stand', name: 'קימה מכיסא', nameEn: 'Sit-to-Stand',
     pattern: 'squat', primary: ['quads', 'glutes'],
     eq: [['chair'], ['bench_flat'], ['plyo_box']], skill: 1, fatigue: 'low', repMin: 5, repMax: 20,
-    stress: { knee: 1 }, tags: ['beginner_friendly', 'knee_friendly', 'functional', 'active_aging'],
+    stress: { knee: 1 }, tags: ['regression', 'beginner_friendly', 'knee_friendly', 'functional', 'active_aging'],
     cues: ['אף כף רגל מתחת לברך', 'לדחוף דרך העקבים', 'לשבת בשליטה, לא ליפול'] }),
   ex({ id: 'power_sit_to_stand', name: 'קימה מהירה מכיסא', nameEn: 'Power Sit-to-Stand',
     pattern: 'squat', primary: ['quads', 'glutes'],
@@ -668,7 +691,7 @@ export const EXERCISES = [
     pattern: 'horizontal_pull', primary: ['back_upper'], secondary: ['biceps'],
     eq: [['resistance_band', 'chair'], ['resistance_band']], skill: 1, fatigue: 'low',
     repMin: 10, repMax: 25, loadable: false,
-    tags: ['beginner_friendly', 'rehab_friendly', 'active_aging', 'posture'] }),
+    tags: ['regression', 'beginner_friendly', 'rehab_friendly', 'active_aging', 'posture'] }),
   ex({ id: 'seated_db_press', name: 'לחיצת כתפיים בישיבה על כיסא', nameEn: 'Chair Shoulder Press',
     pattern: 'vertical_push', primary: ['delts_front'], secondary: ['triceps'],
     eq: [['dumbbell', 'chair'], ['resistance_band', 'chair']], skill: 1, fatigue: 'low',
@@ -688,11 +711,11 @@ export const EXERCISES = [
   ex({ id: 'supported_calf_raise', name: 'הרמת עקבים בתמיכה', nameEn: 'Supported Calf Raise',
     type: 'isolation', pattern: 'calf', primary: ['calves'],
     eq: [['stable_support'], ['chair'], ['wall']], skill: 1, fatigue: 'low', repMin: 10, repMax: 25,
-    stress: { ankle: 1 }, tags: ['beginner_friendly', 'active_aging', 'rehab_friendly'] }),
+    stress: { ankle: 1 }, tags: ['regression', 'beginner_friendly', 'active_aging', 'rehab_friendly'] }),
   ex({ id: 'hinge_to_chair', name: 'הינג׳ אל הכיסא', nameEn: 'Hip Hinge to Chair',
     pattern: 'hinge', primary: ['glutes', 'hamstrings'],
     eq: [['chair'], ['bench_flat']], skill: 1, fatigue: 'low', repMin: 8, repMax: 15,
-    stress: { lumbar: 1 }, tags: ['beginner_friendly', 'back_friendly', 'active_aging'],
+    stress: { lumbar: 1 }, tags: ['regression', 'beginner_friendly', 'back_friendly', 'active_aging'],
     cues: ['לדחוף אגן אחורה אל הכיסא', 'גב ניטרלי לאורך כל התנועה'] }),
   ex({ id: 'arm_ergometer', name: 'ארגומטר ידיים', nameEn: 'Arm Ergometer',
     type: 'conditioning', pattern: 'conditioning', primary: ['delts_front', 'back_upper'],

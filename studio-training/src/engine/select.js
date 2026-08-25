@@ -7,6 +7,7 @@
  */
 
 import { FATIGUE_COST, SPORTS } from '../domain/taxonomy.js';
+import { LEVEL_DEMAND_FLOOR } from '../domain/exercises.js';
 
 /** מחולל אקראיות דטרמיניסטי (mulberry32) — מאפשר גיוון יציב וניתן לשחזור. */
 export function makeRng(seedStr) {
@@ -102,6 +103,32 @@ export function scoreCandidate(cand, slot, ctx) {
     if (ex.tags.includes('cooldown')) { score += 5; detail.slotRole = 5; }
     if (ex.tags.includes('warmup') && !ex.tags.includes('cooldown')) { score -= 4; detail.slotRole = -4; }
   }
+
+  // 2ג. רצפת דרישה: תרגיל עיקרי חייב לספק גירוי שתואם את רמת המתאמן.
+  //     בלי זה מתאמן מתקדם עלול לקבל גרסה מוקלת רק משום שהיא בטוחה יותר.
+  const isKeySlot = slot.role === 'main' || slot.role === 'secondary';
+  if (isKeySlot && ex.type !== 'conditioning' && ex.type !== 'mobility') {
+    const floor = LEVEL_DEMAND_FLOOR[trainee.level] ?? 1;
+    if (ex.demand < floor) {
+      const gap = floor - ex.demand;
+      score -= 14 * gap; detail.tooEasy = -14 * gap;
+    } else if (ex.demand >= floor + 1) {
+      score += 3; detail.demandFit = 3;
+    }
+  }
+
+  // 2ג2. תרגיל שהמשקולות בסטודיו כבר קלות מדי עבור המתאמן הזה
+  if (isKeySlot && cand.ceilingLimited) { score -= 9; detail.atCeiling = -9; }
+
+  // 2ד. מפרק שהמאמן ביקש להיזהר בו (מתוך הערה פעילה)
+  for (const [joint, level] of Object.entries(trainee.watchJoints || {})) {
+    const load = ex.stress[joint] ?? 0;
+    if (load >= 2) { score -= 10 * level; detail.watchJoint = -10 * level; }
+    else if (load === 1) { score -= 3 * level; detail.watchJoint = -3 * level; }
+  }
+
+  // 2ה. דפוס שהמאמן ביקש להימנע ממנו
+  if ((trainee.avoidPatterns || []).includes(ex.pattern)) return { score: -Infinity, detail: { avoided: 'הערת מאמן' } };
 
   // 3. שריר מטרה של המשבצת
   if (slot.muscles) {

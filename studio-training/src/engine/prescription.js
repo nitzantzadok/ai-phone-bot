@@ -223,7 +223,10 @@ export function volumeMultiplier(trainee) {
   const acute = trainee.constraints.filter((c) => c.severity === 'acute').length;
   const injury = 1 - Math.min(0.3, acute * 0.12);
   const phase = weekProgression(trainee).volume;
-  return +(level * rec * injury * phase * externalLoadFactor(trainee) * cycleFactor(trainee)).toFixed(3);
+  // הערות המאמן משנות נפח באופן ישיר — זה מה שהוא ראה בשטח
+  const fromNotes = 1 + (trainee.volumeAdjustPct || 0) / 100;
+  return +(level * rec * injury * phase * externalLoadFactor(trainee)
+    * cycleFactor(trainee) * Math.max(0.5, fromNotes)).toFixed(3);
 }
 
 /**

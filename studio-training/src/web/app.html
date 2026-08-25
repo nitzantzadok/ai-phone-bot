@@ -128,6 +128,34 @@
   ul.cues{margin:.45rem 0 0; padding-inline-start:1.1rem; font-size:var(--step--1); color:var(--ink-2)}
   ul.cues li{margin-bottom:.12rem}
 
+  /* ---------- מרשם התרגיל ---------- */
+  .pres{display:flex; flex-wrap:wrap; gap:.35rem; margin:.5rem 0 0}
+  .pcell{display:flex; flex-direction:column; gap:.1rem; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:8px; padding:.28rem .55rem; min-width:68px}
+  .pcell > span{font-size:.68rem; letter-spacing:.04em; color:var(--muted); text-transform:uppercase; white-space:nowrap}
+  .pcell > b{font-size:var(--step-0); font-weight:700; white-space:nowrap}
+  .pcell.key{background:var(--accent-soft); border-color:transparent}
+  .pcell.key > span{color:var(--accent)}
+  .kgwrap{display:flex; align-items:baseline; gap:.25rem}
+  .kgin{width:58px; padding:.05rem .2rem; font-family:"IBM Plex Mono",monospace; font-weight:700;
+    font-size:var(--step-0); text-align:center; border:1px solid var(--line); border-radius:6px;
+    background:var(--surface); color:var(--accent)}
+  .kgin:focus{outline:2px solid var(--accent); outline-offset:1px}
+  .kgwrap b{font-size:var(--step--1); color:var(--accent); font-weight:600; white-space:nowrap}
+  .loadnote{font-size:.75rem; color:var(--muted); margin:.3rem 0 0}
+
+  /* ---------- הערות ---------- */
+  .exnotes{margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem}
+  .exnote{display:flex; align-items:center; gap:.4rem; font-size:var(--step--1);
+    background:var(--warn-soft); border-inline-start:3px solid var(--warn); border-radius:6px; padding:.25rem .5rem}
+  .exnote.off{background:var(--surface-2); border-color:var(--line); color:var(--muted); text-decoration:line-through}
+  .exnote button{padding:.05rem .4rem; font-size:.72rem; background:transparent; border-color:transparent; color:inherit}
+  .exnote button:hover{border-color:currentColor}
+  .notecard{border:1px solid var(--line); border-radius:8px; padding:.55rem .65rem; margin-bottom:.45rem;
+    font-size:var(--step--1)}
+  .notecard.off{opacity:.55}
+  .notecard button{padding:.12rem .45rem; font-size:.75rem}
+
   .acts{display:flex; flex-wrap:wrap; gap:.3rem; margin-top:.55rem}
   .acts button{padding:.2rem .55rem; font-size:var(--step--1); border-radius:999px; background:var(--surface-2)}
   .acts button.act-key{background:var(--accent-soft); color:var(--accent); border-color:transparent; font-weight:600}
@@ -940,7 +968,8 @@ function renderTraineesView() {
             <label class="f"><span>מין</span>
               <select name="sex"><option value="unspecified">לא צוין</option><option value="female">אישה</option><option value="male">גבר</option></select></label>
             <label class="f"><span>גובה (ס״מ)</span><input name="heightCm" type="number" min="120" max="220"></label>
-            <label class="f"><span>משקל (ק״ג)</span><input name="weightKg" type="number" min="30" max="250"></label>
+            <label class="f"><span>משקל (ק״ג)</span><input name="weightKg" type="number" min="30" max="250">
+              <span class="hint" style="font-size:.72rem">בלי משקל גוף אין הצעות משקלי עבודה</span></label>
             <label class="f"><span>ותק אימונים (חודשים)</span><input name="trainingAgeMonths" type="number" min="0" value="0"></label>
             <label class="f"><span>טלפון</span><input name="phone" autocomplete="off"></label>
           </div>
@@ -993,6 +1022,41 @@ function renderTraineesView() {
             <label class="f"><span>תרגילים שהמתאמן לא רוצה</span>
               <select name="dislikes" multiple size="4">${EXERCISES.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
           </div>
+        </details>
+
+        <details class="optional">
+          <summary>ליווי ויעדים</summary>
+          <div class="fields">
+            <label class="f"><span>מאמן אחראי</span><input name="coach" autocomplete="off"></label>
+            <label class="f"><span>תאריך התחלה</span><input name="startDate" type="date"></label>
+            <label class="f"><span>תאריך יעד</span><input name="targetDate" type="date"></label>
+            <label class="f"><span>שעת אימון מועדפת</span>
+              <select name="preferredTime">
+                <option value="any">גמיש</option><option value="morning">בוקר</option>
+                <option value="noon">צהריים</option><option value="evening">ערב</option>
+              </select></label>
+          </div>
+          <label class="f" style="margin-top:.6rem"><span>מה היעד בדיוק</span>
+            <textarea name="goalDetail" placeholder="לדוגמה: חתונה בעוד חצי שנה; לחזור לשחק כדורגל; להרים את הנכד בלי כאב"></textarea></label>
+        </details>
+
+        <details class="optional">
+          <summary>מדדים ורקע רפואי</summary>
+          <div class="fields">
+            <label class="f"><span>אחוז שומן</span><input name="bodyFatPct" type="number" step="0.1" min="3" max="60"></label>
+            <label class="f"><span>דופק מנוחה</span><input name="restingHR" type="number" min="35" max="120"></label>
+            <label class="f"><span>לחץ דם</span><input name="bloodPressure" placeholder="120/80"></label>
+          </div>
+          <label class="f" style="margin-top:.6rem"><span>פציעות עבר שהחלימו</span>
+            <textarea name="pastInjuries" placeholder="לא מסננות תרגילים — מוצגות למאמן כרקע"></textarea></label>
+        </details>
+
+        <details class="optional">
+          <summary>תרגילים שהמתאמן כבר יודע לבצע</summary>
+          <p class="hint">תרגיל שמסומן כאן ייחשב בטוח למתאמן גם אם רמתו הכללית נמוכה יותר —
+            כך מתאמן שיודע לעשות דדליפט לא ייחסם ממנו רק בגלל הוותק.</p>
+          <label class="f"><span>בחר תרגילים טכניים</span>
+            <select name="knownMovements" multiple size="6">${EXERCISES.filter((x) => x.skill >= 3).map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
         </details>
 
         <details class="optional">
@@ -1108,6 +1172,13 @@ async function onTraineeSubmit(e) {
     medications: f.get('medications') ? [f.get('medications')] : [],
     sleepQuality: +f.get('sleepQuality'), stressLevel: +f.get('stressLevel'),
     nutritionAdherence: +f.get('nutritionAdherence'),
+    coach: f.get('coach') || '', startDate: f.get('startDate') || null,
+    targetDate: f.get('targetDate') || null, goalDetail: f.get('goalDetail') || '',
+    preferredTime: f.get('preferredTime') || 'any',
+    bodyFatPct: +f.get('bodyFatPct') || null, restingHR: +f.get('restingHR') || null,
+    bloodPressure: f.get('bloodPressure') || '',
+    pastInjuries: f.get('pastInjuries') || '',
+    knownMovements: f.getAll('knownMovements'),
     notes: f.get('notes'), phone: f.get('phone'),
   };
 
@@ -1200,6 +1271,18 @@ function render() {
   });
   const cf = $('#customForm');
   if (cf) cf.onsubmit = onCustomSubmit;
+
+  document.querySelectorAll('[data-kg]').forEach((el) => { el.onchange = () => onLoadEdit(el); });
+  document.querySelectorAll('[data-note-add]').forEach((el) => { el.onclick = () => openNoteForm({ scope: 'exercise', exerciseId: el.dataset.noteAdd }); });
+  document.querySelectorAll('[data-note-toggle]').forEach((el) => { el.onclick = () => toggleNote(el.dataset.noteToggle); });
+  document.querySelectorAll('[data-note-del]').forEach((el) => { el.onclick = () => deleteNote(el.dataset.noteDel); });
+  document.querySelectorAll('[data-note-edit]').forEach((el) => { el.onclick = () => openNoteForm({ id: el.dataset.noteEdit }); });
+  const nf = $('#noteForm');
+  if (nf) {
+    nf.onsubmit = onNoteSubmit;
+    $('#dirType').onchange = (e) => renderDirectiveValue(e.target.value);
+    $('#noteCancel').onclick = () => { $('#noteFormWrap').open = false; nf.reset(); renderDirectiveValue('none'); };
+  }
 }
 
 function renderRail(p) {
@@ -1253,6 +1336,16 @@ function renderRail(p) {
       <p class="eyebrow">תיקון אוטומטי</p>
       <ul class="cues">${p.repairs.map((r) => `<li>${esc(r.note)}</li>`).join('')}</ul>
     </div>` : ''}
+
+    ${(() => {
+      const t = traineeById(p.traineeId);
+      return t && !t.weightKg
+        ? `<div class="card"><div class="banner warn">לא הוזן משקל גוף, ולכן אין הצעות משקלי עבודה.
+             אפשר להזין משקל בכל שדה בתכנית והוא יישמר, או להשלים את משקל הגוף בכרטיס המתאמן.</div></div>`
+        : '';
+    })()}
+
+    ${notesCard(p)}
 
     ${p.probes.length ? `<div class="card">
       <p class="eyebrow">נסה ותגיד לי</p>
@@ -1396,30 +1489,58 @@ function dayCard(day, di) {
 
 function exerciseRow(b, di, bi) {
   const rx = b.prescription;
-  const load = b.suggestedLoad;
-  return `<div class="ex">
+  const load = b.load || {};
+  const notes = exerciseNotes(b.exercise.id);
+  // שדה משקל מופיע רק בתרגיל שבאמת מעמיסים בו — לא בחימום, ניידות או קונדישן
+  const editable = b.exercise.loadable && !['mobility', 'conditioning'].includes(b.exercise.type);
+
+  return `<div class="ex" data-ex-row="${di}_${bi}">
     <div class="idx">${bi + 1}</div>
     <div>
       <div class="name">${esc(b.exercise.name)}</div>
       <div class="role">${esc(b.slotLabel || roleLabel(b.role))} · ${esc(equipmentList(b.exercise.equipment))}${b.setType === 'superset' ? ' · סופרסט' : ''}${b.exercise.unilateral ? ' · לכל צד' : ''}</div>
-      <p class="desc">${esc(describeExercise(b.exercise.id))}</p>
     </div>
     <div class="body">
-      <div class="rx">
-        <span class="chip key mono">${rx.sets} × ${esc(rx.reps)}${rx.unit === 'seconds' && !String(rx.reps).includes('שניות') ? ' שנ׳' : ''}</span>
-        <span class="chip mono">מנוחה ${rx.restSec}″</span>
-        <span class="chip mono">RIR ${rx.rir}</span>
-        <span class="chip mono">קצב ${esc(rx.tempo)}</span>
-        ${load ? `<span class="load">משקל מוצע ${load.kg} ק״ג</span>` : ''}
+      <p class="desc">${esc(describeExercise(b.exercise.id))}</p>
+
+      <div class="pres">
+        <div class="pcell key">
+          <span>משקל עבודה</span>
+          ${editable
+            ? `<div class="kgwrap">
+                 <input class="kgin" type="number" step="0.5" min="0" inputmode="decimal"
+                        value="${load.kg ?? ''}" placeholder="—"
+                        data-kg="${esc(b.exercise.id)}" data-perside="${load.perSide ? '1' : ''}"
+                        aria-label="משקל עבודה בקילוגרמים">
+                 <b>ק״ג${load.perSide ? ' לכל יד' : ''}</b>
+               </div>`
+            : `<b class="mono">${b.exercise.loadable ? '—' : 'משקל גוף'}</b>`}
+        </div>
+        <div class="pcell"><span>חזרות</span><b class="mono">${esc(rx.reps)}${rx.unit === 'seconds' && !String(rx.reps).includes('שניות') ? ' שנ׳' : ''}</b></div>
+        <div class="pcell"><span>סטים</span><b class="mono">${rx.sets}</b></div>
+        <div class="pcell"><span>מנוחה</span><b class="mono">${rx.restSec}″</b></div>
+        <div class="pcell"><span>מרחק מכשל</span><b class="mono">RIR ${rx.rir}</b></div>
+        <div class="pcell"><span>קצב</span><b class="mono">${esc(rx.tempo)}</b></div>
       </div>
+      ${load.label && editable ? `<p class="loadnote">${esc(load.label)}${load.atStudioCeiling ? ' · זהו המשקל הכבד ביותר בסטודיו' : ''}</p>` : ''}
+
       ${b.rampUp ? `<ul class="cues"><li>${esc(b.rampUp.text)}</li></ul>` : ''}
       ${b.coachingNotes.length ? `<ul class="cues">${b.coachingNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-      ${load?.hint ? `<ul class="cues"><li>${esc(load.hint)}</li></ul>` : ''}
+
+      ${notes.length ? `<div class="exnotes">
+        ${notes.map((n) => `<div class="exnote ${n.active ? '' : 'off'}">
+          <span class="grow">${esc(n.text)}</span>
+          <button data-note-toggle="${esc(n.id)}" title="${n.active ? 'השבת' : 'הפעל'}">${n.active ? 'פעילה' : 'מושבתת'}</button>
+          <button data-note-del="${esc(n.id)}" title="מחק">✕</button>
+        </div>`).join('')}
+      </div>` : ''}
+
       <div class="acts">
         <button class="act-key" data-act="log_set" data-d="${di}" data-b="${bi}">רישום סט</button>
         <button data-act="too_easy" data-d="${di}" data-b="${bi}">קל מדי</button>
         <button data-act="too_hard" data-d="${di}" data-b="${bi}">קשה מדי</button>
         <button class="act-alert" data-act="pain" data-d="${di}" data-b="${bi}">כאב</button>
+        <button data-note-add="${esc(b.exercise.id)}">+ הערה</button>
       </div>
       <details class="more">
         <summary>עוד פעולות</summary>
@@ -1438,6 +1559,104 @@ function exerciseRow(b, di, bi) {
   </div>`;
 }
 
+/** הערות שהמאמן כתב על תרגיל מסוים. */
+function exerciseNotes(exerciseId) {
+  const t = traineeById(state.program?.traineeId);
+  return (t?.notesLog || []).filter((n) => n.scope === 'exercise' && n.exerciseId === exerciseId);
+}
+
+/** כרטיס יומן ההערות של המתאמן. */
+function notesCard(p) {
+  const t = traineeById(p.traineeId);
+  const notes = (t?.notesLog || []).filter((n) => n.scope !== 'exercise');
+  const effects = Object.fromEntries((p.noteEffects || []).map((e) => [e.noteId, e.effect]));
+
+  return `<div class="card">
+    <p class="eyebrow">יומן המאמן</p>
+    <p class="hint">כל מה שקורה באימון וצריך להשפיע על התכנית. הערה יכולה לשאת הנחיה —
+      ואז המערכת מבצעת אותה בפועל. אפשר לערוך, להשבית או למחוק בכל רגע.</p>
+    ${notes.length ? notes.map((n) => `<div class="notecard ${n.active ? '' : 'off'}">
+      <div class="row" style="align-items:flex-start">
+        <div class="grow">
+          <div>${esc(n.text)}</div>
+          <div class="role">${new Date(n.at).toLocaleDateString('he-IL')}${n.author ? ` · ${esc(n.author)}` : ''}</div>
+          ${n.directive.type !== 'none'
+            ? `<span class="chip ${n.active ? 'key' : ''}">${esc(DIRECTIVES[n.directive.type].label)}${n.directive.value ? `: ${esc(directiveValueLabel(n.directive))}` : ''}</span>`
+            : '<span class="chip">הערה בלבד</span>'}
+          ${n.active && effects[n.id] ? `<p class="loadnote">${esc(effects[n.id])}</p>` : ''}
+        </div>
+        <button data-note-toggle="${esc(n.id)}">${n.active ? 'השבת' : 'הפעל'}</button>
+        <button data-note-edit="${esc(n.id)}">ערוך</button>
+        <button data-note-del="${esc(n.id)}">מחק</button>
+      </div>
+    </div>`).join('') : '<p class="empty">אין עדיין הערות.</p>'}
+
+    <details class="optional" id="noteFormWrap" style="margin-top:.7rem">
+      <summary>הוספת הערה</summary>
+      <form id="noteForm">
+        <input type="hidden" name="id">
+        <label class="f"><span class="req">מה קרה</span>
+          <textarea name="text" required placeholder="לדוגמה: התלונן על הכתף רק בלחיצה מעל הראש; מגיע שחוק בימי שני; ביקש יותר עבודת ישבן"></textarea></label>
+        <div class="fields" style="margin-top:.6rem">
+          <label class="f"><span>מה לעשות עם זה</span>
+            <select name="directiveType" id="dirType">
+              ${Object.entries(DIRECTIVES).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}
+            </select></label>
+          <label class="f" id="dirValueWrap" hidden><span id="dirValueLabel">ערך</span>
+            <span id="dirValueField"></span></label>
+          <label class="f"><span>נכתב על ידי</span><input name="author" placeholder="שם המאמן"></label>
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <button class="primary" type="submit">שמור הערה</button>
+          <button type="button" id="noteCancel">בטל</button>
+        </div>
+      </form>
+    </details>
+  </div>`;
+}
+
+function directiveValueLabel(d) {
+  const v = d.value;
+  switch (DIRECTIVES[d.type]?.needs) {
+    case 'exercise': { try { return getExercise(v).name; } catch { return v; } }
+    case 'muscle': return muscleLabel(v);
+    case 'pattern': return patternLabel(v);
+    case 'equipment': return EQUIPMENT_LABELS[v] || v;
+    case 'joint': return jointLabelHe(v);
+    case 'percent': return `${v}%`;
+    case 'minutes': return `${v} דק׳`;
+    default: return v ?? '';
+  }
+}
+
+const JOINTS_HE = { shoulder: 'כתף', lumbar: 'גב תחתון', knee: 'ברך', elbow: 'מרפק',
+  wrist: 'שורש כף יד', hip: 'ירך', ankle: 'קרסול', neck: 'צוואר' };
+const jointLabelHe = (j) => JOINTS_HE[j] || j;
+
+/** שדה הערך משתנה לפי סוג ההנחיה שנבחרה. */
+function renderDirectiveValue(type, current = '') {
+  const needs = DIRECTIVES[type]?.needs;
+  const wrap = $('#dirValueWrap');
+  const field = $('#dirValueField');
+  const labelEl = $('#dirValueLabel');
+  if (!needs) { wrap.hidden = true; field.innerHTML = ''; return; }
+  wrap.hidden = false;
+
+  const opts = {
+    exercise: () => ({ label: 'תרגיל', html: `<select name="directiveValue">${EXERCISES.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>` }),
+    muscle: () => ({ label: 'שריר', html: `<select name="directiveValue">${MUSCLES.map((m) => `<option value="${m}">${esc(muscleLabel(m))}</option>`).join('')}</select>` }),
+    pattern: () => ({ label: 'דפוס תנועה', html: `<select name="directiveValue">${PATTERNS.map((x) => `<option value="${x}">${esc(patternLabel(x))}</option>`).join('')}</select>` }),
+    joint: () => ({ label: 'מפרק', html: `<select name="directiveValue">${Object.entries(JOINTS_HE).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>` }),
+    equipment: () => ({ label: 'ציוד', html: `<select name="directiveValue">${equipmentOptions()}</select>` }),
+    percent: () => ({ label: 'אחוזים', html: '<input name="directiveValue" type="number" min="5" max="50" value="10">' }),
+    minutes: () => ({ label: 'דקות', html: '<input name="directiveValue" type="number" min="20" max="120" value="45">' }),
+  }[needs]();
+
+  labelEl.textContent = opts.label;
+  field.innerHTML = opts.html;
+  if (current) { const el = field.querySelector('[name=directiveValue]'); if (el) el.value = current; }
+}
+
 /* ---------------------------------------------------------------- פעולות */
 function onSwap(ds) {
   const raw = traineeById(state.program.traineeId);
@@ -1452,6 +1671,119 @@ function onSwap(ds) {
   } catch (err) {
     log('ההחלפה לא בוצעה', esc(err.message));
   }
+}
+
+/**
+ * המאמן שינה משקל בתכנית.
+ * מרגע זה זהו משקל העבודה של המתאמן בתרגיל הזה — הוא נשמר, מוצג בשבוע הבא,
+ * והפרוגרסיה ממשיכה ממנו.
+ */
+async function onLoadEdit(el) {
+  const raw = traineeById(state.program.traineeId);
+  const id = el.dataset.kg;
+  const kg = parseFloat(el.value);
+  raw.history = raw.history || {};
+  if (!Number.isFinite(kg) || kg <= 0) {
+    delete raw.history[id]?.trainerSet;
+  } else {
+    raw.history[id] = {
+      ...(raw.history[id] || {}),
+      trainerSet: { kg, perSide: el.dataset.perside === '1', at: new Date().toISOString() },
+    };
+  }
+  await store.updateTrainee(raw);
+  generate();
+  log('משקל עודכן', `${esc(exerciseName(id))}: ${Number.isFinite(kg) && kg > 0 ? `${kg} ק״ג — יישמר לפעמים הבאות` : 'חזרה להצעת המערכת'}.`);
+}
+
+function exerciseName(id) {
+  const t = traineeById(state.program?.traineeId);
+  const custom = (t?.customExercises || []).find((c) => c.id === id);
+  if (custom) return custom.name;
+  try { return getExercise(id).name; } catch { return id; }
+}
+
+/* ---------------------------------------------------------------- הערות */
+function openNoteForm(opts = {}) {
+  const wrap = $('#noteFormWrap');
+  const form = $('#noteForm');
+  if (!wrap || !form) return;
+  wrap.open = true;
+  form.reset();
+
+  if (opts.id) {
+    const t = traineeById(state.program.traineeId);
+    const note = (t.notesLog || []).find((n) => n.id === opts.id);
+    if (note) {
+      form.id.value = note.id;
+      form.text.value = note.text;
+      form.author.value = note.author || '';
+      form.directiveType.value = note.directive.type;
+      renderDirectiveValue(note.directive.type, note.directive.value);
+      form.dataset.scope = note.scope;
+      form.dataset.exerciseId = note.exerciseId || '';
+    }
+  } else {
+    form.id.value = '';
+    form.dataset.scope = opts.scope || 'general';
+    form.dataset.exerciseId = opts.exerciseId || '';
+    renderDirectiveValue('none');
+    if (opts.exerciseId) {
+      form.text.placeholder = `הערה על ${exerciseName(opts.exerciseId)} — למשל: כאב קל בסוף הסט, או שהמשקל הזה עדיין קל`;
+    }
+  }
+  form.querySelector('[name=text]').focus();
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function onNoteSubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  const f = new FormData(form);
+  const raw = traineeById(state.program.traineeId);
+  const value = f.get('directiveValue');
+
+  const note = normalizeNote({
+    id: f.get('id') || undefined,
+    text: f.get('text'),
+    author: f.get('author') || '',
+    scope: form.dataset.scope || 'general',
+    exerciseId: form.dataset.exerciseId || null,
+    directive: { type: f.get('directiveType'), value: value || null },
+  });
+
+  raw.notesLog = upsertNote(raw.notesLog || [], note);
+  await store.updateTrainee(raw);
+  form.reset();
+  $('#noteFormWrap').open = false;
+  renderDirectiveValue('none');
+  generate();
+
+  const effect = applyNotes(normalizeTrainee(raw)).effects.find((x) => x.noteId === note.id);
+  log('הערה נשמרה', [esc(note.text), effect ? `<b>${esc(effect.effect)}</b>` : '']);
+}
+
+async function toggleNote(id) {
+  const raw = traineeById(state.program.traineeId);
+  const note = (raw.notesLog || []).find((n) => n.id === id);
+  if (!note) return;
+  note.active = !note.active;
+  await store.updateTrainee(raw);
+  generate();
+  log('הערה עודכנה', `${esc(note.text)} — ${note.active ? 'הופעלה מחדש' : 'הושבתה; הטקסט נשמר'}.`);
+}
+
+async function deleteNote(id) {
+  const raw = traineeById(state.program.traineeId);
+  const note = (raw.notesLog || []).find((n) => n.id === id);
+  if (!note) return;
+  if (!confirm(`למחוק את ההערה?
+
+${note.text}`)) return;
+  raw.notesLog = removeNote(raw.notesLog || [], id);
+  await store.updateTrainee(raw);
+  generate();
+  log('הערה נמחקה', esc(note.text));
 }
 
 /** תוצאת בדיקה — תרגיל באזור פציעה או תרגיל שהמאמן כתב. */
@@ -1501,11 +1833,12 @@ function onAction(ds) {
   const ev = { type: ds.act, exerciseId: block.exercise.id, dayIndex: +ds.d, prescription: block.prescription };
 
   if (ds.act === 'log_set') {
-    const load = prompt(`${block.exercise.name} — משקל עבודה בק״ג:`, block.suggestedLoad?.kg ?? '');
+    const load = prompt(`${block.exercise.name} — משקל שבוצע בפועל (ק״ג):`, block.load?.kg ?? '');
     if (load === null) return;
     const reps = prompt('חזרות שבוצעו:', String(block.prescription.repsMin));
     const rpe = prompt('RPE (1-10):', String(10 - block.prescription.rir));
     ev.payload = { load: load ? +load : null, reps: reps ? +reps : null, rpe: rpe ? +rpe : null };
+    if (load) ev.payload.perSide = !!block.load?.perSide;
   } else if (ds.act === 'pain') {
     const joint = prompt('היכן הכאב?\nshoulder / low_back / knee / elbow / wrist / hip / ankle / neck', 'knee');
     if (!joint) return;

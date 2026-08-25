@@ -350,3 +350,97 @@ test('יצירה קבוצתית לכל מתאמני הסטודיו', () => {
   assert.equal(batch.failed, 0);
   assert.equal(batch.qaFailed, 0);
 });
+
+// ---------------------------------------------------------------- משקלים, דרישה והערות
+test('לכל תרגיל שמעמיסים בו מופיע משקל עבודה בקילוגרמים', () => {
+  const t = { id: 'w', name: 'עם משקל', level: 'intermediate', age: 32, weightKg: 82,
+    daysPerWeek: 3, primaryGoal: 'hypertrophy', goals: ['hypertrophy'] };
+  const program = buildProgram(t, STUDIOS[0]).program;
+  const loadable = allBlocks(program).filter((b) => b.exercise.loadable
+    && !['mobility', 'conditioning'].includes(b.exercise.type));
+  assert.ok(loadable.length >= 8, 'מעט מדי תרגילים שניתן להעמיס בהם');
+  for (const b of loadable) {
+    assert.ok(b.load && typeof b.load.kg === 'number' && b.load.kg > 0,
+      `${b.exercise.name}: אין משקל עבודה`);
+    assert.ok(b.load.label, `${b.exercise.name}: אין הסבר מאיפה המשקל`);
+  }
+});
+
+test('משקל שהמאמן קבע גובר על ההצעה ונשמר לשבוע הבא', () => {
+  const base = { id: 'set', level: 'intermediate', age: 30, weightKg: 80, daysPerWeek: 3,
+    primaryGoal: 'strength', goals: ['strength'] };
+  const before = buildProgram(base, STUDIOS[0]).program;
+  const target = allBlocks(before).find((b) => b.load?.source === 'estimate');
+  assert.ok(target, 'לא נמצא תרגיל עם הצעת משקל');
+
+  const withSet = buildProgram({
+    ...base,
+    history: { [target.exercise.id]: { trainerSet: { kg: 63.5, perSide: false, at: new Date().toISOString() } } },
+  }, STUDIOS[0]).program;
+  const after = allBlocks(withSet).find((b) => b.exercise.id === target.exercise.id);
+  assert.equal(after.load.kg, 63.5);
+  assert.equal(after.load.source, 'trainer');
+});
+
+test('משקל מוצע לעולם אינו עובר את המשקולת הכבדה בסטודיו', () => {
+  const studio = { ...STUDIOS[0], dumbbellMaxKg: 12 };
+  const program = buildProgram({ id: 'cap', level: 'advanced', age: 28, weightKg: 95,
+    daysPerWeek: 3, primaryGoal: 'hypertrophy', goals: ['hypertrophy'] }, studio).program;
+  for (const b of allBlocks(program)) {
+    if (b.load?.perSide && b.exercise.equipment.includes('dumbbell')) {
+      assert.ok(b.load.kg <= 12, `${b.exercise.name}: ${b.load.kg} ק״ג מעל תקרת הסטודיו`);
+    }
+  }
+});
+
+test('מתאמן מתקדם לא מקבל גרסאות מוקלות כתרגיל עיקרי', () => {
+  const program = buildProgram({ id: 'adv', level: 'advanced', age: 29, weightKg: 88,
+    daysPerWeek: 4, primaryGoal: 'hypertrophy', goals: ['hypertrophy'] }, STUDIOS[0]).program;
+  const key = allBlocks(program).filter((b) => ['main', 'secondary'].includes(b.role)
+    && !['mobility', 'conditioning'].includes(b.exercise.type));
+  const tooEasy = key.filter((b) => getExercise(b.exercise.id).demand < 3);
+  assert.deepEqual(tooEasy.map((b) => b.exercise.name), [],
+    'תרגילים בעלי דרישה נמוכה מדי שובצו כעיקריים למתאמן מתקדם');
+});
+
+test('הערת מאמן משנה את התכנית בפועל, וכיבוי ההערה מחזיר אותה', () => {
+  const base = { id: 'nt', level: 'intermediate', age: 35, weightKg: 80, daysPerWeek: 3,
+    primaryGoal: 'hypertrophy', goals: ['hypertrophy'] };
+  const plain = buildProgram(base, STUDIOS[0]).program;
+  const sets = (p) => allBlocks(p).reduce((s, b) => s + b.prescription.sets, 0);
+
+  const note = { id: 'n1', text: 'שבוע עמוס', directive: { type: 'reduce_volume', value: 25 }, active: true };
+  const reduced = buildProgram({ ...base, notesLog: [note] }, STUDIOS[0]).program;
+  assert.ok(sets(reduced) < sets(plain), 'הנפח לא ירד למרות ההנחיה');
+  assert.ok(reduced.noteEffects.some((e) => e.effect.includes('25%')));
+
+  const off = buildProgram({ ...base, notesLog: [{ ...note, active: false }] }, STUDIOS[0]).program;
+  assert.equal(sets(off), sets(plain), 'הערה מושבתת עדיין השפיעה');
+  assert.equal(off.noteEffects.length, 0);
+});
+
+test('הנחיה בהערה מסירה תרגיל וחוסמת ציוד', () => {
+  const program = buildProgram({
+    id: 'nt2', level: 'intermediate', age: 30, weightKg: 78, daysPerWeek: 3,
+    primaryGoal: 'general_fitness', goals: ['general_fitness'],
+    notesLog: [
+      { text: 'לא אוהב לחיצת רגליים', directive: { type: 'avoid_exercise', value: 'leg_press' } },
+      { text: 'הפולי מקולקל', directive: { type: 'equipment_unavailable', value: 'lat_pulldown' } },
+    ],
+  }, STUDIOS[0]).program;
+  assert.ok(!allBlocks(program).some((b) => b.exercise.id === 'leg_press'));
+  assert.ok(!allBlocks(program).some((b) => b.exercise.equipment.includes('lat_pulldown')));
+});
+
+test('תרגיל שהמתאמן כבר שולט בו מותר לו גם מעל רמתו', () => {
+  const base = { id: 'kn', level: 'beginner', age: 26, weightKg: 74, daysPerWeek: 3,
+    primaryGoal: 'strength', goals: ['strength'] };
+  const studio = normalizeStudio(STUDIOS[0]);
+  const plain = buildCandidatePool(EXERCISES, normalizeTrainee(base), studio);
+  assert.ok(!plain.eligible.some((c) => c.exercise.id === 'conventional_deadlift'));
+
+  const known = buildCandidatePool(EXERCISES,
+    normalizeTrainee({ ...base, knownMovements: ['conventional_deadlift'] }), studio);
+  assert.ok(known.eligible.some((c) => c.exercise.id === 'conventional_deadlift'),
+    'תרגיל שסומן כידוע עדיין נחסם');
+});

@@ -6,6 +6,7 @@
 import { CONSTRAINTS } from './constraints.js';
 import { BY_ID } from './exercises.js';
 import { ALWAYS_AVAILABLE, CYCLE_PHASES, EQUIPMENT, GOALS, LEVELS, LIFESTYLES, SPLITS, SPORTS } from './taxonomy.js';
+import { normalizeNote } from './notes.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const WEEK_DAYS = DAYS;
@@ -154,6 +155,22 @@ export function normalizeTrainee(raw = {}) {
     /** שבוע נסיעה/מלון — תכנית ממשקל גוף וגומיות בלבד. */
     travelWeek: raw.travelWeek ?? false,
     units: raw.units === 'lb' ? 'lb' : 'kg',
+    /** מי המאמן האחראי, ומתי התחיל להתאמן. */
+    coach: raw.coach || '',
+    startDate: raw.startDate || null,
+    /** יעד עם תאריך — חתונה, תחרות, חזרה לספורט. */
+    targetDate: raw.targetDate || null,
+    goalDetail: raw.goalDetail || '',
+    /** מדדים שהמאמן רוצה לראות, גם אם המנוע לא מחשב לפיהם. */
+    bodyFatPct: raw.bodyFatPct ?? null,
+    restingHR: raw.restingHR ?? null,
+    bloodPressure: raw.bloodPressure || '',
+    /** שעת אימון מועדפת — משפיעה על אורך החימום. */
+    preferredTime: raw.preferredTime || 'any',
+    /** תרגילים טכניים שהמתאמן כבר יודע לבצע — מרחיב את תקרת המורכבות. */
+    knownMovements: raw.knownMovements || [],
+    /** פציעות שהחלימו — לא מסננות, אך מוצגות למאמן כרקע. */
+    pastInjuries: raw.pastInjuries || '',
     notes: raw.notes || '',
     /** היסטוריית משקלי עבודה: exerciseId -> { load, reps, date } */
     history: raw.history || {},
@@ -170,6 +187,13 @@ export function normalizeTrainee(raw = {}) {
       : { id: b.id, reason: b.reason || '', at: b.at || null })),
     /** תרגילים שהמאמן כתב בעצמו עבור המתאמן הזה. */
     customExercises: (raw.customExercises || []).map(normalizeCustomExercise),
+    /** יומן ההערות של המאמנים — כל אחת ניתנת לעריכה, כיבוי או מחיקה. */
+    notesLog: (raw.notesLog || []).map(normalizeNote),
+    /** התאמות שנובעות מהערות פעילות. */
+    loadAdjustPct: raw.loadAdjustPct ?? 0,
+    volumeAdjustPct: raw.volumeAdjustPct ?? 0,
+    avoidPatterns: raw.avoidPatterns || [],
+    watchJoints: raw.watchJoints || {},
   };
 }
 

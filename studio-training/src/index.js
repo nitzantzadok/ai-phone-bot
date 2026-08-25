@@ -17,6 +17,8 @@ export { normalizeCustomExercise } from './domain/models.js';
 export { customToExercise } from './domain/exercises.js';
 export { DESCRIPTIONS, describe } from './domain/descriptions.js';
 export { nextTarget, needsDeload, loadIncrement } from './engine/progression.js';
+export { planLoad, startingLoad, roundToIncrement, loadFamily } from './engine/loads.js';
+export { applyNotes, normalizeNote, upsertNote, removeNote, DIRECTIVES, DIRECTIVE_TYPES } from './domain/notes.js';
 export { runQualityChecks } from './engine/validate.js';
 export * from './domain/labels.js';
 export { Db } from './store/db.js';
