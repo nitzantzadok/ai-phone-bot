@@ -7,11 +7,14 @@
 
 import { getExercise } from '../domain/exercises.js';
 import { nextTarget, needsDeload } from './progression.js';
+import { applyProbeResult } from './probe.js';
+import { normalizeCustomExercise } from '../domain/models.js';
 
 /** סוגי אירועים נתמכים. */
 export const EVENT_TYPES = [
   'log_set', 'too_easy', 'too_hard', 'pain', 'form_breakdown',
   'equipment_busy', 'swap', 'skip', 'love_it', 'session_rpe', 'session_done',
+  'probe_ok', 'probe_pain', 'custom_add', 'custom_tested_ok', 'custom_tested_failed',
 ];
 
 /** מיפוי מפרק שבו דווח כאב -> מגבלה שתתווסף לפרופיל. */
@@ -82,8 +85,12 @@ export function applyFeedback(trainee, events = []) {
         const joint = ev.payload?.joint;
         const level = ev.payload?.painLevel ?? 5;
         if (ex) {
-          if (!t.dislikes.includes(ex.id)) t.dislikes.push(ex.id);
-          note(`${ex.name}: הוסר מהתכנית בעקבות דיווח כאב.`);
+          // כאב הוא חסימה קשה, לא "לא אוהב" — ולכן נרשם ברשימה נפרדת
+          if (!t.blockedExercises.some((b) => b.id === ex.id)) {
+            t.blockedExercises.push({ id: ex.id, reason: `כאב בשטח (${level}/10)`, at: ev.at || new Date().toISOString() });
+          }
+          t.approvedExercises = t.approvedExercises.filter((a) => a.id !== ex.id);
+          note(`${ex.name}: נחסם עבור המתאמן בעקבות דיווח כאב.`);
         }
         const cid = PAIN_TO_CONSTRAINT[joint];
         if (cid) {
@@ -141,6 +148,53 @@ export function applyFeedback(trainee, events = []) {
         if (rpe >= 9) { t.sleepQuality = Math.max(1, t.sleepQuality - 0); t.stressLevel = Math.min(5, t.stressLevel + 1); note('אימון בעצימות גבוהה מאוד — נלקח בחשבון בחישוב ההתאוששות.'); }
         break;
       }
+      // --- תוצאות תרגיל בדיקה באזור הפציעה
+      case 'probe_ok': {
+        if (!ev.exerciseId) break;
+        const res = applyProbeResult(t, { exerciseId: ev.exerciseId, result: 'ok', note: ev.payload?.note });
+        Object.assign(t, res.trainee);
+        note(res.message);
+        break;
+      }
+      case 'probe_pain': {
+        if (!ev.exerciseId) break;
+        const res = applyProbeResult(t, {
+          exerciseId: ev.exerciseId, result: 'pain',
+          note: ev.payload?.note, painLevel: ev.payload?.painLevel,
+        });
+        Object.assign(t, res.trainee);
+        note(res.message);
+        break;
+      }
+
+      // --- תרגילים שהמאמן כותב בעצמו
+      case 'custom_add': {
+        const c = normalizeCustomExercise({ ...(ev.payload || {}), createdAt: ev.at || new Date().toISOString() });
+        t.customExercises = [...(t.customExercises || []).filter((x) => x.id !== c.id), c];
+        note(`נוסף תרגיל מותאם "${c.name}" כטיוטה. לאחר בדיקה מוצלחת בשטח הוא ייכנס לשיבוץ האוטומטי.`);
+        break;
+      }
+      case 'custom_tested_ok': {
+        const c = (t.customExercises || []).find((x) => x.id === ev.exerciseId);
+        if (!c) { note(`תרגיל מותאם לא נמצא: ${ev.exerciseId}`); break; }
+        c.status = 'tested_ok';
+        c.testedAt = ev.at || new Date().toISOString();
+        if (ev.payload?.sets) c.sets = ev.payload.sets;
+        if (ev.payload?.reps) c.reps = ev.payload.reps;
+        if (ev.payload?.load) c.load = ev.payload.load;
+        if (ev.payload?.notes) c.notes = ev.payload.notes;
+        note(`"${c.name}" נבדק בהצלחה ונכנס למאגר — המערכת תשבץ אותו בתכניות הבאות.`);
+        break;
+      }
+      case 'custom_tested_failed': {
+        const c = (t.customExercises || []).find((x) => x.id === ev.exerciseId);
+        if (!c) break;
+        c.status = 'tested_failed';
+        c.testedAt = ev.at || new Date().toISOString();
+        note(`"${c.name}" סומן כלא מתאים למתאמן ולא ישובץ.`);
+        break;
+      }
+
       case 'session_done':
         break;
     }

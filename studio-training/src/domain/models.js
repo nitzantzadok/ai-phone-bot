@@ -55,7 +55,44 @@ export function normalizeStudio(raw = {}) {
     /** האם המקום ממוזג — רלוונטי לטרשת נפוצה, הריון ומצבים לבביים. */
     climateControlled: raw.climateControlled ?? true,
     trainers: raw.trainers || [],
+    /** ספריית התרגילים שהמאמנים בסטודיו כתבו בעצמם. */
+    customExercises: (raw.customExercises || []).map(normalizeCustomExercise),
+    /** פרטי רישום: כתובת, טלפון, שעות, וכל מה שהוזן בתהליך ההרשמה. */
+    profile: raw.profile || {},
+    /** תמונות ציוד שהועלו בהרשמה: { item: dataUrlOrPath } */
+    equipmentPhotos: raw.equipmentPhotos || {},
+    /** טווחי משקלים לכל פריט: { dumbbell: {min,max,step}, ... } */
+    equipmentWeights: raw.equipmentWeights || {},
+    createdAt: raw.createdAt || null,
     notes: raw.notes || '',
+  };
+}
+
+/**
+ * תרגיל שהמאמן כתב בעצמו.
+ * שדות החובה הם מה שהמאמן באמת צריך לכתוב; שדות המבנה אופציונליים
+ * ומשמשים את המנוע לשיבוץ אוטומטי — בלעדיהם התרגיל נכנס כתרגיל עזר בלבד.
+ */
+export function normalizeCustomExercise(raw = {}) {
+  return {
+    id: raw.id || `custom_${Math.random().toString(36).slice(2, 9)}`,
+    custom: true,
+    name: raw.name || 'תרגיל ללא שם',
+    description: raw.description || '',
+    sets: raw.sets ?? 3,
+    reps: raw.reps ?? '10',
+    load: raw.load ?? '',
+    notes: raw.notes || '',
+    // --- אופציונלי: משפר שיבוץ אוטומטי
+    pattern: raw.pattern || null,
+    primaryMuscle: raw.primaryMuscle || null,
+    equipment: raw.equipment || [],
+    // --- מצב בדיקה בשטח
+    status: raw.status || 'draft',     // draft | tested_ok | tested_failed
+    testedAt: raw.testedAt || null,
+    testedWith: raw.testedWith || [],  // מזהי מתאמנים שאצלם נבדק בהצלחה
+    createdBy: raw.createdBy || '',
+    createdAt: raw.createdAt || null,
   };
 }
 
@@ -120,6 +157,19 @@ export function normalizeTrainee(raw = {}) {
     notes: raw.notes || '',
     /** היסטוריית משקלי עבודה: exerciseId -> { load, reps, date } */
     history: raw.history || {},
+    /**
+     * תרגילים שהמאמן בדק בשטח ואישר שהמתאמן מבצע אותם בסדר,
+     * גם אם מגבלה רפואית הייתה פוסלת אותם. זו העדות מהשטח שגוברת על הכלל.
+     */
+    approvedExercises: (raw.approvedExercises || []).map((a) => (typeof a === 'string'
+      ? { id: a, approvedAt: null, note: '', source: 'manual' }
+      : { id: a.id, approvedAt: a.approvedAt || null, note: a.note || '', source: a.source || 'manual' })),
+    /** תרגילים שנחסמו בעקבות כאב בשטח — חסימה קשה שאינה נפתחת מאליה. */
+    blockedExercises: (raw.blockedExercises || []).map((b) => (typeof b === 'string'
+      ? { id: b, reason: '', at: null }
+      : { id: b.id, reason: b.reason || '', at: b.at || null })),
+    /** תרגילים שהמאמן כתב בעצמו עבור המתאמן הזה. */
+    customExercises: (raw.customExercises || []).map(normalizeCustomExercise),
   };
 }
 

@@ -70,6 +70,29 @@ export const MUSCLE_LABELS = {
   core_lateral: 'ליבה צידית', core_posterior: 'ליבה אחורית', neck: 'צוואר',
 };
 
+/**
+ * קטלוג הציוד לצ׳קליסט ההרשמה, מקובץ לקטגוריות שאדם חושב בהן.
+ * זהו המקור היחיד — גם השרת וגם מסך ההרשמה קוראים ממנו.
+ */
+export const EQUIPMENT_CATEGORIES = [
+  { key: 'free_weights', label: 'משקולות חופשיות',
+    items: ['barbell', 'dumbbell', 'kettlebell', 'ez_bar', 'fixed_barbell', 'weight_plate', 'trap_bar', 'landmine', 'sandbag'] },
+  { key: 'benches', label: 'ספסלים וכלובים',
+    items: ['bench_flat', 'bench_incline', 'bench_decline', 'squat_rack', 'power_rack', 'smith_machine', 'preacher_curl_bench', 'back_extension_bench', 'roman_chair', 'ghd'] },
+  { key: 'machines', label: 'מכונות',
+    items: ['cable_crossover', 'lat_pulldown', 'seated_row_machine', 'chest_press_machine', 'shoulder_press_machine', 'pec_deck', 'rear_delt_machine', 'leg_press', 'hack_squat', 'leg_extension', 'leg_curl_lying', 'leg_curl_seated', 'hip_thrust_machine', 'abduction_machine', 'adduction_machine', 'calf_raise_machine', 'ab_machine', 'assisted_pullup_machine', 'glute_kickback_machine', 'pullover_machine'] },
+  { key: 'functional', label: 'פונקציונלי',
+    items: ['trx', 'resistance_band', 'mini_band', 'medicine_ball', 'slam_ball', 'battle_rope', 'plyo_box', 'bosu', 'stability_ball', 'ab_wheel', 'sled', 'suspension_anchor', 'foam_roller', 'step', 'mat', 'pullup_bar', 'dip_station'] },
+  { key: 'cardio', label: 'קרדיו',
+    items: ['treadmill', 'bike', 'rower', 'ski_erg', 'elliptical', 'air_bike', 'stair_climber', 'jump_rope', 'recumbent_bike', 'arm_ergometer'] },
+  { key: 'pilates', label: 'פילאטיס',
+    items: ['reformer', 'pilates_mat', 'pilates_ring', 'pilates_chair', 'cadillac', 'pilates_barrel', 'small_ball'] },
+  { key: 'boxing', label: 'אגרוף',
+    items: ['heavy_bag', 'boxing_pads', 'speed_bag'] },
+  { key: 'support', label: 'נגישות ותמיכה',
+    items: ['chair', 'wall', 'parallel_bars', 'stable_support'] },
+];
+
 const label = (map) => (key) => map[key] || key;
 export const equipmentLabel = label(EQUIPMENT_LABELS);
 export const splitLabel = label(SPLIT_LABELS);

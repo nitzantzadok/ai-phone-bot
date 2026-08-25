@@ -4,6 +4,7 @@
  */
 
 import { getConstraint, SEVERITY_STRICTNESS } from '../domain/constraints.js';
+import { customToExercise } from '../domain/exercises.js';
 import { coachLoad } from '../domain/models.js';
 import { ageAdjustments, LEVEL_MAX_SKILL } from './prescription.js';
 
@@ -161,15 +162,29 @@ export function buildCandidatePool(exercises, trainee, studio) {
   const eligible = [];
   const rejected = [];
 
-  for (const ex of exercises) {
+  const approved = new Map(trainee.approvedExercises.map((a) => [a.id, a]));
+  const blocked = new Set(trainee.blockedExercises.map((b) => b.id));
+
+  // תרגילים שהמאמן כתב בעצמו ונבדקו בשטח מצטרפים למאגר המועמדים
+  const pool = [...exercises, ...eligibleCustomExercises(trainee, studio)];
+
+  for (const ex of pool) {
+    if (blocked.has(ex.id)) {
+      const reason = trainee.blockedExercises.find((b) => b.id === ex.id)?.reason || '';
+      rejected.push({ id: ex.id, reason: 'blocked', detail: [reason || 'נחסם בעקבות דיווח מהשטח'] });
+      continue;
+    }
     const eq = equipmentCheck(ex, studio, trainee.equipmentBlocklist, { travelWeek: trainee.travelWeek });
     if (!eq.ok) { rejected.push({ id: ex.id, reason: 'equipment', detail: eq.missing }); continue; }
 
     const sp = spaceCheck(ex, studio);
     if (!sp.ok) { rejected.push({ id: ex.id, reason: 'space', detail: sp.reasons }); continue; }
 
+    // תרגיל שנבדק בשטח ואושר גובר על הכלל הרפואי — זו עדות ישירה על
+    // המתאמן הזה, והיא שווה יותר מהנחת ברירת המחדל של המערכת.
+    const isApproved = approved.has(ex.id);
     const cc = constraintCheck(ex, trainee);
-    if (!cc.allowed) { rejected.push({ id: ex.id, reason: 'constraint', detail: cc.reasons }); continue; }
+    if (!cc.allowed && !isApproved) { rejected.push({ id: ex.id, reason: 'constraint', detail: cc.reasons }); continue; }
 
     const sk = skillCheck(ex, trainee, studio);
     if (!sk.ok) { rejected.push({ id: ex.id, reason: 'skill', detail: [`דורש רמה ${ex.skill}; התקרה בפועל ${sk.max} (${sk.limiter})`] }); continue; }
@@ -180,9 +195,12 @@ export function buildCandidatePool(exercises, trainee, studio) {
       exercise: ex,
       equipmentOption: eq.option,
       scarcity: scarcity(ex, studio, eq.option),
-      constraintPenalty: cc.penalty,
-      constraintNotes: cc.reasons,
+      constraintPenalty: isApproved ? 0 : cc.penalty,
+      constraintNotes: isApproved
+        ? [`אושר בבדיקת שטח: ${approved.get(ex.id).note || 'בוצע ללא כאב'}`]
+        : cc.reasons,
       bonuses: cc.bonuses,
+      approved: isApproved,
     });
   }
   return { eligible, rejected, coverage: poolCoverage(eligible) };
@@ -199,6 +217,21 @@ export function poolCoverage(eligible) {
   const missing = ['squat', 'hinge', 'horizontal_push', 'vertical_push', 'horizontal_pull', 'vertical_pull']
     .filter((p) => !byPattern[p]);
   return { total: eligible.length, byPattern, missingPatterns: missing };
+}
+
+/**
+ * אילו תרגילים מותאמים רשאים להיכנס לשיבוץ אוטומטי.
+ * רק כאלה שנבדקו בשטח והצליחו — טיוטה נשמרת אך אינה נכנסת לתכנית מעצמה.
+ */
+export function eligibleCustomExercises(trainee, studio) {
+  const fromTrainee = trainee.customExercises || [];
+  const fromStudio = (studio.customExercises || []).filter((c) => (c.testedWith || []).includes(trainee.id));
+  const all = [...fromTrainee, ...fromStudio];
+  const seen = new Set();
+  return all
+    .filter((c) => c.status === 'tested_ok')
+    .filter((c) => (seen.has(c.id) ? false : seen.add(c.id)))
+    .map(customToExercise);
 }
 
 /** תרגילים שהמגבלות ממליצות לשלב באופן אקטיבי (עבודת פרה-האב). */

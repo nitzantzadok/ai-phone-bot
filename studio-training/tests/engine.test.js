@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildProgram, buildStudioPrograms, normalizeStudio, normalizeTrainee,
   applyFeedback, advanceWeek, nextTarget, chooseSplit, getExercise,
+  buildCandidatePool, buildProbes,
   EXERCISES, CONSTRAINTS, taxonomy,
 } from '../src/index.js';
 import { FLAGS, STRESS_KEYS } from '../src/domain/exercises.js';
@@ -197,10 +198,78 @@ test('דיווח כאב מוסיף מגבלה ומסיר את התרגיל מה�
     { type: 'pain', exerciseId: 'box_jump', payload: { joint: 'knee', painLevel: 8 } },
   ]);
   assert.ok(updated.constraints.some((c) => c.id === 'knee_pain_patellofemoral' && c.severity === 'acute'));
-  assert.ok(updated.dislikes.includes('box_jump'));
+  // כאב נרשם כחסימה קשה עם סיבה, ולא כ"לא אוהב"
+  assert.ok(updated.blockedExercises.some((b) => b.id === 'box_jump' && b.reason.includes('כאב')));
   assert.ok(changes.length >= 2);
   const next = buildProgram(updated, studioOf(TRAINEES[4])).program;
   assert.ok(!allBlocks(next).some((b) => b.exercise.id === 'box_jump'));
+});
+
+test('תרגיל שנבדק בשטח ואושר נכנס לתכנית למרות המגבלה', () => {
+  const base = {
+    id: 'probe1', level: 'novice', daysPerWeek: 3, primaryGoal: 'general_fitness', goals: ['general_fitness'],
+    constraints: [{ id: 'knee_pain_patellofemoral', severity: 'acute' }],
+  };
+  const without = buildProgram(base, STUDIOS[0]).program;
+  assert.ok(!allBlocks(without).some((b) => b.exercise.id === 'goblet_squat'), 'הסקוואט אמור להיפסל בלי אישור');
+
+  const withApproval = buildProgram({ ...base, approvedExercises: [{ id: 'goblet_squat', note: 'נבדק, אין כאב' }] }, STUDIOS[0]).program;
+  assert.ok(allBlocks(withApproval).some((b) => b.exercise.id === 'goblet_squat'), 'אחרי אישור בשטח התרגיל אמור להיכנס');
+});
+
+test('תרגיל חסום לעולם לא חוזר לתכנית', () => {
+  const t = { ...TRAINEES[1], blockedExercises: [{ id: 'leg_press', reason: 'כאב' }] };
+  assert.ok(!allBlocks(buildProgram(t, studioOf(TRAINEES[1])).program).some((b) => b.exercise.id === 'leg_press'));
+});
+
+test('תרגיל בדיקה מוצע לפציעה מקומית ולא למצב מערכתי', () => {
+  const knee = normalizeTrainee({ id: 'k', constraints: [{ id: 'knee_pain_patellofemoral', severity: 'acute' }] });
+  const probes = buildProbes(knee, normalizeStudio(STUDIOS[0]));
+  assert.ok(probes.length >= 1, 'לא הוצע תרגיל בדיקה לברך');
+  assert.equal(probes[0].locked, true, 'בפציעה חריפה הבדיקה חייבת להיות נעולה');
+  assert.ok(probes[0].stopRule.length > 10);
+  assert.ok(getExercise(probes[0].exercise.id).skill <= 2, 'תרגיל הבדיקה חייב להיות פשוט');
+
+  const pregnant = normalizeTrainee({ id: 'p', constraints: [{ id: 'pregnancy_t2_t3', severity: 'subacute' }] });
+  assert.equal(buildProbes(pregnant, normalizeStudio(STUDIOS[0])).length, 0,
+    'אין להציע תרגיל בדיקה למגבלה מערכתית');
+});
+
+test('תוצאת בדיקה חיובית מאשרת, ושלילית חוסמת', () => {
+  const t = normalizeTrainee({ id: 'pr', constraints: [{ id: 'knee_pain_patellofemoral', severity: 'subacute' }] });
+  const ok = applyFeedback(t, [{ type: 'probe_ok', exerciseId: 'wall_sit' }]).trainee;
+  assert.ok(ok.approvedExercises.some((a) => a.id === 'wall_sit' && a.source === 'probe'));
+
+  const bad = applyFeedback(t, [{ type: 'probe_pain', exerciseId: 'wall_sit', payload: { painLevel: 6 } }]).trainee;
+  assert.ok(bad.blockedExercises.some((b) => b.id === 'wall_sit'));
+  assert.ok(!bad.approvedExercises.some((a) => a.id === 'wall_sit'));
+});
+
+test('תרגיל שהמאמן כתב נשמר כטיוטה, ונכנס לשיבוץ רק אחרי בדיקה מוצלחת', () => {
+  const base = normalizeTrainee({ id: 'cst', level: 'novice', daysPerWeek: 3, primaryGoal: 'general_fitness', goals: ['general_fitness'] });
+  const payload = {
+    id: 'custom_rope', name: 'משיכת חבל אלכסונית', description: 'משיכה אלכסונית מלמעלה למטה',
+    sets: 3, reps: '10-12', load: '15', notes: 'ליבה מכווצת',
+    pattern: 'horizontal_pull', primaryMuscle: 'back_upper', equipment: ['cable_crossover'],
+  };
+  const added = applyFeedback(base, [{ type: 'custom_add', payload }]).trainee;
+  assert.equal(added.customExercises[0].status, 'draft');
+  assert.ok(!allBlocks(buildProgram(added, STUDIOS[0]).program).some((b) => b.exercise.id === 'custom_rope'),
+    'טיוטה לא אמורה להיכנס לתכנית');
+
+  const tested = applyFeedback(added, [{ type: 'custom_tested_ok', exerciseId: 'custom_rope' }]).trainee;
+  assert.equal(tested.customExercises[0].status, 'tested_ok');
+  const pool = buildCandidatePool(EXERCISES, tested, normalizeStudio(STUDIOS[0]));
+  assert.ok(pool.eligible.some((c) => c.exercise.id === 'custom_rope'),
+    'אחרי בדיקה מוצלחת התרגיל אמור להיות זמין לשיבוץ');
+});
+
+test('לכל תרגיל במאגר יש תיאור מדויק שמוצג למאמן', () => {
+  for (const ex of EXERCISES) {
+    assert.ok(ex.description && ex.description.length >= 40,
+      `${ex.id} (${ex.name}): תיאור חסר או קצר מדי`);
+    assert.ok(/[.!]$/.test(ex.description.trim()), `${ex.id}: התיאור אינו משפט שלם`);
+  }
 });
 
 test('דילוג פעמיים על אותו תרגיל מסיר אותו', () => {

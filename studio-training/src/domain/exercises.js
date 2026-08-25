@@ -11,6 +11,8 @@
  *  - fatigue: עלות עייפות מערכתית — מגביל כמה כאלה ייכנסו לאותו יום.
  */
 
+import { DESCRIPTIONS } from './descriptions.js';
+
 /** מפתחות מפרק/מבנה שעליהם מודדים עומס. */
 export const STRESS_KEYS = [
   'lumbar', 'knee', 'shoulder', 'elbow', 'wrist', 'hip', 'neck', 'ankle', 'cardio',
@@ -53,6 +55,10 @@ function ex(d) {
     id: d.id,
     name: d.name,
     nameEn: d.nameEn,
+    /** תיאור מדויק שמוצג למאמן מתחת לשם התרגיל. */
+    description: d.description || DESCRIPTIONS[d.id] || '',
+    /** תרגיל שנכתב על ידי מאמן ולא מגיע מהמאגר. */
+    custom: !!d.custom,
     type: d.type || 'compound',           // compound | isolation | carry | conditioning | mobility
     pattern: d.pattern,
     primary: d.primary,
@@ -820,6 +826,37 @@ export const EXERCISES = [
     loadable: false, stress: { neck: 1 }, tags: ['isometric', 'rehab_friendly', 'posture'],
     cues: ['לחץ קל של כף היד כנגד הראש, ללא תנועה, נשימה רציפה'] }),
 ];
+
+/**
+ * הופך תרגיל שהמאמן כתב בעצמו לאובייקט תרגיל מלא שהמנוע יודע לעבוד איתו.
+ * שדות שהמאמן לא מילא מקבלים ברירות מחדל שמרניות: התרגיל נחשב עזר,
+ * בעומס נמוך ובלי דגלי סיכון — כדי שהוא לעולם לא ייכנס במקום תרגיל עיקרי
+ * רק משום שאין עליו מידע.
+ */
+export function customToExercise(c) {
+  const reps = String(c.reps ?? '10');
+  const nums = reps.match(/\d+/g)?.map(Number) || [10];
+  return ex({
+    id: c.id,
+    name: c.name,
+    nameEn: c.name,
+    description: c.description || '',
+    custom: true,
+    type: c.pattern ? 'compound' : 'isolation',
+    pattern: c.pattern || 'core_antiextension',
+    primary: c.primaryMuscle ? [c.primaryMuscle] : ['core_anterior'],
+    secondary: [],
+    eq: c.equipment && c.equipment.length ? [c.equipment] : [['bodyweight']],
+    skill: 1,
+    fatigue: 'moderate',
+    repMin: Math.min(...nums),
+    repMax: Math.max(...nums),
+    loadable: !!c.load,
+    tags: ['custom'],
+    cues: c.notes ? [c.notes] : [],
+    setupSeconds: 30,
+  });
+}
 
 /** אינדקס לפי מזהה. */
 export const BY_ID = Object.fromEntries(EXERCISES.map((e) => [e.id, e]));

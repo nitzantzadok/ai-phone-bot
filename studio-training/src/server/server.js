@@ -14,6 +14,10 @@ import { normalizeStudio, normalizeTrainee, validateInput } from '../domain/mode
 import { EQUIPMENT, GOALS, LEVELS, MUSCLES, SPLITS } from '../domain/taxonomy.js';
 import { generateWeeklyProgram, swapExercise } from '../engine/generate.js';
 import { advanceWeek, applyFeedback } from '../engine/feedback.js';
+import { buildProbes } from '../engine/probe.js';
+import { normalizeCustomExercise } from '../domain/models.js';
+import { EQUIPMENT_CATEGORIES, EQUIPMENT_LABELS, equipmentList } from '../domain/labels.js';
+import { identifyEquipment, visionAvailable } from './vision.js';
 import { Db } from '../store/db.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -58,14 +62,123 @@ const routes = {
   }),
 
   'GET /api/studios': async () => db.listStudios(),
-  'POST /api/studios': async (body) => { db.putStudio(body); return { ok: true, id: body.id }; },
+
+  /**
+   * רישום סטודיו — השלב הראשון בתהליך.
+   * מקבל את כל מה שהמערכת צריכה לדעת על המקום, מאמת, ומחזיר
+   * גם רשימה של מה שחסר כדי שהרישום יהיה שלם.
+   */
+  'POST /api/studios': async (body) => {
+    if (!body.name) throw new Error('חובה למלא שם סטודיו');
+    const id = body.id || slug(body.name);
+    const studio = { ...body, id };
+    const normalized = normalizeStudio(studio);
+    db.putStudio(studio);
+    return {
+      ok: true,
+      id,
+      summary: studioSummary(normalized),
+      missing: missingStudioInfo(normalized),
+    };
+  },
+
+  'GET /api/equipment/catalog': async () => ({
+    /** קטלוג הציוד לצ׳קליסט, מקובץ לקטגוריות שאדם חושב בהן. */
+    categories: EQUIPMENT_CATEGORIES.map((c) => ({
+      key: c.key, label: c.label,
+      items: c.items.map((id) => ({ id, label: EQUIPMENT_LABELS[id] || id })),
+    })),
+    vision: await visionAvailable(),
+  }),
+
+  /** זיהוי ציוד מתמונה — הצעה בלבד, בעל הסטודיו מאשר. */
+  'POST /api/equipment/identify': async (body) => {
+    const images = (body.images || []).map((img) => {
+      const m = String(img).match(/^data:(image\/[a-z+]+);base64,(.+)$/);
+      if (!m) throw new Error('פורמט תמונה לא נתמך — נדרש data URL של תמונה');
+      if (m[2].length > 7_000_000) throw new Error('התמונה גדולה מדי; יש לצלם בפחות פירוט');
+      return { mediaType: m[1], base64: m[2] };
+    });
+    if (!images.length) throw new Error('לא צורפה תמונה');
+    try {
+      return { ok: true, ...(await identifyEquipment(images)) };
+    } catch (err) {
+      return { ok: false, code: err.code || 'error', error: err.message, fallback: 'checklist' };
+    }
+  },
+
+  /** שמירת תמונת ציוד כתיעוד, בין אם זוהתה אוטומטית ובין אם לא. */
+  'POST /api/equipment/photo': async (body) => {
+    if (!body.studioId || !body.dataUrl) throw new Error('נדרשים מזהה סטודיו ותמונה');
+    const photo = db.putPhoto({ studioId: body.studioId, item: body.item || null, dataUrl: body.dataUrl, note: body.note || '' });
+    return { ok: true, id: photo.id };
+  },
+  'GET /api/equipment/photos': async (_b, url) => db.photosFor(url.searchParams.get('studioId')),
 
   'GET /api/trainees': async (_b, url) => db.listTrainees(url.searchParams.get('studioId')),
+  /**
+   * רישום מתאמן על ידי בעל הסטודיו — השלב השני בתהליך.
+   * מאמת מיד, ומחזיר גם את התכנית הראשונה כדי שהרישום יסתיים במשהו שימושי.
+   */
   'POST /api/trainees': async (body) => {
-    const t = normalizeTrainee(body);
-    const stored = { ...body, id: t.id };
+    if (!body.name) throw new Error('חובה למלא שם מתאמן');
+    if (!body.studioId || !db.getStudio(body.studioId)) throw new Error('יש לבחור סטודיו קיים');
+    const id = body.id || `${slug(body.name)}_${Math.random().toString(36).slice(2, 6)}`;
+    const stored = { ...body, id };
+    const trainee = normalizeTrainee(stored);
+    const studio = normalizeStudio(db.getStudio(body.studioId));
+    const v = validateInput(trainee, studio);
+    if (!v.ok) return { ok: false, errors: v.errors, warnings: v.warnings };
+
     db.putTrainee(stored);
-    return { ok: true, id: t.id };
+    const program = generateWeeklyProgram(trainee, studio);
+    program.warnings = v.warnings;
+    db.putProgram(program);
+    return { ok: true, id, warnings: v.warnings, program };
+  },
+
+  'GET /api/trainee': async (_b, url) => {
+    const t = db.getTrainee(url.searchParams.get('id'));
+    if (!t) throw new Error('מתאמן לא נמצא');
+    const trainee = normalizeTrainee(t);
+    const studio = normalizeStudio(db.getStudio(t.studioId));
+    return {
+      trainee,
+      probes: buildProbes(trainee, studio),
+      history: db.history({ traineeId: trainee.id }).slice(-50),
+    };
+  },
+
+  /** תרגיל שהמאמן כותב בעצמו — נשמר כטיוטה עד שנבדק בשטח. */
+  'POST /api/custom-exercise': async (body) => {
+    const raw = db.getTrainee(body.traineeId);
+    if (!raw) throw new Error('מתאמן לא נמצא');
+    if (!body.name) throw new Error('חובה למלא שם תרגיל');
+    const custom = normalizeCustomExercise({ ...body, createdAt: new Date().toISOString() });
+    raw.customExercises = [...(raw.customExercises || []).filter((c) => c.id !== custom.id), custom];
+    db.putTrainee(raw);
+    if (body.alsoToStudioLibrary) {
+      const studio = db.getStudio(raw.studioId);
+      studio.customExercises = [...(studio.customExercises || []).filter((c) => c.id !== custom.id), custom];
+      db.putStudio(studio);
+    }
+    db.log('custom_exercise_added', { traineeId: raw.id, exerciseId: custom.id, name: custom.name });
+    return { ok: true, exercise: custom };
+  },
+
+  /** תוצאת בדיקה של תרגיל — מותאם או תרגיל בדיקה באזור פציעה. */
+  'POST /api/exercise-trial': async (body) => {
+    const raw = db.getTrainee(body.traineeId);
+    if (!raw) throw new Error('מתאמן לא נמצא');
+    const type = body.result === 'ok'
+      ? (body.kind === 'custom' ? 'custom_tested_ok' : 'probe_ok')
+      : (body.kind === 'custom' ? 'custom_tested_failed' : 'probe_pain');
+    const ev = { type, exerciseId: body.exerciseId, payload: body.payload || {}, traineeId: raw.id };
+    db.addEvent(ev);
+    const { trainee, changes } = applyFeedback(normalizeTrainee(raw), [ev]);
+    db.putTrainee({ ...raw, ...trainee });
+    db.log('exercise_trial', { traineeId: raw.id, exerciseId: body.exerciseId, result: body.result });
+    return { ok: true, changes };
   },
 
   'POST /api/programs/generate': async (body) => {
@@ -164,6 +277,35 @@ const server = http.createServer(async (req, res) => {
     return json(res, 400, { error: err.message });
   }
 });
+
+/** מזהה קריא מתוך שם בעברית. */
+function slug(name) {
+  const clean = String(name).trim().replace(/\s+/g, '_').replace(/[^\w\u0590-\u05FF_-]/g, '');
+  return clean || `s_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function studioSummary(studio) {
+  return {
+    id: studio.id, name: studio.name, style: studio.style,
+    equipmentCount: studio.equipment.size,
+    equipment: equipmentList([...studio.equipment.keys()].slice(0, 12)),
+    concurrentTrainees: studio.concurrentTrainees,
+    trainersOnFloor: studio.trainersOnFloor,
+  };
+}
+
+/** מה עוד כדאי למלא כדי שהתכניות יהיו מדויקות. */
+function missingStudioInfo(studio) {
+  const missing = [];
+  if (studio.equipment.size <= 1) missing.push('לא נבחר ציוד — התכניות ייבנו ממשקל גוף בלבד.');
+  if (!studio.dumbbellMaxKg && studio.equipment.get('dumbbell')) {
+    missing.push('לא הוגדר המשקל הכבד ביותר של המשקולות — בלעדיו אי אפשר לדעת מתי מתאמן הגיע לתקרה.');
+  }
+  if (!studio.ceilingHeightCm) missing.push('לא הוגדר גובה תקרה — משפיע על לחיצות מעל הראש ועל קפיצות.');
+  if (!studio.trainersOnFloor) missing.push('לא הוגדר מספר מאמנים במקביל — משפיע על מורכבות התרגילים שיוצעו.');
+  if (!studio.sessionMinutes) missing.push('לא הוגדר אורך אימון סטנדרטי.');
+  return missing;
+}
 
 const PORT = process.env.PORT || 4310;
 if (import.meta.url === `file://${process.argv[1]}`) {

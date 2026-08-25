@@ -26,6 +26,7 @@ const ROLE_DISPLAY_ORDER = ['warmup', 'prehab', 'main', 'secondary', 'accessory'
 import { coachLoad } from '../domain/models.js';
 import { alternativesFor, makeRng, pickForSlot } from './select.js';
 import { runQualityChecks } from './validate.js';
+import { buildProbes } from './probe.js';
 import { FATIGUE_COST } from '../domain/taxonomy.js';
 
 /** כמה "עייפות" יום אחד יכול לספוג. */
@@ -360,6 +361,15 @@ export function generateWeeklyProgram(trainee, studio, opts = {}) {
     weeklyVolume: {},   // מחושב מטה מהתכנית הסופית, אחרי דחיסה ותיקוני איזון
     volumeTarget: targets,
     days,
+    /**
+     * הצעות "נסה ותגיד לי" לאזורי הפציעה. אינן חלק מהאימון עצמו —
+     * הן מוצגות למאמן בנפרד, והתוצאה שלהן משנה את התכניות הבאות.
+     */
+    probes: buildProbes(trainee, studio),
+    customExercises: {
+      pending: (trainee.customExercises || []).filter((c) => c.status === 'draft'),
+      approved: (trainee.customExercises || []).filter((c) => c.status === 'tested_ok'),
+    },
     repairs: balanceRepair ? [balanceRepair] : [],
     excluded: summarizeRejections(rejected),
   };

@@ -144,14 +144,98 @@
   .swap select{flex:1; font-size:var(--step--1); max-width:none}
 
   /* ---------- יומן ---------- */
-  .log{position:fixed; inset-block-end:1rem; inset-inline-start:1rem; width:min(390px,calc(100vw - 2rem));
+  .log{position:fixed; inset-block-end:1rem; inset-inline-end:1rem; width:min(390px,calc(100vw - 2rem));
     max-height:44vh; overflow:auto; background:var(--surface); border:1px solid var(--line);
     border-radius:var(--radius); box-shadow:var(--shadow); padding:.8rem; font-size:var(--step--1); z-index:30}
   .log[hidden]{display:none}
-  .log h4{margin:0 0 .4rem; font-size:var(--step--1); letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+  .log-head{display:flex; align-items:center; gap:.4rem; margin-bottom:.4rem}
+  .log-head h4{margin:0; flex:1; font-size:var(--step--1); letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+  .log-head button{padding:.1rem .45rem; font-size:var(--step--1); border-color:transparent; color:var(--muted)}
+  .log-head button:hover{color:var(--accent); border-color:var(--accent)}
   .log .entry{border-top:1px solid var(--line); padding:.45rem 0}
   .log .entry:first-of-type{border-top:0}
   .log b{color:var(--accent)}
+
+  /* ---------- מסלול השלבים ---------- */
+  .steps{display:flex; align-items:stretch; gap:0; margin:0 0 1.1rem; border:1px solid var(--line);
+    border-radius:var(--radius); overflow:hidden; background:var(--surface)}
+  .steps a{flex:1; display:flex; gap:.6rem; align-items:center; padding:.7rem .9rem; text-decoration:none;
+    color:var(--muted); border-inline-start:1px solid var(--line); cursor:pointer; background:transparent}
+  .steps a:first-child{border-inline-start:0}
+  .steps a .n{width:26px; height:26px; flex:none; border-radius:50%; display:grid; place-items:center;
+    background:var(--surface-2); color:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:.8rem; font-weight:600}
+  .steps a .t{display:flex; flex-direction:column; line-height:1.25}
+  .steps a .t b{color:var(--ink); font-size:var(--step-0)}
+  .steps a .t span{font-size:var(--step--1)}
+  .steps a[aria-current="true"]{background:var(--accent-soft)}
+  .steps a[aria-current="true"] .n{background:var(--accent); color:var(--accent-ink)}
+  .steps a[data-done="true"] .n{background:var(--ok); color:var(--surface)}
+  @media (max-width:760px){ .steps a .t span{display:none} }
+
+  /* ---------- כותרת מסך ---------- */
+  .hero{display:flex; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:.9rem}
+  .hero h2{font-size:var(--step-3); letter-spacing:-.02em; line-height:1.1}
+  .hero p{margin:.3rem 0 0; color:var(--ink-2); font-size:var(--step-0); max-width:62ch}
+  .tiles{display:flex; gap:.5rem; flex-wrap:wrap; margin-inline-start:auto}
+  .tile{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:.5rem .8rem; min-width:96px}
+  .tile b{display:block; font-family:"IBM Plex Mono",monospace; font-size:var(--step-2); line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  .tile span{font-size:var(--step--1); color:var(--muted)}
+  .tile.accent b{color:var(--accent)}
+
+  /* ---------- טפסים ---------- */
+  .tabs{display:flex; gap:.25rem; background:var(--surface-2); padding:.2rem; border-radius:10px}
+  .tabs button{background:transparent; border:0; padding:.35rem .8rem; border-radius:8px; font-weight:600; color:var(--muted)}
+  .tabs button[aria-current="true"]{background:var(--surface); color:var(--ink); box-shadow:var(--shadow)}
+  fieldset{border:0; border-top:1px solid var(--line); padding:.9rem 0 .2rem; margin:0 0 .6rem}
+  fieldset:first-of-type{border-top:0; padding-top:.2rem}
+  legend{font-family:"Frank Ruhl Libre",Georgia,serif; font-weight:700; padding:0; font-size:var(--step-1);
+    letter-spacing:-.01em; margin-bottom:.15rem}
+  .fields{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.7rem}
+  label.f{display:flex; flex-direction:column; gap:.22rem; font-size:var(--step--1); color:var(--muted)}
+  label.f > span.req::after{content:' *'; color:var(--crit)}
+  label.f input, label.f select, label.f textarea{color:var(--ink); background:var(--surface); width:100%}
+  label.f textarea{min-height:64px; resize:vertical; font-family:inherit}
+  .hint{font-size:var(--step--1); color:var(--muted); margin:.3rem 0 0}
+  /* ---------- בורר ציוד ---------- */
+  .presets{display:flex; gap:.35rem; flex-wrap:wrap; margin:.2rem 0 .8rem}
+  .presets button{border-radius:999px; padding:.28rem .75rem; font-size:var(--step--1); background:var(--surface-2)}
+  .presets button:hover{background:var(--accent-soft); color:var(--accent); border-color:transparent}
+  .eqsearch{width:100%; max-width:320px; margin-bottom:.7rem}
+  .eqcat{margin-bottom:.85rem}
+  .eqcat > h4{font-size:var(--step--1); letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+    margin:0 0 .4rem; font-family:Assistant,sans-serif; font-weight:700}
+  .eqgrid{display:flex; flex-wrap:wrap; gap:.35rem}
+  .eqchip{display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--line); background:var(--surface);
+    border-radius:999px; padding:.22rem .3rem .22rem .7rem; font-size:var(--step--1); cursor:pointer;
+    transition:background .12s, border-color .12s, color .12s}
+  .eqchip:hover{border-color:var(--accent)}
+  .eqchip[aria-pressed="true"]{background:var(--accent-soft); border-color:transparent; color:var(--accent); font-weight:600}
+  .eqchip .qty{width:44px; padding:.05rem .25rem; font-size:var(--step--1); border-radius:6px;
+    border:1px solid var(--line); background:var(--surface); color:var(--ink); text-align:center;
+    font-family:"IBM Plex Mono",monospace}
+  .eqchip .qty[hidden]{display:none}
+  .eqchip .mark{width:16px; height:16px; border-radius:50%; border:1.5px solid var(--line); flex:none}
+  .eqchip[aria-pressed="true"] .mark{background:var(--accent); border-color:var(--accent); position:relative}
+  .eqchip[aria-pressed="true"] .mark::after{content:'✓'; position:absolute; inset:0; display:grid; place-items:center;
+    color:var(--accent-ink); font-size:11px; font-weight:700}
+  .listrow{display:flex; align-items:center; gap:.5rem; padding:.45rem .1rem; border-top:1px solid var(--line)}
+  .listrow:first-of-type{border-top:0}
+  .listrow strong{font-weight:700}
+  .grow{flex:1}
+  .banner{border-inline-start:3px solid var(--accent); background:var(--accent-soft); color:var(--ink);
+    padding:.55rem .7rem; border-radius:8px; font-size:var(--step--1); margin-bottom:.8rem}
+  .banner.warn{border-color:var(--warn); background:var(--warn-soft)}
+  .banner.crit{border-color:var(--crit); background:var(--crit-soft)}
+  .probe{border:1px solid var(--warn); background:var(--warn-soft); border-radius:var(--radius); padding:.75rem; margin-top:.7rem}
+  .probe.open{border-color:var(--accent); background:var(--accent-soft)}
+  .probe h4{margin:0 0 .2rem; font-size:var(--step-0)}
+  .desc{font-size:var(--step--1); color:var(--ink-2); margin:.25rem 0 0; line-height:1.5}
+  .filebtn{display:inline-flex; align-items:center; gap:.4rem; border:1px solid var(--line); background:var(--surface);
+    border-radius:8px; padding:.42rem .7rem; cursor:pointer; font-size:var(--step-0)}
+  .filebtn:hover{border-color:var(--accent); color:var(--accent)}
+  .thumbs{display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.5rem}
+  .thumbs img{width:70px; height:70px; object-fit:cover; border-radius:8px; border:1px solid var(--line)}
 
   table{width:100%; border-collapse:collapse; font-size:var(--step--1)}
   th,td{text-align:start; padding:.28rem .4rem; border-bottom:1px solid var(--line)}
@@ -161,33 +245,74 @@
   .bar-fill{height:100%; background:var(--accent)}
   .bar-fill.over{background:var(--warn)}
   details summary{cursor:pointer; color:var(--muted); font-size:var(--step--1)}
-  .empty{color:var(--muted); font-size:var(--step--1)}
+  .empty{color:var(--muted); font-size:var(--step--1); border:1px dashed var(--line); border-radius:10px;
+    padding:1rem; text-align:center}
+  .optional > summary{margin:.2rem 0 .5rem; font-weight:600; color:var(--accent)}
+  .optional[open] > summary{margin-bottom:.7rem}
+  .daypick{display:flex; gap:.3rem; flex-wrap:wrap}
+  .daypick label{display:inline-flex; align-items:center; gap:.3rem; border:1px solid var(--line); border-radius:999px;
+    padding:.2rem .6rem; font-size:var(--step--1); cursor:pointer}
+  .daypick input{accent-color:var(--accent)}
   @media (prefers-reduced-motion:reduce){ *{transition:none !important; animation:none !important} }
+
+  /* ---------- הדפסה: דף נקי למסירה למתאמן ---------- */
+  @media print{
+    :root{--ground:#fff; --surface:#fff; --surface-2:#fff; --line:#c9cbc8; --ink:#000; --ink-2:#333;
+      --muted:#555; --accent:#1F5F8B; --accent-soft:#eef4f8; --shadow:none}
+    header.bar, .steps, .tabs, .log, .acts, details.more, .swap, #programSteps,
+    #viewStudio, #viewTrainees, .tiles, #print, #gen, #genAll, #next, .bar{display:none !important}
+    body{background:#fff}
+    .wrap{max-width:none; padding:0}
+    .cols{display:block}
+    .card{break-inside:avoid; box-shadow:none; border-color:#c9cbc8; margin-bottom:.6rem}
+    .days{display:block}
+    .day{break-inside:avoid; page-break-inside:avoid}
+    .ex{break-inside:avoid}
+    a[href]::after{content:''}
+  }
 </style>
 </head>
 <body>
 
 <header class="bar">
   <h1>מסך המאמן</h1>
-  <select id="studio" aria-label="בחירת סטודיו"></select>
-  <select id="trainee" aria-label="בחירת מתאמן"></select>
-  <button class="primary" id="gen">בנה תכנית</button>
-  <button id="genAll">כל הסטודיו</button>
-  <button id="next">שבוע הבא</button>
+  <nav class="tabs" id="tabs">
+    <button data-view="studio">1 · סטודיו</button>
+    <button data-view="trainees">2 · מתאמנים</button>
+    <button data-view="program">3 · אימון</button>
+  </nav>
   <span class="spacer"></span>
+  <span id="mode" class="chip"></span>
   <span id="status" class="chip"></span>
   <button class="ghost" id="theme" aria-label="מצב תצוגה">◐</button>
 </header>
 
 <main class="wrap">
-  <div class="cols">
-    <aside class="rail" id="rail"></aside>
-    <section id="days"></section>
-  </div>
+  <section id="viewStudio" hidden></section>
+  <section id="viewTrainees" hidden></section>
+  <section id="viewProgram" hidden>
+    <div id="programSteps"></div>
+    <div class="bar" style="position:static; background:transparent; border:0; padding:0 0 .9rem">
+      <select id="studio" aria-label="בחירת סטודיו"></select>
+      <select id="trainee" aria-label="בחירת מתאמן"></select>
+      <button class="primary" id="gen">בנה תכנית</button>
+      <button id="genAll">כל הסטודיו</button>
+      <button id="next">שבוע הבא</button>
+      <button id="print">הדפס / שמור PDF</button>
+    </div>
+    <div class="cols">
+      <aside class="rail" id="rail"></aside>
+      <section id="days"></section>
+    </div>
+  </section>
 </main>
 
-<aside class="log" id="log" hidden>
-  <h4>משוב מהשטח</h4>
+<aside class="log" id="log" hidden aria-live="polite">
+  <div class="log-head">
+    <h4>יומן פעילות</h4>
+    <button class="ghost" id="logClear" title="נקה">נקה</button>
+    <button class="ghost" id="logClose" aria-label="סגור">✕</button>
+  </div>
   <div id="logBody"></div>
 </aside>
 
@@ -199,60 +324,110 @@
    ================================================================== */
 
 const $ = (s) => document.querySelector(s);
-const STORE_KEY = 'studio-training/trainees/v1';
+const STORE_KEY = 'studio-training/db/v2';
 
-const state = { studios: STUDIOS, trainees: null, program: null };
+const state = { studios: [], trainees: [], program: null, view: 'program', server: false };
 
-/** טעינת מתאמנים מהדפדפן, עם נפילה חיננית לנתוני הדמו. */
-function loadTrainees() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* דפדפן שחוסם אחסון — ממשיכים עם נתוני הדמו */ }
-  return structuredClone(TRAINEES);
-}
-function saveTrainees() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state.trainees)); } catch { /* לא קריטי */ }
-}
+/* ==================================================================
+   שכבת אחסון.
+   כשהעמוד מוגש מהשרת של הסטודיו — הכול נשמר במסד המשותף וכל המאמנים
+   רואים את אותו מידע. כשהוא נפתח כקובץ עצמאי אין שרת, ולכן הנתונים
+   נשמרים בדפדפן הזה בלבד. המצב מוצג במפורש בראש המסך.
+   ================================================================== */
+const api = async (path, body, method) => {
+  const res = await fetch(path, body
+    ? { method: method || 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    : {});
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+};
 
+const store = {
+  async detect() {
+    // עמוד שנפתח כקובץ מקומי או כארטיפקט אינו יכול לפנות לשרת כלל,
+    // ואין טעם לנסות — הניסיון רק מייצר שגיאת רשת מיותרת בקונסול.
+    if (!location.protocol.startsWith('http')) { state.server = false; return false; }
+    try {
+      const r = await fetch('/api/health', { cache: 'no-store' });
+      state.server = r.ok && (await r.json()).ok === true;
+    } catch { state.server = false; }
+    return state.server;
+  },
+  async load() {
+    if (state.server) {
+      state.studios = await api('/api/studios');
+      state.trainees = await api('/api/trainees');
+      return;
+    }
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch { /* אחסון חסום */ }
+    state.studios = local?.studios || structuredClone(STUDIOS);
+    state.trainees = local?.trainees || structuredClone(TRAINEES);
+  },
+  persistLocal() {
+    if (state.server) return;
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({ studios: state.studios, trainees: state.trainees }));
+    } catch { /* אחסון חסום — הנתונים יישמרו רק לזמן הפעלה זו */ }
+  },
+  async saveStudio(studio) {
+    if (state.server) {
+      const r = await api('/api/studios', studio);
+      await this.load();
+      return r;
+    }
+    const id = studio.id || slugify(studio.name);
+    const withId = { ...studio, id };
+    state.studios = [...state.studios.filter((x) => x.id !== id), withId];
+    this.persistLocal();
+    const n = normalizeStudio(withId);
+    return { ok: true, id, missing: missingStudioInfo(n) };
+  },
+  async saveTrainee(trainee) {
+    if (state.server) {
+      const r = await api('/api/trainees', trainee);
+      await this.load();
+      return r;
+    }
+    const id = trainee.id || `${slugify(trainee.name)}_${Math.random().toString(36).slice(2, 6)}`;
+    const withId = { ...trainee, id };
+    const v = validateInput(normalizeTrainee(withId), normalizeStudio(studioById(trainee.studioId)));
+    if (!v.ok) return { ok: false, errors: v.errors, warnings: v.warnings };
+    state.trainees = [...state.trainees.filter((x) => x.id !== id), withId];
+    this.persistLocal();
+    return { ok: true, id, warnings: v.warnings };
+  },
+  async updateTrainee(raw) {
+    state.trainees = [...state.trainees.filter((x) => x.id !== raw.id), raw];
+    if (state.server) { try { await api('/api/trainees', raw); } catch { /* נשמר מקומית בכל מקרה */ } }
+    this.persistLocal();
+  },
+};
+
+const slugify = (name) => String(name).trim().replace(/\s+/g, '_').replace(/[^\w֐-׿_-]/g, '') || `x_${Date.now()}`;
 const studioById = (id) => state.studios.find((s) => s.id === id);
 const traineeById = (id) => state.trainees.find((t) => t.id === id);
+const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/** מה חסר בפרופיל הסטודיו כדי שהתכניות יהיו מדויקות. */
+function missingStudioInfo(studio) {
+  const missing = [];
+  if (studio.equipment.size <= 1) missing.push('לא נבחר ציוד — התכניות ייבנו ממשקל גוף בלבד.');
+  if (!studio.dumbbellMaxKg && studio.equipment.get('dumbbell')) missing.push('לא הוגדר המשקל הכבד ביותר של המשקולות.');
+  if (!studio.ceilingHeightCm) missing.push('לא הוגדר גובה תקרה.');
+  return missing;
+}
 
 function log(title, lines) {
   const el = $('#log');
   el.hidden = false;
   const body = Array.isArray(lines) ? lines : [lines];
-  $('#logBody').insertAdjacentHTML('afterbegin',
+  const entries = $('#logBody');
+  entries.insertAdjacentHTML('afterbegin',
     `<div class="entry"><b>${title}</b><br>${body.filter(Boolean).join('<br>')}</div>`);
-}
-
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-/* ---------------------------------------------------------------- הפעלה */
-function boot() {
-  state.trainees = loadTrainees();
-  $('#studio').innerHTML = state.studios.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-  fillTrainees();
-  $('#studio').onchange = () => { fillTrainees(); generate(); };
-  $('#trainee').onchange = generate;
-  $('#gen').onclick = generate;
-  $('#genAll').onclick = generateAll;
-  $('#next').onclick = nextWeek;
-  $('#theme').onclick = toggleTheme;
-  generate();
-}
-
-function toggleTheme() {
-  const cur = document.documentElement.getAttribute('data-theme');
-  const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
-}
-
-function fillTrainees() {
-  const list = state.trainees.filter((t) => t.studioId === $('#studio').value);
-  $('#trainee').innerHTML = list.length
-    ? list.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')
-    : '<option value="">— אין מתאמנים —</option>';
+  // שומרים את היומן קצר — הוא עוזר בזמן אמת, לא ארכיון
+  while (entries.children.length > 12) entries.lastElementChild.remove();
 }
 
 function status(text, kind = '') {
@@ -261,10 +436,707 @@ function status(text, kind = '') {
   el.textContent = text;
 }
 
-/* ---------------------------------------------------------------- יצירה */
+/* ---------------------------------------------------------------- הפעלה */
+async function boot() {
+  await store.detect();
+  await store.load();
+  $('#mode').className = `chip ${state.server ? 'ok' : ''}`;
+  $('#mode').textContent = state.server ? 'מחובר למסד הסטודיו' : 'נשמר בדפדפן הזה';
+  $('#mode').title = state.server
+    ? 'הנתונים נשמרים בשרת הסטודיו וכל המאמנים רואים את אותו מידע.'
+    : 'העמוד נפתח ללא שרת, ולכן הנתונים נשמרים בדפדפן הזה בלבד. להפעלת מסד משותף: npm start.';
+
+  document.querySelectorAll('#tabs button').forEach((b) => { b.onclick = () => setView(b.dataset.view); });
+  $('#theme').onclick = toggleTheme;
+  $('#logClose').onclick = () => { $('#log').hidden = true; };
+  $('#logClear').onclick = () => { $('#logBody').innerHTML = ''; $('#log').hidden = true; };
+  $('#studio').onchange = () => { fillTrainees(); generate(); };
+  $('#trainee').onchange = generate;
+  $('#gen').onclick = generate;
+  $('#genAll').onclick = generateAll;
+  $('#next').onclick = nextWeek;
+  $('#print').onclick = () => window.print();
+
+  fillStudios();
+  setView(state.trainees.length ? 'program' : 'studio');
+}
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+}
+
+/** הודעת אישור קצרה שמוצגת בראש המסך הבא. */
+function flash(message, kind = '') {
+  state.flash = { message, kind };
+}
+
+function flashHtml() {
+  if (!state.flash) return '';
+  const { message, kind } = state.flash;
+  state.flash = null;
+  return `<div class="banner ${kind}">${message}</div>`;
+}
+
+function setView(view) {
+  state.view = view;
+  document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.view === view)));
+  $('#viewStudio').hidden = view !== 'studio';
+  $('#viewTrainees').hidden = view !== 'trainees';
+  $('#viewProgram').hidden = view !== 'program';
+  if (view === 'studio') renderStudioView();
+  if (view === 'trainees') renderTraineesView();
+  if (view === 'program') {
+    $('#programSteps').innerHTML = stepsBar('program') + flashHtml();
+    wireSteps();
+    fillStudios();
+    generate();
+  }
+}
+
+function fillStudios() {
+  const sel = $('#studio');
+  const cur = sel.value;
+  sel.innerHTML = state.studios.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  if (cur && state.studios.some((s) => s.id === cur)) sel.value = cur;
+  fillTrainees();
+}
+
+function fillTrainees() {
+  const list = state.trainees.filter((t) => t.studioId === $('#studio').value);
+  $('#trainee').innerHTML = list.length
+    ? list.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')
+    : '<option value="">— אין מתאמנים —</option>';
+}
+
+/* ==================================================================
+   מסלול השלבים — נוכח בכל מסך, כדי שתמיד ברור איפה נמצאים ומה הלאה
+   ================================================================== */
+function stepsBar(current) {
+  const hasStudio = state.studios.length > 0;
+  const hasTrainee = state.trainees.length > 0;
+  const steps = [
+    { view: 'studio', n: 1, t: 'הסטודיו', s: hasStudio ? `${state.studios.length} רשומים` : 'ציוד, משקלים ומרחב', done: hasStudio },
+    { view: 'trainees', n: 2, t: 'המתאמנים', s: hasTrainee ? `${state.trainees.length} רשומים` : 'מטרות, פציעות ופרטים', done: hasTrainee },
+    { view: 'program', n: 3, t: 'האימון', s: 'תכנית שבועית ומשוב', done: false },
+  ];
+  return `<nav class="steps">${steps.map((x) => `
+    <a data-goto="${x.view}" aria-current="${x.view === current}" data-done="${x.done && x.view !== current}">
+      <span class="n">${x.done && x.view !== current ? '✓' : x.n}</span>
+      <span class="t"><b>${x.t}</b><span>${esc(x.s)}</span></span>
+    </a>`).join('')}</nav>`;
+}
+
+function wireSteps() {
+  document.querySelectorAll('[data-goto]').forEach((a) => { a.onclick = () => setView(a.dataset.goto); });
+}
+
+/* ==================================================================
+   שלב 1 — רישום הסטודיו
+   ================================================================== */
+
+/** חבילות ציוד מוכנות — לחיצה אחת מביאה סטודיו טיפוסי ל-90% מהדרך. */
+const EQUIPMENT_PRESETS = {
+  gym: { label: 'חדר כושר מלא', items: ['barbell', 'dumbbell', 'kettlebell', 'ez_bar', 'bench_flat', 'bench_incline', 'squat_rack', 'smith_machine', 'cable_crossover', 'lat_pulldown', 'seated_row_machine', 'chest_press_machine', 'shoulder_press_machine', 'pec_deck', 'leg_press', 'leg_extension', 'leg_curl_seated', 'abduction_machine', 'adduction_machine', 'calf_raise_machine', 'pullup_bar', 'dip_station', 'resistance_band', 'mat', 'treadmill', 'bike', 'rower', 'step'] },
+  functional: { label: 'פונקציונלי', items: ['kettlebell', 'dumbbell', 'barbell', 'squat_rack', 'bench_flat', 'pullup_bar', 'trx', 'resistance_band', 'mini_band', 'slam_ball', 'medicine_ball', 'battle_rope', 'plyo_box', 'sled', 'rower', 'air_bike', 'jump_rope', 'mat', 'step', 'ab_wheel'] },
+  boutique: { label: 'בוטיק קטן', items: ['dumbbell', 'kettlebell', 'resistance_band', 'mini_band', 'mat', 'step', 'bench_flat', 'stability_ball', 'bosu', 'trx', 'jump_rope', 'foam_roller'] },
+  pilates: { label: 'פילאטיס / ריפורמר', items: ['reformer', 'pilates_mat', 'pilates_ring', 'pilates_chair', 'cadillac', 'pilates_barrel', 'small_ball', 'mini_band', 'resistance_band', 'foam_roller', 'stability_ball', 'mat', 'chair', 'wall', 'dumbbell'] },
+  boxing: { label: 'אגרוף', items: ['heavy_bag', 'boxing_pads', 'speed_bag', 'jump_rope', 'kettlebell', 'dumbbell', 'medicine_ball', 'slam_ball', 'battle_rope', 'pullup_bar', 'plyo_box', 'mat', 'resistance_band', 'bench_flat'] },
+  senior: { label: 'גיל שלישי', items: ['chair', 'stable_support', 'wall', 'parallel_bars', 'resistance_band', 'mini_band', 'dumbbell', 'mat', 'step', 'recumbent_bike', 'arm_ergometer', 'treadmill', 'leg_press', 'seated_row_machine', 'chest_press_machine', 'leg_curl_seated'] },
+  home: { label: 'ביתי', items: ['dumbbell', 'resistance_band', 'mini_band', 'mat', 'chair', 'wall', 'step'] },
+};
+
+let pendingPhotos = [];
+let eqState = new Map();   // item -> count
+
+function renderStudioView() {
+  const stats = studioLiveStats();
+  $('#viewStudio').innerHTML = `
+    ${stepsBar('studio')}
+    ${flashHtml()}
+    <div class="hero">
+      <div>
+        <h2>רישום הסטודיו</h2>
+        <p>כל שדה כאן משנה תכניות בפועל: הציוד קובע אילו תרגילים אפשריים, המשקלים קובעים
+           מתי מתאמן מגיע לתקרה, וגובה התקרה, השטח והרעש קובעים מה בכלל אפשר לבצע בחדר.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile accent"><b id="statEx">${stats.exercises}</b><span>תרגילים אפשריים</span></div>
+        <div class="tile"><b id="statEq">${stats.items}</b><span>פריטי ציוד</span></div>
+      </div>
+    </div>
+
+    <form id="studioForm">
+      <div class="card">
+        <fieldset>
+          <legend>פרטי המקום</legend>
+          <div class="fields">
+            <label class="f"><span class="req">שם הסטודיו</span><input name="name" required autocomplete="off"></label>
+            <label class="f"><span>סוג הסטודיו</span>
+              <select name="style">
+                <option value="gym">חדר כושר</option>
+                <option value="functional">פונקציונלי</option>
+                <option value="small_group">אימון קבוצתי קטן</option>
+                <option value="personal">אימון אישי</option>
+                <option value="pilates">פילאטיס / ריפורמר</option>
+                <option value="boxing">אגרוף</option>
+                <option value="senior">גיל שלישי</option>
+                <option value="rehab">שיקום</option>
+              </select></label>
+            <label class="f"><span>אורך אימון סטנדרטי (דקות)</span><input name="sessionMinutes" type="number" value="60" min="20" max="120"></label>
+            <label class="f"><span>מתאמנים במקביל</span><input name="concurrentTrainees" type="number" value="1" min="1" max="40"></label>
+            <label class="f"><span>מאמנים על הרצפה</span><input name="trainersOnFloor" type="number" value="1" min="1" max="10"></label>
+            <label class="f"><span>איש קשר / טלפון</span><input name="contact" autocomplete="off"></label>
+          </div>
+          <p class="hint">מספר המתאמנים מול מספר המאמנים קובע כמה תרגיל טכני אפשר להעביר בפועל —
+            מאמן שמשגיח על עשרה אנשים לא ילמד סקוואט קדמי, והמערכת לא תציע אותו.</p>
+        </fieldset>
+      </div>
+
+      <div class="card">
+        <fieldset>
+          <legend>ציוד</legend>
+          <p class="hint">מתחילים מחבילה מוכנה ואז מתקנים. אפשר גם לצלם את החדר — הצילום רק מציע, הסימון קובע.</p>
+          <div class="presets">
+            ${Object.entries(EQUIPMENT_PRESETS).map(([k, v]) => `<button type="button" data-preset="${k}">${esc(v.label)}</button>`).join('')}
+            <button type="button" data-preset="clear">נקה הכל</button>
+          </div>
+          <input class="eqsearch" id="eqSearch" type="search" placeholder="חיפוש פריט — למשל ״כבל״, ״קטלבל״" aria-label="חיפוש ציוד">
+          <div class="row" style="margin:.2rem 0 .7rem">
+            <label class="filebtn" for="eqPhoto">צלם או בחר תמונות</label>
+            <input type="file" id="eqPhoto" accept="image/*" multiple hidden>
+            <button type="button" id="identifyBtn">זהה ציוד מהתמונה</button>
+            <span id="visionNote" class="hint"></span>
+          </div>
+          <div class="thumbs" id="thumbs"></div>
+          <div id="eqCats"></div>
+        </fieldset>
+      </div>
+
+      <div class="card">
+        <fieldset>
+          <legend>משקלי עבודה</legend>
+          <div class="fields">
+            <label class="f"><span>משקולת יד — הכי קלה (ק״ג)</span><input name="dumbbellMinKg" type="number" step="0.5" value="1"></label>
+            <label class="f"><span>משקולת יד — הכי כבדה (ק״ג)</span><input name="dumbbellMaxKg" type="number" step="0.5" value="30"></label>
+            <label class="f"><span>קפיצת משקל מינימלית (ק״ג)</span><input name="weightIncrementKg" type="number" step="0.5" value="2.5"></label>
+            <label class="f"><span>משקל המוט הריק (ק״ג)</span><input name="barWeightKg" type="number" step="0.5" value="20"></label>
+          </div>
+          <p class="hint">בלי המשקל הכבד ביותר אי אפשר לדעת מתי מתאמן הגיע לתקרת הציוד וצריך לעבור לשיטה אחרת
+            (יותר חזרות, קצב איטי, או גרסה חד-צדדית).</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>המרחב הפיזי</legend>
+          <div class="fields">
+            <label class="f"><span>גובה תקרה (ס״מ)</span><input name="ceilingHeightCm" type="number" value="280" min="180" max="600"></label>
+            <label class="f"><span>שטח פנוי</span>
+              <select name="spaceLevel">
+                <option value="small">קטן — עמדות בלבד</option>
+                <option value="medium" selected>בינוני</option>
+                <option value="large">גדול — מסלול הליכה ומזחלת</option>
+              </select></label>
+            <label class="f"><span>מגבלת רעש</span>
+              <select name="noiseRestricted"><option value="false">אין</option><option value="true">כן — בניין מגורים</option></select></label>
+            <label class="f"><span>מיזוג אוויר</span>
+              <select name="climateControlled"><option value="true">יש</option><option value="false">אין</option></select></label>
+          </div>
+        </fieldset>
+
+        <details class="optional">
+          <summary>העדפות אימון בסטודיו (אופציונלי)</summary>
+          <div class="fields">
+            <label class="f"><span>סופרסטים</span>
+              <select name="allowSupersets"><option value="true">מותר</option><option value="false">לא — תופס יותר מדי עמדות</option></select></label>
+            <label class="f"><span>חלוקה קבועה לכל המתאמנים</span>
+              <select name="preferredSplit"><option value="">המערכת תבחר לפי המתאמן</option>${SPLITS.map((x) => `<option value="${x}">${esc(splitLabel(x))}</option>`).join('')}</select></label>
+          </div>
+          <p class="hint">ברירת המחדל עדיפה: המערכת בוחרת חלוקה לכל מתאמן לפי ימי האימון, המטרה והרמה שלו.</p>
+        </details>
+
+        <fieldset>
+          <legend>הערות</legend>
+          <label class="f"><span>כל דבר שחשוב שהמערכת תדע</span>
+            <textarea name="notes" placeholder="לדוגמה: המכונות בקומה העליונה, בשעות הצהריים החדר עמוס, יש מדריך פילאטיס בימי שלישי"></textarea></label>
+        </fieldset>
+
+        <div class="row">
+          <button class="primary" type="submit">שמור והמשך למתאמנים</button>
+          <span id="studioMsg" class="hint"></span>
+        </div>
+      </div>
+    </form>
+
+    <div class="card">
+      <p class="eyebrow">סטודיואים רשומים</p>
+      ${state.studios.length ? state.studios.map((s) => {
+        const n = normalizeStudio(s);
+        return `<div class="listrow">
+          <strong>${esc(s.name)}</strong>
+          <span class="chip">${esc(s.style || 'gym')}</span>
+          <span class="chip mono">${n.equipment.size} פריטי ציוד</span>
+          <span class="chip mono">${state.trainees.filter((t) => t.studioId === s.id).length} מתאמנים</span>
+          <span class="grow"></span>
+          <button data-pick-studio="${esc(s.id)}">בחר</button>
+        </div>`;
+      }).join('') : '<p class="empty">עדיין לא נרשם סטודיו. מלאו את הטופס למעלה — זה לוקח דקה.</p>'}
+    </div>`;
+
+  eqState = new Map();
+  renderEquipmentChecklist();
+  wireSteps();
+  document.querySelectorAll('[data-preset]').forEach((b) => { b.onclick = () => applyPreset(b.dataset.preset); });
+  document.querySelectorAll('[data-pick-studio]').forEach((b) => {
+    b.onclick = () => { $('#studio').value = b.dataset.pickStudio; fillTrainees(); setView('trainees'); };
+  });
+  $('#eqSearch').oninput = (e) => filterEquipment(e.target.value.trim());
+  $('#studioForm').onsubmit = onStudioSubmit;
+  $('#identifyBtn').onclick = onIdentify;
+  $('#eqPhoto').onchange = onPhotoPicked;
+  showVisionNote();
+}
+
+/** כמה תרגילים נפתחים עם הציוד שנבחר — משוב חי בזמן המילוי. */
+function studioLiveStats() {
+  const equipment = [...eqState.entries()].map(([item, count]) => ({ item, count }));
+  const studio = normalizeStudio({ id: 'preview', equipment });
+  const trainee = normalizeTrainee({ id: 'preview', level: 'intermediate' });
+  const pool = buildCandidatePool(EXERCISES, trainee, studio);
+  return { exercises: pool.eligible.length, items: eqState.size };
+}
+
+function refreshStudioStats() {
+  const s = studioLiveStats();
+  const ex = $('#statEx'); const eq = $('#statEq');
+  if (ex) ex.textContent = s.exercises;
+  if (eq) eq.textContent = s.items;
+}
+
+function renderEquipmentChecklist() {
+  $('#eqCats').innerHTML = EQUIPMENT_CATEGORIES.map((c) => `
+    <div class="eqcat" data-cat="${c.key}">
+      <h4>${esc(c.label)}</h4>
+      <div class="eqgrid">
+        ${c.items.map((id) => `
+          <button type="button" class="eqchip" data-eq="${id}" aria-pressed="false"
+                  title="${esc(EQUIPMENT_LABELS[id] || id)}">
+            <span class="mark"></span>
+            <span class="nm">${esc(EQUIPMENT_LABELS[id] || id)}</span>
+            <input class="qty" type="number" min="1" value="1" hidden aria-label="כמות">
+          </button>`).join('')}
+      </div>
+    </div>`).join('');
+
+  document.querySelectorAll('.eqchip').forEach((chip) => {
+    const id = chip.dataset.eq;
+    const qty = chip.querySelector('.qty');
+    chip.onclick = (e) => {
+      if (e.target === qty) return;                 // לחיצה על שדה הכמות אינה מבטלת בחירה
+      const on = chip.getAttribute('aria-pressed') === 'true';
+      setEquipment(id, !on, +qty.value || 1);
+    };
+    qty.onclick = (e) => e.stopPropagation();
+    qty.oninput = () => { if (eqState.has(id)) { eqState.set(id, +qty.value || 1); refreshStudioStats(); } };
+  });
+}
+
+function setEquipment(id, on, count = 1) {
+  const chip = document.querySelector(`.eqchip[data-eq="${id}"]`);
+  if (!chip) return;
+  const qty = chip.querySelector('.qty');
+  chip.setAttribute('aria-pressed', String(on));
+  qty.hidden = !on;
+  if (on) { eqState.set(id, count); qty.value = count; } else eqState.delete(id);
+  refreshStudioStats();
+}
+
+function applyPreset(key) {
+  document.querySelectorAll('.eqchip').forEach((c) => setEquipment(c.dataset.eq, false));
+  if (key === 'clear') return;
+  const preset = EQUIPMENT_PRESETS[key];
+  for (const id of preset.items) setEquipment(id, true, defaultCount(id));
+  const styleSel = $('#studioForm')?.style;
+  if (styleSel && EQUIPMENT_PRESETS[key]) {
+    const map = { gym: 'gym', functional: 'functional', boutique: 'small_group', pilates: 'pilates', boxing: 'boxing', senior: 'senior', home: 'personal' };
+    if (map[key]) styleSel.value = map[key];
+  }
+  log('נבחרה חבילת ציוד', `${esc(preset.label)} — ${preset.items.length} פריטים. אפשר להוסיף ולהסיר לפי מה שבאמת יש.`);
+}
+
+/** כמות התחלתית סבירה לפי סוג הפריט. */
+function defaultCount(id) {
+  if (['dumbbell', 'kettlebell', 'resistance_band', 'mini_band', 'mat', 'step', 'chair', 'jump_rope', 'trx'].includes(id)) return 8;
+  if (['bench_flat', 'plyo_box', 'medicine_ball', 'foam_roller', 'stable_support', 'reformer'].includes(id)) return 4;
+  return 1;
+}
+
+function filterEquipment(term) {
+  const q = term.toLowerCase();
+  document.querySelectorAll('.eqcat').forEach((cat) => {
+    let visible = 0;
+    cat.querySelectorAll('.eqchip').forEach((chip) => {
+      const match = !q || chip.querySelector('.nm').textContent.toLowerCase().includes(q) || chip.dataset.eq.includes(q);
+      chip.style.display = match ? '' : 'none';
+      if (match) visible += 1;
+    });
+    cat.style.display = visible ? '' : 'none';
+  });
+}
+
+async function showVisionNote() {
+  if (!state.server) {
+    $('#visionNote').textContent = 'זיהוי אוטומטי דורש את שרת הסטודיו. כאן הצילום נשמר כתיעוד בלבד.';
+    return;
+  }
+  try {
+    const cat = await api('/api/equipment/catalog');
+    $('#visionNote').textContent = cat.vision?.ok
+      ? 'זיהוי אוטומטי פעיל.'
+      : 'זיהוי אוטומטי כבוי — לסימון ידני. (להפעלה: npm install @anthropic-ai/sdk והגדרת ANTHROPIC_API_KEY.)';
+  } catch { $('#visionNote').textContent = ''; }
+}
+
+function onPhotoPicked(e) {
+  const files = [...e.target.files].slice(0, 4);
+  document.querySelector('.filebtn').textContent = files.length ? `${files.length} תמונות נבחרו` : 'צלם או בחר תמונות';
+  pendingPhotos = [];
+  $('#thumbs').innerHTML = '';
+  for (const f of files) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      pendingPhotos.push(reader.result);
+      $('#thumbs').insertAdjacentHTML('beforeend', `<img src="${reader.result}" alt="תמונת ציוד">`);
+    };
+    reader.readAsDataURL(f);
+  }
+}
+
+async function onIdentify() {
+  if (!pendingPhotos.length) { log('זיהוי ציוד', 'יש לבחור תמונה קודם.'); return; }
+  if (!state.server) { log('זיהוי ציוד', 'זיהוי אוטומטי דורש את שרת הסטודיו. אפשר לסמן מהרשימה או להתחיל מחבילה מוכנה.'); return; }
+  $('#identifyBtn').disabled = true;
+  $('#identifyBtn').textContent = 'מזהה…';
+  try {
+    const r = await api('/api/equipment/identify', { images: pendingPhotos });
+    if (!r.ok) { log('זיהוי ציוד', esc(r.error)); return; }
+    let marked = 0;
+    for (const it of r.items) { setEquipment(it.id, true, it.count); marked += 1; }
+    log('זיהוי ציוד מהתמונה', [
+      `סומנו ${marked} פריטים — לעבור ולאשר לפני שמירה.`,
+      ...r.items.map((i) => `${esc(i.label)} ×${i.count}${i.weightsVisible ? ` · ${esc(i.weightsVisible)}` : ''}`),
+      r.unrecognized?.length ? `לא זוהו: ${r.unrecognized.map(esc).join(', ')}` : '',
+    ]);
+  } catch (err) {
+    log('זיהוי ציוד נכשל', esc(err.message));
+  } finally {
+    $('#identifyBtn').disabled = false;
+    $('#identifyBtn').textContent = 'זהה ציוד מהתמונה';
+  }
+}
+
+async function onStudioSubmit(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const equipment = [...eqState.entries()].map(([item, count]) => ({ item, count }));
+
+  const studio = {
+    name: f.get('name'),
+    style: f.get('style'),
+    sessionMinutes: +f.get('sessionMinutes'),
+    concurrentTrainees: +f.get('concurrentTrainees'),
+    trainersOnFloor: +f.get('trainersOnFloor'),
+    ceilingHeightCm: +f.get('ceilingHeightCm'),
+    spaceLevel: f.get('spaceLevel'),
+    noiseRestricted: f.get('noiseRestricted') === 'true',
+    climateControlled: f.get('climateControlled') === 'true',
+    allowSupersets: f.get('allowSupersets') !== 'false',
+    preferredSplit: f.get('preferredSplit') || null,
+    dumbbellMaxKg: +f.get('dumbbellMaxKg') || null,
+    weightIncrementKg: +f.get('weightIncrementKg') || 2.5,
+    equipment,
+    notes: f.get('notes'),
+    profile: { contact: f.get('contact'), dumbbellMinKg: +f.get('dumbbellMinKg') || null, barWeightKg: +f.get('barWeightKg') || null },
+  };
+
+  try {
+    const r = await store.saveStudio(studio);
+    if (state.server && pendingPhotos.length) {
+      for (const dataUrl of pendingPhotos) await api('/api/equipment/photo', { studioId: r.id, dataUrl });
+    }
+    pendingPhotos = [];
+    fillStudios();
+    $('#studio').value = r.id;
+    fillTrainees();
+    const stats = studioLiveStats();
+    flash(`<b>${esc(studio.name)} נשמר.</b> ${equipment.length} פריטי ציוד · ${stats.exercises} תרגילים אפשריים למתאמן ממוצע.
+      ${(r.missing || []).length ? `<br>כדאי להשלים: ${r.missing.map(esc).join(' ')}` : 'עכשיו אפשר לרשום מתאמנים.'}`,
+      (r.missing || []).length ? 'warn' : '');
+    setView('trainees');
+  } catch (err) {
+    $('#studioMsg').textContent = `שגיאה: ${err.message}`;
+  }
+}
+
+/* ==================================================================
+   שלב 2 — רישום מתאמן
+   ================================================================== */
+const DAY_KEYS = [['sun', 'א'], ['mon', 'ב'], ['tue', 'ג'], ['wed', 'ד'], ['thu', 'ה'], ['fri', 'ו'], ['sat', 'ש']];
+
+function renderTraineesView() {
+  const studioOptions = state.studios.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+
+  $('#viewTrainees').innerHTML = `
+    ${stepsBar('trainees')}
+    ${flashHtml()}
+    <div class="hero">
+      <div>
+        <h2>רישום מתאמן</h2>
+        <p>ארבעה שדות מספיקים כדי להתחיל. כל פרט נוסף מדייק את התכנית —
+           ומה שלא ידוע נשאר ריק, עם ברירות מחדל שמרניות והערה למאמן.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile"><b>${state.trainees.length}</b><span>מתאמנים רשומים</span></div>
+        <div class="tile accent"><b>${Object.keys(CONSTRAINTS).length}</b><span>מגבלות מוכרות</span></div>
+      </div>
+    </div>
+
+    <form id="traineeForm">
+      <div class="card">
+        <fieldset>
+          <legend>הבסיס</legend>
+          <div class="fields">
+            <label class="f"><span class="req">שם מלא</span><input name="name" required autocomplete="off"></label>
+            <label class="f"><span class="req">סטודיו</span><select name="studioId" required>${studioOptions}</select></label>
+            <label class="f"><span class="req">מטרה עיקרית</span>
+              <select name="primaryGoal">${GOALS.map((g) => `<option value="${g}">${esc(GOAL_PROFILES[g]?.label || g)}</option>`).join('')}</select></label>
+            <label class="f"><span class="req">ימי אימון בשבוע</span><input name="daysPerWeek" type="number" min="1" max="6" value="3"></label>
+            <label class="f"><span>אורך אימון (דקות)</span><input name="sessionMinutes" type="number" min="20" max="120" value="60"></label>
+            <label class="f"><span>רמת ניסיון</span>
+              <select name="level">${LEVELS.map((l) => `<option value="${l}">${esc(levelLabel(l))}</option>`).join('')}</select></label>
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="card">
+        <fieldset>
+          <legend>פציעות ומצבים רפואיים</legend>
+          <div id="constraintRows"></div>
+          <div class="row" style="margin-top:.5rem">
+            <button type="button" id="addConstraint">הוסף פציעה / מצב רפואי</button>
+            <label class="f" style="max-width:190px"><span>אישור רפואי בתיק</span>
+              <select name="medicalClearance"><option value="true">כן</option><option value="false">לא</option></select></label>
+          </div>
+          <p class="hint">המערכת תמנע מתרגילים שסותרים את המגבלה — ובנוסף תציע תרגיל בדיקה פשוט ובטוח,
+            כדי לבדוק בשטח אם האזור בכלל רגיש. כך לא מוותרים על תרגילים סתם.</p>
+        </fieldset>
+      </div>
+
+      <div class="card">
+        <details class="optional" open>
+          <summary>פרטים אישיים</summary>
+          <div class="fields">
+            <label class="f"><span>גיל</span><input name="age" type="number" min="10" max="105" value="35"></label>
+            <label class="f"><span>מין</span>
+              <select name="sex"><option value="unspecified">לא צוין</option><option value="female">אישה</option><option value="male">גבר</option></select></label>
+            <label class="f"><span>גובה (ס״מ)</span><input name="heightCm" type="number" min="120" max="220"></label>
+            <label class="f"><span>משקל (ק״ג)</span><input name="weightKg" type="number" min="30" max="250"></label>
+            <label class="f"><span>ותק אימונים (חודשים)</span><input name="trainingAgeMonths" type="number" min="0" value="0"></label>
+            <label class="f"><span>טלפון</span><input name="phone" autocomplete="off"></label>
+          </div>
+        </details>
+
+        <details class="optional">
+          <summary>אורח חיים והתאוששות</summary>
+          <div class="fields">
+            <label class="f"><span>ספורט מחוץ לסטודיו</span>
+              <select name="sport">${Object.keys(SPORTS).map((k) => `<option value="${k}">${esc(sportLabel(k))}</option>`).join('')}</select></label>
+            <label class="f"><span>אימוני ספורט בשבוע</span><input name="externalSessions" type="number" min="0" max="14" value="0"></label>
+            <label class="f"><span>אורח חיים תעסוקתי</span>
+              <select name="lifestyle">${Object.keys(LIFESTYLES).map((k) => `<option value="${k}">${esc(lifestyleLabel(k))}</option>`).join('')}</select></label>
+            <label class="f"><span>איכות שינה (1-5)</span><input name="sleepQuality" type="number" min="1" max="5" value="3"></label>
+            <label class="f"><span>רמת סטרס (1-5)</span><input name="stressLevel" type="number" min="1" max="5" value="3"></label>
+            <label class="f"><span>הקפדה תזונתית (1-5)</span><input name="nutritionAdherence" type="number" min="1" max="5" value="3"></label>
+            <label class="f"><span>שלב במחזור החודשי</span>
+              <select name="cyclePhase">
+                <option value="unknown">לא רלוונטי / לא ידוע</option>
+                <option value="menstrual">מחזור</option><option value="follicular">פוליקולרי</option>
+                <option value="ovulation">ביוץ</option><option value="luteal">לוטאלי</option>
+                <option value="perimenopause">פרי-מנופאוזה</option><option value="postmenopause">פוסט-מנופאוזה</option>
+              </select></label>
+          </div>
+          <p class="hint">שלב במחזור הוא קלט אופציונלי לחלוטין, והשפעתו מכוונת מתונה — ויסות עדין של עצימות ולא כלל נוקשה.</p>
+        </details>
+
+        <details class="optional">
+          <summary>העדפות אימון</summary>
+          <div class="fields">
+            <label class="f"><span>שרירי מיקוד</span>
+              <select name="focusMuscles" multiple size="4">${MUSCLES.map((m) => `<option value="${m}">${esc(muscleLabel(m))}</option>`).join('')}</select></label>
+            <label class="f"><span>העדפת גיוון</span>
+              <select name="varietyPreference">
+                <option value="low">שגרה קבועה</option><option value="balanced" selected>מאוזן</option><option value="high">מגוון גבוה</option>
+              </select></label>
+            <label class="f"><span>אורך מחזור אימון (שבועות)</span><input name="mesocycleLength" type="number" min="2" max="8" value="4"></label>
+            <label class="f"><span>יחידות</span>
+              <select name="units"><option value="kg">ק״ג</option><option value="lb">ליברות</option></select></label>
+          </div>
+          <div style="margin-top:.6rem">
+            <span class="hint">ימים מועדפים</span>
+            <div class="daypick" style="margin-top:.3rem">
+              ${DAY_KEYS.map(([k, l]) => `<label><input type="checkbox" name="preferredDays" value="${k}">${l}</label>`).join('')}
+            </div>
+          </div>
+          <div class="fields" style="margin-top:.7rem">
+            <label class="f"><span>תרגילים שהמתאמן אוהב</span>
+              <select name="likes" multiple size="4">${EXERCISES.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
+            <label class="f"><span>תרגילים שהמתאמן לא רוצה</span>
+              <select name="dislikes" multiple size="4">${EXERCISES.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>
+          </div>
+        </details>
+
+        <details class="optional">
+          <summary>מצבים מיוחדים</summary>
+          <div class="fields">
+            <label class="f"><span>שבוע נסיעה</span>
+              <select name="travelWeek"><option value="false">לא</option><option value="true">כן — ציוד נייד בלבד</option></select></label>
+            <label class="f"><span>תרופות רלוונטיות</span><input name="medications" placeholder="למשל חוסמי בטא"></label>
+          </div>
+          <p class="hint">תרופות מוצגות למאמן כהערה. חוסמי בטא, למשל, הופכים את הדופק ללא רלוונטי כמדד עצימות —
+            במקרה כזה כדאי להוסיף גם את המצב "נטילת חוסמי בטא" ברשימת המגבלות.</p>
+        </details>
+
+        <fieldset>
+          <legend>הערות</legend>
+          <label class="f"><span>מה שחשוב שהמאמן והמערכת ידעו</span>
+            <textarea name="notes" placeholder="לדוגמה: חוזרת אחרי לידה, מתאמנת רק בבקרים, לא אוהבת ריצה"></textarea></label>
+        </fieldset>
+
+        <div class="row">
+          <button class="primary" type="submit">שמור וצור תכנית</button>
+          <span id="traineeMsg" class="hint"></span>
+        </div>
+      </div>
+    </form>
+
+    <div class="card">
+      <p class="eyebrow">מתאמנים רשומים</p>
+      ${state.trainees.length ? state.trainees.map((t) => `<div class="listrow">
+        <strong>${esc(t.name)}</strong>
+        <span class="chip">${esc(studioById(t.studioId)?.name || t.studioId)}</span>
+        <span class="chip">${esc(GOAL_PROFILES[t.primaryGoal]?.label || t.primaryGoal || '')}</span>
+        ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
+        <span class="grow"></span>
+        <button data-open-trainee="${esc(t.id)}">פתח תכנית</button>
+      </div>`).join('') : '<p class="empty">עדיין לא נרשם מתאמן.</p>'}
+    </div>`;
+
+  wireSteps();
+  const form = $('#traineeForm');
+  if (form.studioId) form.studioId.value = $('#studio').value || state.studios[0]?.id || '';
+  $('#addConstraint').onclick = () => addConstraintRow();
+  form.onsubmit = onTraineeSubmit;
+  document.querySelectorAll('[data-open-trainee]').forEach((b) => {
+    b.onclick = () => {
+      const t = traineeById(b.dataset.openTrainee);
+      $('#studio').value = t.studioId;
+      fillTrainees();
+      $('#trainee').value = t.id;
+      setView('program');
+    };
+  });
+}
+
+/** שורת מגבלה — מקובצת לפי אזור כדי שקל יהיה למצוא. */
+function constraintOptionsHtml() {
+  const groups = {};
+  for (const [id, c] of Object.entries(CONSTRAINTS)) (groups[c.region] ||= []).push([id, c.name]);
+  const regionLabel = {
+    shoulder: 'כתף', spine: 'גב ועמוד שדרה', knee: 'ברך', elbow: 'מרפק', wrist: 'שורש כף יד',
+    hip: 'ירך', ankle: 'קרסול', neck: 'צוואר', systemic: 'מצבים רפואיים כלליים',
+  };
+  return Object.entries(groups).map(([region, items]) => `
+    <optgroup label="${esc(regionLabel[region] || region)}">
+      ${items.map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('')}
+    </optgroup>`).join('');
+}
+
+function addConstraintRow() {
+  $('#constraintRows').insertAdjacentHTML('beforeend', `
+    <div class="listrow" data-crow>
+      <select data-cid style="max-width:270px">${constraintOptionsHtml()}</select>
+      <select data-csev style="max-width:130px">
+        <option value="acute">חריף — כואב עכשיו</option>
+        <option value="subacute" selected>בהחלמה</option>
+        <option value="managed">מנוהל / ישן</option>
+      </select>
+      <select data-cside style="max-width:120px">
+        <option value="">שני הצדדים</option><option value="right">ימין</option><option value="left">שמאל</option>
+      </select>
+      <input data-cnote placeholder="הערה — למשל ׳כואב רק בירידה׳" class="grow">
+      <button type="button" data-cdel>הסר</button>
+    </div>`);
+  const row = $('#constraintRows').lastElementChild;
+  row.querySelector('[data-cdel]').onclick = () => row.remove();
+}
+
+async function onTraineeSubmit(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const constraints = [...document.querySelectorAll('[data-crow]')].map((row) => ({
+    id: row.querySelector('[data-cid]').value,
+    severity: row.querySelector('[data-csev]').value,
+    side: row.querySelector('[data-cside]').value || null,
+    notes: row.querySelector('[data-cnote]').value,
+  }));
+
+  const trainee = {
+    name: f.get('name'), studioId: f.get('studioId'),
+    age: +f.get('age') || 35, sex: f.get('sex'),
+    heightCm: +f.get('heightCm') || null, weightKg: +f.get('weightKg') || null,
+    level: f.get('level'), trainingAgeMonths: +f.get('trainingAgeMonths') || 0,
+    primaryGoal: f.get('primaryGoal'), goals: [f.get('primaryGoal')],
+    daysPerWeek: +f.get('daysPerWeek'), sessionMinutes: +f.get('sessionMinutes'),
+    preferredDays: f.getAll('preferredDays'),
+    focusMuscles: f.getAll('focusMuscles'), dislikes: f.getAll('dislikes'), likes: f.getAll('likes'),
+    varietyPreference: f.get('varietyPreference'), mesocycleLength: +f.get('mesocycleLength') || 4,
+    units: f.get('units'),
+    constraints, medicalClearance: f.get('medicalClearance') === 'true',
+    sport: f.get('sport'), externalSessions: +f.get('externalSessions') || 0,
+    lifestyle: f.get('lifestyle'), cyclePhase: f.get('cyclePhase'),
+    travelWeek: f.get('travelWeek') === 'true',
+    medications: f.get('medications') ? [f.get('medications')] : [],
+    sleepQuality: +f.get('sleepQuality'), stressLevel: +f.get('stressLevel'),
+    nutritionAdherence: +f.get('nutritionAdherence'),
+    notes: f.get('notes'), phone: f.get('phone'),
+  };
+
+  try {
+    const r = await store.saveTrainee(trainee);
+    if (!r.ok) { log('לא ניתן לרשום את המתאמן', r.errors.map(esc)); return; }
+    flash(`<b>${esc(trainee.name)} נרשם${trainee.sex === 'female' ? 'ה' : ''}.</b> התכנית השבועית מוכנה למטה.
+      ${r.warnings?.length ? `<br>${r.warnings.map(esc).join('<br>')}` : ''}`,
+      r.warnings?.length ? 'warn' : '');
+    $('#studio').value = trainee.studioId;
+    fillTrainees();
+    $('#trainee').value = r.id;
+    setView('program');
+  } catch (err) {
+    $('#traineeMsg').textContent = `שגיאה: ${err.message}`;
+  }
+}
+
+/* ==================================================================
+   שלב 3 — התכנית
+   ================================================================== */
 function generate() {
+  if (state.view !== 'program') return;
   const t = traineeById($('#trainee').value);
-  if (!t) { $('#rail').innerHTML = ''; $('#days').innerHTML = '<p class="empty">אין מתאמנים בסטודיו הזה.</p>'; return; }
+  if (!t) {
+    $('#rail').innerHTML = '';
+    $('#days').innerHTML = '<p class="empty">אין מתאמנים בסטודיו הזה. אפשר לרשום מתאמן בשלב 2.</p>';
+    return;
+  }
   const res = buildProgram(t, studioById(t.studioId));
   if (!res.ok) {
     state.program = null;
@@ -288,18 +1160,19 @@ function generateAll() {
     : `${esc(r.name)}: ${esc(r.errors[0])}`)));
 }
 
-function nextWeek() {
+async function nextWeek() {
   const raw = traineeById($('#trainee').value);
   if (!raw) return;
   const events = (raw._events || []).slice();
   const { trainee, changes, flags } = applyFeedback(normalizeTrainee(raw), events);
   const advanced = advanceWeek(trainee, flags);
   Object.assign(raw, advanced, { _events: [] });
-  saveTrainees();
+  await store.updateTrainee(raw);
   generate();
   log(`מעבר לשבוע ${advanced.mesocycleWeek}`,
-    [...changes.map((c) => esc(c.message)), flags.deloadRecommended ? '<b>מומלץ שבוע הורדת עומס.</b>' : ''].filter(Boolean)
-    .slice(0, 8).concat(changes.length ? [] : ['לא נרשם משוב מהשטח — התכנית התקדמה לפי הפריודיזציה בלבד.']));
+    [...changes.map((c) => esc(c.message)), flags.deloadRecommended ? '<b>מומלץ שבוע הורדת עומס.</b>' : '']
+      .filter(Boolean).slice(0, 8)
+      .concat(changes.length ? [] : ['לא נרשם משוב מהשטח — התכנית התקדמה לפי הפריודיזציה בלבד.']));
 }
 
 /* ---------------------------------------------------------------- תצוגה */
@@ -312,6 +1185,21 @@ function render() {
   $('#days').innerHTML = `<div class="days">${p.days.map(dayCard).join('')}</div>`;
   document.querySelectorAll('[data-act]').forEach((el) => { el.onclick = () => onAction(el.dataset); });
   document.querySelectorAll('[data-swap]').forEach((el) => { el.onclick = () => onSwap(el.dataset); });
+  document.querySelectorAll('[data-unlock]').forEach((el) => {
+    el.onclick = () => {
+      state.unlockedProbes = state.unlockedProbes || new Set();
+      state.unlockedProbes.add(el.dataset.unlock);
+      render();
+    };
+  });
+  document.querySelectorAll('[data-probe-res]').forEach((el) => {
+    el.onclick = () => onTrial(el.dataset.ex, el.dataset.probeRes === 'ok', 'probe');
+  });
+  document.querySelectorAll('[data-custom-res]').forEach((el) => {
+    el.onclick = () => onTrial(el.dataset.ex, el.dataset.customRes === 'ok', 'custom');
+  });
+  const cf = $('#customForm');
+  if (cf) cf.onsubmit = onCustomSubmit;
 }
 
 function renderRail(p) {
@@ -366,6 +1254,46 @@ function renderRail(p) {
       <ul class="cues">${p.repairs.map((r) => `<li>${esc(r.note)}</li>`).join('')}</ul>
     </div>` : ''}
 
+    ${p.probes.length ? `<div class="card">
+      <p class="eyebrow">נסה ותגיד לי</p>
+      <p class="hint">המערכת נמנעת מתרגילים שסותרים את המגבלה, אבל לא כל פציעה רלוונטית לכל תנועה.
+        לכל אזור פגוע מוצע כאן תרגיל אחד, הכי פשוט שקיים. אם הוא עובר בלי כאב — הוא נכנס לתכניות מכאן והלאה.</p>
+      ${p.probes.map(probeCard).join('')}
+    </div>` : ''}
+
+    <div class="card">
+      <p class="eyebrow">תרגיל משלך</p>
+      <p class="hint">אפשר לכתוב תרגיל שאינו במאגר, לנסות אותו באימון, ולסמן אם המתאמן ביצע אותו בסדר.
+        משנסמן שהוא עבר — המערכת תשבץ אותו בעצמה בתכניות הבאות.</p>
+      ${customList(p)}
+      <details style="margin-top:.6rem"><summary>הוספת תרגיל</summary>
+        <form id="customForm" style="margin-top:.6rem">
+          <div class="fields">
+            <label class="f"><span class="req">שם התרגיל</span><input name="name" required></label>
+            <label class="f"><span>מספר סטים</span><input name="sets" type="number" min="1" max="10" value="3"></label>
+            <label class="f"><span>מספר חזרות</span><input name="reps" value="10-12"></label>
+            <label class="f"><span>משקל עבודה</span><input name="load" placeholder="למשל 15 ק״ג / משקל גוף"></label>
+          </div>
+          <label class="f" style="margin-top:.6rem"><span class="req">תיאור התרגיל</span>
+            <textarea name="description" required placeholder="תנוחת פתיחה, ביצוע, ומה חשוב שיקרה כדי שהתרגיל יעבוד"></textarea></label>
+          <label class="f" style="margin-top:.6rem"><span>הערות למאמן</span>
+            <textarea name="notes" placeholder="דגשים, טעויות נפוצות, התאמות"></textarea></label>
+          <details style="margin-top:.6rem"><summary>שיוך לשיבוץ אוטומטי (אופציונלי)</summary>
+            <p class="hint">בלי השדות האלה התרגיל יישמר ויוצג, אבל המערכת תשבץ אותו רק כתרגיל עזר.</p>
+            <div class="fields" style="margin-top:.5rem">
+              <label class="f"><span>דפוס תנועה</span>
+                <select name="pattern"><option value="">לא ידוע</option>${PATTERNS.map((x) => `<option value="${x}">${esc(patternLabel(x))}</option>`).join('')}</select></label>
+              <label class="f"><span>שריר עיקרי</span>
+                <select name="primaryMuscle"><option value="">לא ידוע</option>${MUSCLES.map((m) => `<option value="${m}">${esc(muscleLabel(m))}</option>`).join('')}</select></label>
+              <label class="f"><span>ציוד</span>
+                <select name="equipment"><option value="">משקל גוף</option>${equipmentOptions()}</select></label>
+            </div>
+          </details>
+          <div class="row" style="margin-top:.7rem"><button class="primary" type="submit">שמור תרגיל</button></div>
+        </form>
+      </details>
+    </div>
+
     <div class="card">
       <p class="eyebrow">נפח שבועי · יעד ${p.volumeTarget.min}–${p.volumeTarget.max} סטים</p>
       <table><tbody>
@@ -376,6 +1304,82 @@ function renderRail(p) {
         </tr>`).join('')}
       </tbody></table>
     </div>`;
+}
+
+/** התיאור המדויק של התרגיל, כולל תרגילים שהמאמן כתב בעצמו. */
+function describeExercise(id) {
+  const t = traineeById(state.program?.traineeId);
+  const custom = (t?.customExercises || []).find((c) => c.id === id);
+  if (custom) return custom.description || '';
+  try { return getExercise(id).description || ''; } catch { return ''; }
+}
+
+const PATTERN_LABELS = {
+  horizontal_push: 'דחיפה אופקית', vertical_push: 'דחיפה אנכית',
+  horizontal_pull: 'משיכה אופקית', vertical_pull: 'משיכה אנכית',
+  squat: 'סקוואט', hinge: 'הינג׳ / שרשרת אחורית', lunge: 'מכרע / חד-צדדי',
+  hip_abduction: 'הרחקה וקירוב ירך', calf: 'תאומים',
+  elbow_flexion: 'כפיפת מרפק', elbow_extension: 'פשיטת מרפק',
+  shoulder_isolation: 'בידוד כתף',
+  core_antiextension: 'ליבה — מניעת יישור', core_antirotation: 'ליבה — מניעת סיבוב',
+  core_antilateralflexion: 'ליבה — מניעת הטיה', core_flexion: 'ליבה — כפיפה',
+  carry: 'נשיאה', conditioning: 'קונדישן', mobility: 'ניידות',
+};
+const patternLabel = (p) => PATTERN_LABELS[p] || p;
+
+/** אפשרויות ציוד לפי מה שקיים בסטודיו הנוכחי. */
+function equipmentOptions() {
+  const studio = studioById($('#studio').value);
+  if (!studio) return '';
+  const items = [...normalizeStudio(studio).equipment.keys()].filter((i) => i !== 'bodyweight');
+  return items.map((i) => `<option value="${i}">${esc(EQUIPMENT_LABELS[i] || i)}</option>`).join('');
+}
+
+/** כרטיס תרגיל בדיקה באזור פציעה. */
+function probeCard(pr, i) {
+  const unlocked = !pr.locked || state.unlockedProbes?.has(pr.exercise.id);
+  return `<div class="probe ${unlocked ? 'open' : ''}" data-probe="${esc(pr.exercise.id)}">
+    <h4>${esc(pr.exercise.name)}</h4>
+    <div class="role">בדיקה עבור: ${esc(pr.constraintName)} · ${esc(severityLabel(pr.severity))}${pr.side ? ` · צד ${pr.side === 'right' ? 'ימין' : 'שמאל'}` : ''}</div>
+    <p class="desc">${esc(pr.exercise.description)}</p>
+    ${unlocked ? `
+      <div class="rx">
+        <span class="chip key mono">${pr.prescription.sets} × ${esc(pr.prescription.reps)}</span>
+        <span class="chip">${esc(equipmentList(pr.exercise.equipment))}</span>
+      </div>
+      <ul class="cues">${pr.instructions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <p class="desc"><b>מתי עוצרים:</b> ${esc(pr.stopRule)}</p>
+      <div class="acts">
+        <button class="act-key" data-probe-res="ok" data-ex="${esc(pr.exercise.id)}">עבר בלי כאב</button>
+        <button class="act-alert" data-probe-res="pain" data-ex="${esc(pr.exercise.id)}">היה כאב</button>
+      </div>`
+    : `<p class="desc"><b>${esc(pr.lockNote)}</b></p>
+       <p class="desc"><b>מתי עוצרים:</b> ${esc(pr.stopRule)}</p>
+       <div class="acts"><button data-unlock="${esc(pr.exercise.id)}">אני לוקח אחריות — הצג את הבדיקה</button></div>`}
+  </div>`;
+}
+
+/** רשימת התרגילים שהמאמן כתב, עם מצב הבדיקה שלהם. */
+function customList(p) {
+  const all = [...(p.customExercises?.pending || []), ...(p.customExercises?.approved || [])];
+  if (!all.length) return '<p class="empty">עדיין לא נוספו תרגילים משלך.</p>';
+  return all.map((c) => `<div class="listrow" style="align-items:flex-start">
+    <div class="grow">
+      <strong>${esc(c.name)}</strong>
+      <span class="chip ${c.status === 'tested_ok' ? 'ok' : 'warn'}">${c.status === 'tested_ok' ? 'נבדק ומשובץ' : 'ממתין לבדיקה'}</span>
+      <p class="desc">${esc(c.description)}</p>
+      <div class="rx">
+        <span class="chip mono">${c.sets} × ${esc(c.reps)}</span>
+        ${c.load ? `<span class="chip mono">${esc(c.load)}</span>` : ''}
+        ${c.pattern ? `<span class="chip">${esc(patternLabel(c.pattern))}</span>` : '<span class="chip">ללא שיוך — ישובץ כעזר</span>'}
+      </div>
+      ${c.notes ? `<p class="desc">${esc(c.notes)}</p>` : ''}
+    </div>
+    ${c.status !== 'tested_ok' ? `<div class="acts">
+      <button class="act-key" data-custom-res="ok" data-ex="${esc(c.id)}">בוצע בסדר</button>
+      <button class="act-alert" data-custom-res="fail" data-ex="${esc(c.id)}">לא מתאים</button>
+    </div>` : ''}
+  </div>`).join('');
 }
 
 function dayCard(day, di) {
@@ -398,6 +1402,7 @@ function exerciseRow(b, di, bi) {
     <div>
       <div class="name">${esc(b.exercise.name)}</div>
       <div class="role">${esc(b.slotLabel || roleLabel(b.role))} · ${esc(equipmentList(b.exercise.equipment))}${b.setType === 'superset' ? ' · סופרסט' : ''}${b.exercise.unilateral ? ' · לכל צד' : ''}</div>
+      <p class="desc">${esc(describeExercise(b.exercise.id))}</p>
     </div>
     <div class="body">
       <div class="rx">
@@ -449,6 +1454,47 @@ function onSwap(ds) {
   }
 }
 
+/** תוצאת בדיקה — תרגיל באזור פציעה או תרגיל שהמאמן כתב. */
+async function onTrial(exerciseId, ok, kind) {
+  const raw = traineeById(state.program.traineeId);
+  const type = kind === 'custom'
+    ? (ok ? 'custom_tested_ok' : 'custom_tested_failed')
+    : (ok ? 'probe_ok' : 'probe_pain');
+  let note = '';
+  if (!ok) note = prompt('מה בדיוק הרגיש המתאמן? (יישמר בתיק)', '') || '';
+  const ev = { type, exerciseId, payload: { note } };
+
+  const { trainee, changes } = applyFeedback(normalizeTrainee(raw), [ev]);
+  Object.assign(raw, trainee);
+  await store.updateTrainee(raw);
+  generate();
+  log(ok ? 'הבדיקה עברה' : 'נרשמה תחושה', changes.map((c) => esc(c.message)));
+}
+
+/** שמירת תרגיל שהמאמן כתב בעצמו. */
+async function onCustomSubmit(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const raw = traineeById(state.program.traineeId);
+  const payload = {
+    name: f.get('name'),
+    description: f.get('description'),
+    sets: +f.get('sets') || 3,
+    reps: f.get('reps') || '10',
+    load: f.get('load') || '',
+    notes: f.get('notes') || '',
+    pattern: f.get('pattern') || null,
+    primaryMuscle: f.get('primaryMuscle') || null,
+    equipment: f.get('equipment') ? [f.get('equipment')] : [],
+  };
+  const { trainee, changes } = applyFeedback(normalizeTrainee(raw), [{ type: 'custom_add', payload }]);
+  Object.assign(raw, trainee);
+  await store.updateTrainee(raw);
+  e.target.reset();
+  generate();
+  log('נוסף תרגיל משלך', changes.map((c) => esc(c.message)));
+}
+
 function onAction(ds) {
   const block = state.program.days[+ds.d].blocks[+ds.b];
   const raw = traineeById(state.program.traineeId);
@@ -471,7 +1517,7 @@ function onAction(ds) {
   raw._events = [...(raw._events || []), ev];
   const { trainee, changes, flags } = applyFeedback(normalizeTrainee(raw), [ev]);
   Object.assign(raw, trainee);
-  saveTrainees();
+  store.updateTrainee(raw);
 
   const messages = changes.map((c) => esc(c.message));
   if (flags.deloadRecommended) messages.push('<b>הצטברות סימני עומס — מומלץ שבוע הורדת עומס.</b>');
