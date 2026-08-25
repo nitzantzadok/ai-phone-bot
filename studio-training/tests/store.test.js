@@ -60,7 +60,8 @@ test('מיגרציה מגרסה ישנה משלימה שדות בלי לאבד �
 
 test('בדיקת שלמות מזהה הפניות שבורות', () => {
   const db = new Db(tmpFile('db.json'));
-  db.putStudio({ id: 's1', name: 'קיים' });
+  db.putAccount({ id: 'acc1', username: 'owner' });
+  db.putStudio({ id: 's1', name: 'קיים', accountId: 'acc1' });
   db.putTrainee({ id: 'ok', studioId: 's1', name: 'תקין' });
   db.putTrainee({ id: 'bad', studioId: 'nope', name: 'יתום' });
   const r = db.check();
@@ -68,6 +69,25 @@ test('בדיקת שלמות מזהה הפניות שבורות', () => {
   assert.equal(r.issues.length, 1);
   assert.match(r.issues[0], /אינו קיים/);
   assert.equal(r.stats.trainees, 2);
+});
+
+test('סטודיו ללא חשבון בעלים נחשב תקלת שלמות — נתונים חייבים בעלים', () => {
+  const db = new Db(tmpFile('db.json'));
+  db.putStudio({ id: 's1', name: 'יתום' });
+  const r = db.check();
+  assert.equal(r.ok, false);
+  assert.ok(r.issues.some((i) => i.includes('אין חשבון בעלים')));
+});
+
+test('בעלות על סטודיו נשמרת גם כשעדכון לא כולל אותה', () => {
+  const db = new Db(tmpFile('db.json'));
+  db.putAccount({ id: 'acc1', username: 'owner' });
+  db.putStudio({ id: 's1', name: 'סטודיו', accountId: 'acc1' });
+  db.putStudio({ id: 's1', name: 'סטודיו מעודכן' });
+  assert.equal(db.getStudio('s1').accountId, 'acc1');
+  assert.ok(db.ownsStudio('acc1', 's1'));
+  assert.ok(!db.ownsStudio('acc2', 's1'));
+  assert.ok(!db.ownsStudio(null, 's1'), 'בלי חשבון אין בעלות');
 });
 
 test('ייצוא וייבוא משחזרים מצב מלא, עם גיבוי אוטומטי', () => {

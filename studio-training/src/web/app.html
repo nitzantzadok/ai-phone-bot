@@ -293,6 +293,62 @@
   .day h3{font-size:var(--step-2)}
   .day .meta{font-size:var(--step--1); color:var(--muted)}
 
+  /* ---------------------------------------------------------- מסך הכניסה */
+  .gate{position:fixed; inset:0; z-index:100; display:grid; place-items:center;
+    padding:1.2rem; overflow-y:auto; background:var(--ground)}
+  /* display מהמחלקה גובר על [hidden] של הדפדפן — בלי השורה הזאת
+     המסך נשאר שקוף מעל האפליקציה ובולע לחיצות. */
+  .gate[hidden]{display:none}
+  .gate-card{width:min(440px,100%); background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius-lg); padding:1.6rem 1.4rem 1.4rem; box-shadow:var(--shadow-lift);
+    animation:riseIn .6s var(--ease-out) backwards; position:relative; overflow:hidden}
+  .gate-card::before{content:''; position:absolute; inset-inline:0; top:0; height:3px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+  .gate-title{font-family:"Secular One",system-ui,sans-serif; font-size:var(--step-3);
+    margin:.1rem 0 .5rem; letter-spacing:-.01em}
+  .gate-sub{color:var(--ink-2); font-size:var(--step--1); line-height:1.6; margin:0 0 1.1rem}
+  .gate-tabs{display:flex; gap:.25rem; background:var(--surface-2); padding:.25rem;
+    border-radius:999px; margin-bottom:1rem}
+  .gate-tabs button{flex:1; background:transparent; border:0; padding:.5rem; border-radius:999px;
+    color:var(--ink-2); font-size:var(--step--1); font-weight:600; cursor:pointer;
+    transition:background .2s var(--ease), color .2s var(--ease)}
+  .gate-tabs button[aria-current="true"]{background:var(--accent); color:var(--accent-ink);
+    box-shadow:0 4px 16px var(--glow)}
+  .gate-submit{width:100%; margin-top:.9rem; min-height:46px; font-size:var(--step-0)}
+  .gate-err{background:var(--crit-soft,rgba(248,113,113,.12)); border:1px solid var(--crit);
+    color:var(--crit); border-radius:var(--radius-sm); padding:.55rem .7rem;
+    font-size:var(--step--1); margin:.8rem 0 0; animation:popIn .3s var(--ease-out)}
+  #gateFields .f{margin-bottom:.7rem}
+
+  /* ---------------------------------------------------------- היסטוריה */
+  .hcols{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:1.1rem; align-items:start}
+  @media (max-width:1000px){ .hcols{grid-template-columns:1fr} }
+  .htimeline{display:grid; gap:.5rem; margin-top:.7rem}
+  .hsession{display:grid; grid-template-columns:auto 1fr auto; gap:.2rem .8rem;
+    align-items:center; padding:.6rem .8rem; background:var(--surface-2);
+    border:1px solid var(--line-soft); border-radius:var(--radius-sm);
+    transition:border-color .2s var(--ease), transform .2s var(--ease)}
+  .hsession:hover{border-color:var(--accent-line); transform:translateX(-2px)}
+  .hsession .hdate{font-family:"IBM Plex Mono",monospace; font-size:var(--step--1); color:var(--accent)}
+  .hsession .hmeta{grid-column:1/-1; font-size:var(--step--2); color:var(--muted)}
+  .hsession .hvol{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:var(--step--1)}
+  .hprog{display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+    padding:.55rem .75rem; border:1px solid var(--line-soft); border-radius:var(--radius-sm);
+    background:var(--surface-2); margin-bottom:.4rem; transition:border-color .2s var(--ease)}
+  .hprog:hover{border-color:var(--accent-line)}
+  .hprog b{font-family:"IBM Plex Mono",monospace}
+  .hprog .spacer{flex:1}
+  .hbests{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:.45rem; margin-top:.6rem}
+  .hbest{background:var(--surface-2); border:1px solid var(--line-soft); border-radius:var(--radius-sm);
+    padding:.5rem .65rem}
+  .hbest b{display:block; font-family:"IBM Plex Mono",monospace; font-size:var(--step-1); color:var(--accent)}
+  .hbest span{font-size:var(--step--2); color:var(--muted)}
+  @media (max-width:700px){
+    .gate-card{padding:1.2rem 1rem}
+    .hsession{grid-template-columns:auto 1fr}
+    .hsession .hvol{grid-row:1; grid-column:2; justify-self:end}
+  }
+
   /* רשימת נתונים: תווית מימין, ערך משמאל, קו מפריד עדין */
   .kv{display:grid; grid-template-columns:auto 1fr; gap:.05rem .7rem; margin:.6rem 0 0}
   .kv dt{font-size:var(--step--1); color:var(--muted); padding:.3rem 0; align-self:center}
@@ -579,20 +635,46 @@
 </head>
 <body>
 
-<header class="bar">
+<!-- מסך הכניסה. עד שיש חשבון מחובר, שום נתון לא נטען ולא מוצג. -->
+<section id="gate" class="gate" hidden>
+  <div class="gate-card">
+    <p class="eyebrow">מערכת תכניות האימון</p>
+    <h1 class="gate-title">מסך המאמן</h1>
+    <p class="gate-sub">כל סטודיו נכנס לחשבון שלו. הנתונים של כל סטודיו —
+      המתאמנים, הפציעות, המשקלים וההיסטוריה — שמורים בנפרד ואינם נראים לאף סטודיו אחר.</p>
+
+    <div class="gate-tabs" id="gateTabs">
+      <button data-gate="login" aria-current="true">כניסה</button>
+      <button data-gate="register">רישום סטודיו חדש</button>
+    </div>
+
+    <form id="gateForm" autocomplete="on">
+      <div id="gateFields"></div>
+      <p class="gate-err" id="gateErr" hidden></p>
+      <button class="primary gate-submit" type="submit" id="gateSubmit">כניסה</button>
+    </form>
+    <p class="hint" id="gateMode"></p>
+  </div>
+</section>
+
+<header class="bar" id="topbar" hidden>
   <h1>מסך המאמן</h1>
   <nav class="tabs" id="tabs">
     <button data-view="studio">1 · סטודיו</button>
     <button data-view="trainees">2 · מתאמנים</button>
     <button data-view="program">3 · אימון</button>
+    <button data-view="history">4 · היסטוריה</button>
   </nav>
   <span class="spacer"></span>
+  <span id="who" class="chip" title="החשבון המחובר"></span>
+  <button class="ghost" id="logout" aria-label="יציאה" title="יציאה מהחשבון">יציאה</button>
   <span id="mode" class="chip"></span>
   <span id="status" class="chip"></span>
   <button class="ghost" id="theme" aria-label="מצב תצוגה">◐</button>
 </header>
 
-<main class="wrap">
+<main class="wrap" id="app" hidden>
+  <section id="viewHistory" hidden></section>
   <section id="viewStudio" hidden></section>
   <section id="viewTrainees" hidden></section>
   <section id="viewProgram" hidden>
@@ -631,7 +713,106 @@
 const $ = (s) => document.querySelector(s);
 const STORE_KEY = 'studio-training/db/v2';
 
-const state = { studios: [], trainees: [], program: null, view: 'program', server: false };
+const state = {
+  studios: [], trainees: [], program: null, view: 'program', server: false,
+  account: null, snapshots: [], sessionLog: [],
+};
+
+/* ==================================================================
+   חשבונות והפרדת נתונים.
+
+   עם שרת: ההרשמה וההתחברות רצות מול השרת, הסיסמה מגובבת שם ב-scrypt,
+   והמושב נשמר בעוגיית HttpOnly שסקריפט בדף אינו יכול לקרוא.
+
+   בלי שרת (העמוד נפתח כקובץ או כדף עצמאי): אותו תהליך רץ בדפדפן —
+   הסיסמה מגובבת ב-PBKDF2 דרך WebCrypto, ולכל חשבון יש מפתח אחסון משלו,
+   כך שנתוני סטודיו אחד לא נוגעים בנתוני סטודיו אחר גם באותו מחשב.
+   ================================================================== */
+const ACCOUNTS_KEY = 'studio-training/accounts/v1';
+const SESSION_KEY = 'studio-training/session/v1';
+const dataKeyFor = (accountId) => `studio-training/db/v3/${accountId}`;
+
+const lsGet = (k, fallback = null) => {
+  try { return JSON.parse(localStorage.getItem(k) || 'null') ?? fallback; } catch { return fallback; }
+};
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+
+/** גיבוב סיסמה מקומי. PBKDF2 עם 210,000 סיבובים ומלח אקראי לכל חשבון. */
+async function derive(password, saltHex) {
+  const enc = new TextEncoder();
+  const salt = Uint8Array.from(saltHex.match(/../g).map((h) => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 210000, hash: 'SHA-256' }, key, 256,
+  );
+  return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+const randomHex = (n) => [...crypto.getRandomValues(new Uint8Array(n))]
+  .map((b) => b.toString(16).padStart(2, '0')).join('');
+
+/** אותם כללים כמו בשרת, כדי שאותה סיסמה תתקבל בשני המצבים. */
+function checkCredentials(username, password) {
+  const errors = [];
+  const u = String(username || '').trim().toLowerCase();
+  if (u.length < 3) errors.push('שם המשתמש חייב להיות באורך 3 תווים לפחות.');
+  else if (!/^[a-z0-9._@-]+$/.test(u)) errors.push('שם המשתמש יכול להכיל אותיות באנגלית, ספרות, נקודה, מקף, קו תחתון או @.');
+  if (String(password || '').length < 8) errors.push('הסיסמה חייבת להיות באורך 8 תווים לפחות.');
+  else if (/^\d+$/.test(password)) errors.push('סיסמה של ספרות בלבד קלה מדי לניחוש.');
+  return { ok: errors.length === 0, errors, username: u };
+}
+
+const auth = {
+  async me() {
+    if (state.server) {
+      const r = await api('/api/auth/me');
+      return r.ok ? r.account : null;
+    }
+    const sid = lsGet(SESSION_KEY);
+    if (!sid) return null;
+    const acc = (lsGet(ACCOUNTS_KEY, {}))[sid.username];
+    return acc ? { id: acc.id, username: acc.username, studioName: acc.studioName } : null;
+  },
+
+  async register({ username, password, studioName }) {
+    const v = checkCredentials(username, password);
+    if (!v.ok) return { ok: false, errors: v.errors };
+
+    if (state.server) return api('/api/auth/register', { username, password, studioName });
+
+    const accounts = lsGet(ACCOUNTS_KEY, {});
+    if (accounts[v.username]) return { ok: false, errors: ['שם המשתמש הזה כבר תפוס.'] };
+    const salt = randomHex(16);
+    const acc = {
+      id: `acc_${randomHex(8)}`, username: v.username, salt,
+      hash: await derive(password, salt), studioName: String(studioName || '').trim(),
+      createdAt: new Date().toISOString(),
+    };
+    accounts[v.username] = acc;
+    if (!lsSet(ACCOUNTS_KEY, accounts)) {
+      return { ok: false, errors: ['הדפדפן חוסם אחסון מקומי, ולכן אי אפשר לשמור חשבון במצב הזה.'] };
+    }
+    lsSet(SESSION_KEY, { username: acc.username, at: Date.now() });
+    return { ok: true, account: { id: acc.id, username: acc.username, studioName: acc.studioName } };
+  },
+
+  async login({ username, password }) {
+    if (state.server) return api('/api/auth/login', { username, password });
+
+    const u = String(username || '').trim().toLowerCase();
+    const acc = (lsGet(ACCOUNTS_KEY, {}))[u];
+    const generic = { ok: false, errors: ['שם משתמש או סיסמה שגויים.'] };
+    if (!acc) return generic;
+    if (await derive(password, acc.salt) !== acc.hash) return generic;
+    lsSet(SESSION_KEY, { username: acc.username, at: Date.now() });
+    return { ok: true, account: { id: acc.id, username: acc.username, studioName: acc.studioName } };
+  },
+
+  async logout() {
+    if (state.server) { try { await api('/api/auth/logout', {}); } catch { /* ממילא יוצאים */ } }
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* חסום */ }
+    state.account = null;
+  },
+};
 
 /* ==================================================================
    שכבת אחסון.
@@ -665,16 +846,74 @@ const store = {
       state.trainees = await api('/api/trainees');
       return;
     }
-    let local = null;
-    try { local = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch { /* אחסון חסום */ }
-    state.studios = local?.studios || structuredClone(STUDIOS);
-    state.trainees = local?.trainees || structuredClone(TRAINEES);
+    // מפתח האחסון כולל את מזהה החשבון, ולכן שני סטודיואים באותו דפדפן
+    // פשוט לא קוראים מאותו מקום. אין כאן סינון שאפשר לשכוח.
+    const local = lsGet(dataKeyFor(state.account.id));
+    const fresh = !local;
+    state.studios = local?.studios || (state.demoSeed ? structuredClone(STUDIOS) : []);
+    state.trainees = local?.trainees || (state.demoSeed ? structuredClone(TRAINEES) : []);
+    state.snapshots = local?.snapshots || [];
+    if (fresh && state.demoSeed) this.persistLocal();
   },
   persistLocal() {
-    if (state.server) return;
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({ studios: state.studios, trainees: state.trainees }));
-    } catch { /* אחסון חסום — הנתונים יישמרו רק לזמן הפעלה זו */ }
+    if (state.server || !state.account) return;
+    lsSet(dataKeyFor(state.account.id), {
+      studios: state.studios, trainees: state.trainees, snapshots: state.snapshots,
+      savedAt: new Date().toISOString(),
+    });
+  },
+
+  /* ---- היסטוריה: ארכיון תכניות ויומן אימונים */
+
+  /** צילום מצב של תכנית. תוכן זהה לאחרון אינו נשמר שוב. */
+  async archive(program, reason = 'generated') {
+    if (state.server) return; // השרת מארכב לבד בכל בנייה
+    const snap = programSnapshot(program, { reason });
+    const last = state.snapshots.filter((x) => x.traineeId === program.traineeId)
+      .sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+    if (last && sameContent(last, snap)) return;
+    state.snapshots = [...state.snapshots, snap].slice(-400);
+    this.persistLocal();
+  },
+
+  async loadHistory(traineeId) {
+    if (state.server) {
+      const r = await api(`/api/history?traineeId=${encodeURIComponent(traineeId)}`);
+      return r;
+    }
+    const t = traineeById(traineeId);
+    const log = t?.sessionLog || [];
+    const snaps = state.snapshots.filter((x) => x.traineeId === traineeId)
+      .sort((a, b) => (a.at < b.at ? 1 : -1));
+    return {
+      ok: true,
+      traineeId,
+      traineeName: t?.name || '',
+      summary: historySummary(log, snaps),
+      sessions: groupSessions(log),
+      bests: personalBests(log).slice(0, 20),
+      programs: snaps.map(({ program, ...meta }) => meta),
+    };
+  },
+
+  async loadArchivedProgram(snapshotId, traineeId) {
+    if (state.server) {
+      const r = await api(`/api/history/program?snapshotId=${encodeURIComponent(snapshotId)}`);
+      return r.snapshot;
+    }
+    return state.snapshots.find((x) => x.id === snapshotId && x.traineeId === traineeId) || null;
+  },
+
+  /** רישום ליומן האימונים — מה שבאמת בוצע, להבדיל ממה שתוכנן. */
+  async appendLog(traineeId, entries) {
+    const normalized = entries.map((e) => normalizeLogEntry({ ...e, traineeId }));
+    const raw = traineeById(traineeId);
+    if (raw) raw.sessionLog = [...(raw.sessionLog || []), ...normalized];
+    if (state.server) {
+      try { await api('/api/history/log', { traineeId, entries: normalized }); } catch { /* נשמר מקומית */ }
+    }
+    this.persistLocal();
+    return normalized;
   },
   async saveStudio(studio) {
     if (state.server) {
@@ -741,10 +980,94 @@ function status(text, kind = '') {
   el.textContent = text;
 }
 
+/* ---------------------------------------------------------------- כניסה */
+
+/** מה שמופיע בטופס הכניסה — משתנה בין כניסה לרישום. */
+const GATE_FIELDS = {
+  login: `
+    <label class="f"><span class="req">שם משתמש</span>
+      <input name="username" autocomplete="username" required placeholder="north-gym"></label>
+    <label class="f"><span class="req">סיסמה</span>
+      <input name="password" type="password" autocomplete="current-password" required></label>`,
+  register: `
+    <label class="f"><span class="req">שם הסטודיו</span>
+      <input name="studioName" required placeholder="סטודיו צפון"></label>
+    <label class="f"><span class="req">שם משתמש</span>
+      <input name="username" autocomplete="username" required placeholder="north-gym">
+      <small class="hint">אותיות באנגלית, ספרות, נקודה או מקף. זה מה שתקלידו בכניסה.</small></label>
+    <label class="f"><span class="req">סיסמה</span>
+      <input name="password" type="password" autocomplete="new-password" required minlength="8">
+      <small class="hint">8 תווים לפחות. לא ניתן לשחזר אותה — שמרו אותה במקום בטוח.</small></label>
+    <label class="f" style="flex-direction:row; align-items:center; gap:.5rem">
+      <input type="checkbox" name="demo" style="width:auto; min-height:auto">
+      <span style="margin:0">התחל עם סטודיו ומתאמנים לדוגמה (אפשר למחוק בכל רגע)</span></label>`,
+};
+
+let gateMode = 'login';
+
+function renderGate() {
+  $('#gateFields').innerHTML = GATE_FIELDS[gateMode];
+  $('#gateSubmit').textContent = gateMode === 'login' ? 'כניסה' : 'פתיחת חשבון';
+  $('#gateErr').hidden = true;
+  document.querySelectorAll('#gateTabs button')
+    .forEach((b) => b.setAttribute('aria-current', String(b.dataset.gate === gateMode)));
+  $('#gateMode').textContent = state.server
+    ? 'החשבון והנתונים נשמרים בשרת הסטודיו.'
+    : 'העמוד פועל ללא שרת: החשבון והנתונים נשמרים בדפדפן הזה בלבד, בנפרד לכל חשבון.';
+}
+
+function gateError(errors) {
+  const el = $('#gateErr');
+  el.innerHTML = (Array.isArray(errors) ? errors : [errors]).map(esc).join('<br>');
+  el.hidden = false;
+}
+
+async function onGateSubmit(e) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  const btn = $('#gateSubmit');
+  btn.disabled = true;
+  btn.textContent = 'רגע…';
+  try {
+    const r = gateMode === 'login' ? await auth.login(f) : await auth.register(f);
+    if (!r.ok) { gateError(r.errors || ['הפעולה נכשלה.']); return; }
+    state.account = r.account;
+    // נתוני הדגמה נטענים רק ברישום חדש ורק אם ביקשו אותם במפורש
+    state.demoSeed = gateMode === 'register' && !!f.demo;
+    await enterApp();
+  } catch (err) {
+    gateError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = gateMode === 'login' ? 'כניסה' : 'פתיחת חשבון';
+  }
+}
+
+/** מעבר ממסך הכניסה למערכת עצמה — רק כאן נטענים נתונים. */
+async function enterApp() {
+  $('#gate').hidden = true;
+  $('#topbar').hidden = false;
+  $('#app').hidden = false;
+  $('#who').textContent = state.account.studioName || state.account.username;
+  await store.load();
+  fillStudios();
+  setView(state.trainees.length ? 'program' : 'studio');
+}
+
+async function doLogout() {
+  await auth.logout();
+  state.studios = []; state.trainees = []; state.program = null; state.snapshots = [];
+  $('#topbar').hidden = true;
+  $('#app').hidden = true;
+  $('#log').hidden = true;
+  $('#gate').hidden = false;
+  gateMode = 'login';
+  renderGate();
+}
+
 /* ---------------------------------------------------------------- הפעלה */
 async function boot() {
   await store.detect();
-  await store.load();
   $('#mode').className = `chip ${state.server ? 'ok' : ''}`;
   $('#mode').textContent = state.server ? 'מחובר למסד הסטודיו' : 'נשמר בדפדפן הזה';
   $('#mode').title = state.server
@@ -762,8 +1085,21 @@ async function boot() {
   $('#next').onclick = nextWeek;
   $('#print').onclick = () => window.print();
 
-  fillStudios();
-  setView(state.trainees.length ? 'program' : 'studio');
+  document.querySelectorAll('#gateTabs button').forEach((b) => {
+    b.onclick = () => { gateMode = b.dataset.gate; renderGate(); };
+  });
+  $('#gateForm').onsubmit = onGateSubmit;
+  $('#logout').onclick = doLogout;
+
+  // חשבון קיים עם מושב בתוקף נכנס ישר; אחרת נפתח מסך הכניסה
+  const existing = await auth.me().catch(() => null);
+  if (existing) {
+    state.account = existing;
+    await enterApp();
+  } else {
+    renderGate();
+    $('#gate').hidden = false;
+  }
 }
 
 function toggleTheme() {
@@ -821,19 +1157,26 @@ function countUp(root) {
   });
 }
 
-function setView(view) {
+/**
+ * @param {string} view
+ * @param {{regenerate?:boolean}} opts  regenerate=false פותח את מסך האימון
+ *   בלי לבנות תכנית חדשה — כך אפשר להציג תכנית מהארכיון בלי שתידרס.
+ */
+function setView(view, opts = {}) {
   state.view = view;
   document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.view === view)));
   $('#viewStudio').hidden = view !== 'studio';
   $('#viewTrainees').hidden = view !== 'trainees';
   $('#viewProgram').hidden = view !== 'program';
+  $('#viewHistory').hidden = view !== 'history';
+  if (view === 'history') renderHistoryView();
   if (view === 'studio') { renderStudioView(); animateIn($('#viewStudio')); countUp($('#viewStudio')); }
   if (view === 'trainees') { renderTraineesView(); animateIn($('#viewTrainees')); countUp($('#viewTrainees')); }
   if (view === 'program') {
     $('#programSteps').innerHTML = stepsBar('program') + flashHtml();
     wireSteps();
     fillStudios();
-    generate();
+    if (opts.regenerate !== false) generate();
   }
 }
 
@@ -1503,6 +1846,150 @@ async function showDbStats() {
    ================================================================== */
 const DAY_KEYS = [['sun', 'א'], ['mon', 'ב'], ['tue', 'ג'], ['wed', 'ד'], ['thu', 'ה'], ['fri', 'ו'], ['sat', 'ש']];
 
+/* ================================================================
+   מסך ההיסטוריה.
+   שתי שאלות שמאמן שואל: "מה עשינו איתו עד היום" ו"מה נתנו לו אז".
+   הראשונה היא יומן האימונים, השנייה היא ארכיון התכניות.
+   ================================================================ */
+
+/** המתאמן שההיסטוריה שלו מוצגת כרגע. */
+let historyTraineeId = null;
+
+async function renderHistoryView() {
+  const host = $('#viewHistory');
+  const list = state.trainees;
+
+  if (!list.length) {
+    host.innerHTML = `<div class="hero"><h2>היסטוריה</h2>
+      <p class="lede">עוד לא נרשמו מתאמנים. אחרי הרישום, כל תכנית שתיבנה וכל סט שיירשם
+      יישמרו כאן ויהיו נגישים תמיד.</p></div>`;
+    return;
+  }
+
+  if (!historyTraineeId || !list.some((t) => t.id === historyTraineeId)) {
+    historyTraineeId = ($('#trainee')?.value) || list[0].id;
+  }
+
+  const h = await store.loadHistory(historyTraineeId);
+  const s = h.summary;
+
+  host.innerHTML = `
+    <div class="hero">
+      <div>
+        <h2>היסטוריית אימונים</h2>
+        <p class="lede">כל תכנית שנבנתה אי פעם וכל מה שנרשם בשטח, שמורים לפי מתאמן.
+          אפשר לפתוח כל תכנית ישנה ולראות אותה בדיוק כפי שהייתה.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile accent"><b>${s.sessions}</b><span>אימונים שנרשמו</span></div>
+        <div class="tile"><b>${s.programs}</b><span>תכניות בארכיון</span></div>
+        <div class="tile"><b>${volumeTile(s.totalVolumeKg).value}</b><span>${volumeTile(s.totalVolumeKg).label}</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="f" style="max-width:340px"><span>מתאמן</span>
+        <select id="histTrainee">${list.map((t) => `
+          <option value="${esc(t.id)}" ${t.id === historyTraineeId ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
+        </select></label>
+      <div class="row" style="margin-top:.5rem; flex-wrap:wrap; gap:.4rem">
+        ${chipIf(s.firstDate, `מתאמן מאז ${fmtDate(s.firstDate)}`)}
+        ${chipIf(s.lastDate, `אימון אחרון ${fmtDate(s.lastDate)}`)}
+        ${chipIf(s.sessionsPerWeek, `${s.sessionsPerWeek} אימונים בשבוע בממוצע`)}
+        ${s.painEvents ? `<span class="chip warn">${s.painEvents} דיווחי כאב</span>` : ''}
+        <span class="chip mono">${s.sets} סטים</span>
+      </div>
+    </div>
+
+    <div class="hcols" style="margin-top:.9rem">
+      <div>
+        <div class="card">
+          <p class="eyebrow">מה בוצע בפועל</p>
+          <h3 style="margin:.1rem 0 .3rem">יומן אימונים</h3>
+          ${h.sessions.length ? `<div class="htimeline">${h.sessions.slice(0, 40).map(sessionRow).join('')}</div>`
+            : `<p class="empty">עוד לא נרשמו סטים. כל לחיצה על «רישום סט» במסך האימון נשמרת כאן.</p>`}
+        </div>
+
+        <div class="card" style="margin-top:.8rem">
+          <p class="eyebrow">ארכיון</p>
+          <h3 style="margin:.1rem 0 .3rem">כל התכניות שהיו</h3>
+          ${h.programs.length ? h.programs.map(programRow).join('')
+            : `<p class="empty">אין עדיין תכניות בארכיון.</p>`}
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <p class="eyebrow">שיאים</p>
+          <h3 style="margin:.1rem 0 .3rem">המשקל הכבד ביותר שנרשם</h3>
+          ${h.bests.length ? `<div class="hbests">${h.bests.slice(0, 12).map((b) => `
+            <div class="hbest"><b>${b.loadKg}${b.perSide ? '×2' : ''} ק״ג</b>
+              <span>${esc(b.name || b.exerciseId)} · ${b.reps || '—'} חז׳ · ${fmtDate(b.date)}</span></div>`).join('')}</div>`
+            : `<p class="empty">שיאים יופיעו אחרי רישום סטים עם משקל.</p>`}
+        </div>
+      </div>
+    </div>`;
+
+  $('#histTrainee').onchange = (e) => { historyTraineeId = e.target.value; renderHistoryView(); };
+  document.querySelectorAll('[data-open-snap]').forEach((el) => {
+    el.onclick = () => openArchivedProgram(el.dataset.openSnap);
+  });
+  animateIn(host);
+  countUp(host);
+}
+
+/** נפח מצטבר: קילוגרמים עד טון, ואז טונות — כדי שהמספר יישאר קריא. */
+function volumeTile(kg) {
+  if (kg >= 1000) return { value: (kg / 1000).toFixed(1), label: 'טון נפח מצטבר' };
+  return { value: Math.round(kg).toLocaleString('he-IL'), label: 'ק״ג נפח מצטבר' };
+}
+
+const chipIf = (cond, text) => (cond ? `<span class="chip">${esc(text)}</span>` : '');
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('he-IL') : '—');
+
+function sessionRow(s) {
+  return `<div class="hsession">
+    <span class="hdate">${fmtDate(s.date)}</span>
+    <span>${esc(s.dayLabel ? `יום ${s.dayLabel}` : 'אימון')} · ${s.sets} סטים${s.painEvents ? ` · <span class="warn">כאב</span>` : ''}</span>
+    <span class="hvol">${s.volumeKg ? `${s.volumeKg.toLocaleString('he-IL')} ק״ג` : ''}</span>
+    ${s.exercises.length ? `<span class="hmeta">${s.exercises.slice(0, 6).map(esc).join(' · ')}${s.exercises.length > 6 ? ' …' : ''}</span>` : ''}
+  </div>`;
+}
+
+const REASON_LABEL = {
+  registered: 'נבנתה ברישום', generated: 'נבנתה מחדש', generated_batch: 'בנייה קבוצתית',
+  next_week: 'מעבר לשבוע הבא', exercise_swapped: 'הוחלף תרגיל', edited: 'נערכה',
+};
+
+function programRow(p) {
+  return `<div class="hprog">
+    <b>שבוע ${p.week}</b>
+    <span class="chip ${p.qaPassed ? 'ok' : 'warn'}">ציון ${p.qaScore ?? '—'}</span>
+    <span class="hint">${esc(REASON_LABEL[p.reason] || p.reason)} · ${fmtDate(p.at)}</span>
+    <span class="hint">${p.daysPerWeek} ימים · ${p.totalExercises} תרגילים</span>
+    <span class="spacer"></span>
+    <button data-open-snap="${esc(p.id)}">פתח תכנית</button>
+  </div>`;
+}
+
+/**
+ * פתיחת תכנית מהארכיון במסך האימון, לקריאה בלבד.
+ * מסמנים בבירור שזו תכנית ישנה, כדי שאיש לא יעביר לפיה אימון בטעות.
+ */
+async function openArchivedProgram(snapshotId) {
+  const snap = await store.loadArchivedProgram(snapshotId, historyTraineeId);
+  if (!snap) { log('לא נמצא', 'התכנית אינה בארכיון.'); return; }
+  state.program = snap.program;
+  state.archivedView = { at: snap.at, week: snap.week, reason: snap.reason };
+  setView('program', { regenerate: false });
+  render();
+  status(`תכנית מהארכיון · ${fmtDate(snap.at)}`, 'warn');
+  log('נפתחה תכנית מהארכיון', [
+    `שבוע ${snap.week}, נשמרה ב-${fmtDate(snap.at)}.`,
+    'זו תמונת מצב היסטורית לקריאה. «בנה תכנית» יחזיר את התכנית הנוכחית.',
+  ]);
+}
+
 function renderTraineesView() {
   const studioOptions = state.studios.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
 
@@ -1810,6 +2297,8 @@ function generate() {
     return;
   }
   state.program = res.program;
+  state.archivedView = null;
+  store.archive(res.program, 'generated');
   render();
   status(`תכנית מוכנה · ציון ${res.program.qa.score}`, res.program.qa.passed ? 'ok' : 'warn');
 }
@@ -1832,6 +2321,7 @@ async function nextWeek() {
   Object.assign(raw, advanced, { _events: [] });
   await store.updateTrainee(raw);
   generate();
+  if (state.program) store.archive(state.program, 'next_week');
   log(`מעבר לשבוע ${advanced.mesocycleWeek}`,
     [...changes.map((c) => esc(c.message)), flags.deloadRecommended ? '<b>מומלץ שבוע הורדת עומס.</b>' : '']
       .filter(Boolean).slice(0, 8)
@@ -1845,6 +2335,13 @@ const LEVEL_WORD = { error: 'חסימה', warning: 'לתשומת לב', info: '�
 function render() {
   const p = state.program;
   renderRail(p);
+  const banner = $('#archivedBanner');
+  if (banner) banner.remove();
+  if (state.archivedView) {
+    $('#days').insertAdjacentHTML('beforebegin',
+      `<div class="banner warn" id="archivedBanner">תכנית מהארכיון — שבוע ${state.archivedView.week},
+        נשמרה ב-${fmtDate(state.archivedView.at)}. לקריאה בלבד.</div>`);
+  }
   countUp($('#rail'));
   $('#days').innerHTML = `<div class="days">${p.days.map(dayCard).join('')}</div>`;
   animateIn($('#days').firstElementChild);
@@ -2592,6 +3089,21 @@ function onAction(ds) {
   }
 
   raw._events = [...(raw._events || []), ev];
+
+  // כל פעולה מהשטח נשמרת ביומן האימונים הקבוע — זו ההיסטוריה שנשארת
+  // גם אחרי שהתכנית תיבנה מחדש עשר פעמים.
+  const day = state.program.days[+ds.d];
+  store.appendLog(raw.id, [{
+    type: ds.act,
+    programId: state.program.id,
+    week: state.program.week,
+    dayIndex: +ds.d,
+    dayLabel: day?.label || day?.name || '',
+    exerciseId: block.exercise.id,
+    exerciseName: block.exercise.name,
+    payload: ev.payload,
+  }]);
+
   const { trainee, changes, flags } = applyFeedback(normalizeTrainee(raw), [ev]);
   Object.assign(raw, trainee);
   store.updateTrainee(raw);

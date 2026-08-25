@@ -7,10 +7,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { sameContent as sameSnapshotContent } from '../domain/history.js';
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_FILE = path.resolve(HERE, '../../data/db.json');
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * מיגרציה בין גרסאות סכימה.
@@ -34,11 +36,29 @@ export function migrate(data) {
       t.customExercises = t.customExercises || [];
     }
   }
+  if (from < 4) {
+    // גרסה 4 הוסיפה חשבונות, בידוד נתונים בין סטודיואים והיסטוריה מלאה
+    data.accounts = data.accounts || {};
+    data.sessions = data.sessions || {};
+    data.snapshots = data.snapshots || {};
+    for (const t of Object.values(data.trainees || {})) t.sessionLog = t.sessionLog || [];
+    // מסד קיים מלפני החשבונות: כל מה שבו שייך לחשבון הראשון שייווצר.
+    // מסמנים אותו ולא ממציאים בעלים, כדי שלא ניצור שיוך שגוי בשקט.
+    for (const st of Object.values(data.studios || {})) {
+      if (st.accountId === undefined) st.accountId = null;
+    }
+  }
   data.meta = { ...(data.meta || {}), schemaVersion: SCHEMA_VERSION, migratedAt: new Date().toISOString() };
   return data;
 }
 
 const EMPTY = {
+  /** חשבונות: accountId -> { id, username, salt, hash, studioIds, ... } */
+  accounts: {},
+  /** מושבים פעילים: token -> { accountId, expiresAt, createdAt, ua } */
+  sessions: {},
+  /** ארכיון תכניות: snapshotId -> צילום מצב בלתי משתנה */
+  snapshots: {},
   studios: {}, trainees: {}, programs: {}, events: [],
   /** תמונות ציוד: photoId -> { studioId, item, dataUrl, at } */
   photos: {},
@@ -88,6 +108,13 @@ export class Db {
     for (const [id, p] of Object.entries(this.data.programs)) {
       if (!this.data.trainees[p.traineeId]) issues.push(`תכנית ${id}: המתאמן ${p.traineeId} אינו קיים`);
     }
+    for (const [id, st] of Object.entries(this.data.studios)) {
+      if (!st.accountId) issues.push(`סטודיו ${id}: אין חשבון בעלים — הנתונים אינם מבודדים`);
+      else if (!this.data.accounts[st.accountId]) issues.push(`סטודיו ${id}: החשבון ${st.accountId} אינו קיים`);
+    }
+    for (const [id, sn] of Object.entries(this.data.snapshots)) {
+      if (!this.data.trainees[sn.traineeId]) issues.push(`צילום תכנית ${id}: המתאמן ${sn.traineeId} אינו קיים`);
+    }
     for (const ph of Object.values(this.data.photos)) {
       if (!studioIds.has(ph.studioId)) issues.push(`תמונה ${ph.id}: סטודיו ${ph.studioId} אינו קיים`);
     }
@@ -108,13 +135,55 @@ export class Db {
       changelog: this.data.changelog.length,
       measurements: Object.values(this.data.trainees).reduce((n, t) => n + (t.measurements?.length || 0), 0),
       notes: Object.values(this.data.trainees).reduce((n, t) => n + (t.notesLog?.length || 0), 0),
+      accounts: Object.keys(this.data.accounts).length,
+      sessions: Object.keys(this.data.sessions).length,
+      snapshots: Object.keys(this.data.snapshots).length,
+      loggedSets: Object.values(this.data.trainees)
+        .reduce((n, t) => n + (t.sessionLog || []).filter((e) => e.type === 'log_set').length, 0),
       fileSizeKb: (() => { try { return +(fs.statSync(this.file).size / 1024).toFixed(1); } catch { return 0; } })(),
     };
   }
 
-  /** ייצוא מלא לגיבוי חיצוני. */
-  export() {
-    return { exportedAt: new Date().toISOString(), schemaVersion: SCHEMA_VERSION, data: this.data };
+  /**
+   * ייצוא לגיבוי חיצוני.
+   * גיבוי הוא קובץ שיוצא מהשרת ולכן מקבל יחס בהתאם: גיבובי הסיסמאות
+   * והמושבים הפעילים לא נכללים בו לעולם. שחזור מגיבוי מחזיר את הנתונים,
+   * ובעלי החשבונות קובעים סיסמה מחדש.
+   * accountId=null מייצא הכול (גיבוי מנהל); accountId מסוים מייצא רק אותו.
+   */
+  export(accountId = null) {
+    const safeAccounts = Object.fromEntries(Object.entries(this.data.accounts)
+      .filter(([id]) => !accountId || id === accountId)
+      .map(([id, a]) => [id, { ...a, salt: undefined, hash: undefined, algo: undefined }]));
+
+    if (!accountId) {
+      return {
+        exportedAt: new Date().toISOString(),
+        schemaVersion: SCHEMA_VERSION,
+        data: { ...this.data, accounts: safeAccounts, sessions: {} },
+      };
+    }
+
+    const studios = Object.fromEntries(this.listStudiosFor(accountId).map((s) => [s.id, s]));
+    const trainees = Object.fromEntries(this.listTraineesFor(accountId).map((t) => [t.id, t]));
+    const traineeIds = new Set(Object.keys(trainees));
+    return {
+      exportedAt: new Date().toISOString(),
+      schemaVersion: SCHEMA_VERSION,
+      scope: accountId,
+      data: {
+        accounts: safeAccounts,
+        sessions: {},
+        studios,
+        trainees,
+        programs: Object.fromEntries(Object.entries(this.data.programs).filter(([, p]) => traineeIds.has(p.traineeId))),
+        snapshots: Object.fromEntries(Object.entries(this.data.snapshots).filter(([, sn]) => traineeIds.has(sn.traineeId))),
+        photos: Object.fromEntries(Object.entries(this.data.photos).filter(([, ph]) => studios[ph.studioId])),
+        events: this.data.events.filter((e) => traineeIds.has(e.traineeId)),
+        changelog: this.data.changelog.filter((c) => traineeIds.has(c.traineeId) || studios[c.studioId]),
+        meta: { schemaVersion: SCHEMA_VERSION },
+      },
+    };
   }
 
   /**
@@ -135,6 +204,8 @@ export class Db {
         trainees: { ...this.data.trainees, ...next.trainees },
         programs: { ...this.data.programs, ...next.programs },
         photos: { ...this.data.photos, ...next.photos },
+        accounts: { ...this.data.accounts, ...next.accounts },
+        snapshots: { ...this.data.snapshots, ...next.snapshots },
         events: [...this.data.events, ...next.events],
         changelog: [...this.data.changelog, ...next.changelog],
       }
@@ -183,7 +254,13 @@ export class Db {
   // --- סטודיו
   putStudio(s) {
     const existing = this.data.studios[s.id];
-    this.data.studios[s.id] = { ...s, createdAt: existing?.createdAt || s.createdAt || new Date().toISOString() };
+    // הבעלות לעולם לא נמחקת בעדכון: מי שהקים את הסטודיו נשאר הבעלים,
+    // גם אם גוף הבקשה לא כלל את השדה.
+    const accountId = existing?.accountId ?? s.accountId ?? null;
+    this.data.studios[s.id] = {
+      ...s, accountId,
+      createdAt: existing?.createdAt || s.createdAt || new Date().toISOString(),
+    };
     this.log(existing ? 'studio_updated' : 'studio_created', { studioId: s.id });
     return this.save();
   }
@@ -241,6 +318,94 @@ export class Db {
   eventsFor(traineeId, sinceWeek = null) {
     return this.data.events.filter((e) => e.traineeId === traineeId && (sinceWeek == null || e.week === sinceWeek));
   }
+  // --- חשבונות ובידוד נתונים
+  /**
+   * כל הפונקציות כאן מקבלות accountId ולא מחזירות דבר מחוצה לו.
+   * זה הגבול היחיד שמפריד בין הסטודיואים, ולכן הוא נאכף כאן במסד
+   * ולא רק בשכבת ה-API — נתיב חדש שישכח לסנן פשוט לא יקבל נתונים.
+   */
+  putAccount(acc) {
+    this.data.accounts[acc.id] = acc;
+    this.save();
+    return acc;
+  }
+  getAccount(id) { return this.data.accounts[id] || null; }
+  accountByUsername(username) {
+    return Object.values(this.data.accounts).find((a) => a.username === username) || null;
+  }
+  accountCount() { return Object.keys(this.data.accounts).length; }
+
+  putSession(token, session) {
+    this.data.sessions[token] = session;
+    this.#pruneSessions();
+    this.save();
+    return session;
+  }
+  getSession(token) { return (token && this.data.sessions[token]) || null; }
+  dropSession(token) { delete this.data.sessions[token]; return this.save(); }
+  /** ניקוי מושבים שפגו — אחרת הקובץ גדל לנצח. */
+  #pruneSessions() {
+    const now = Date.now();
+    for (const [t, s] of Object.entries(this.data.sessions)) {
+      if (new Date(s.expiresAt).getTime() <= now) delete this.data.sessions[t];
+    }
+  }
+
+  /** האם הסטודיו שייך לחשבון. התשובה השלילית היא ברירת המחדל. */
+  ownsStudio(accountId, studioId) {
+    const st = this.data.studios[studioId];
+    return !!(st && accountId && st.accountId === accountId);
+  }
+  /** האם המתאמן שייך לחשבון — דרך הסטודיו שלו. */
+  ownsTrainee(accountId, traineeId) {
+    const t = this.data.trainees[traineeId];
+    return !!(t && this.ownsStudio(accountId, t.studioId));
+  }
+
+  listStudiosFor(accountId) {
+    return Object.values(this.data.studios).filter((s) => s.accountId === accountId);
+  }
+  listTraineesFor(accountId, studioId = null) {
+    const mine = new Set(this.listStudiosFor(accountId).map((s) => s.id));
+    return Object.values(this.data.trainees)
+      .filter((t) => mine.has(t.studioId) && (!studioId || t.studioId === studioId));
+  }
+
+  // --- ארכיון תכניות
+  /**
+   * שמירת צילום מצב. אם התוכן זהה לצילום האחרון של אותו מתאמן —
+   * לא נוצרת רשומה חדשה, כי ארכיון שמלא בכפילויות הוא ארכיון שאי אפשר לקרוא.
+   */
+  putSnapshot(snap) {
+    const last = this.listSnapshots(snap.traineeId)[0];
+    if (last && sameSnapshotContent(last, snap)) return last;
+    this.data.snapshots[snap.id] = snap;
+    this.save();
+    return snap;
+  }
+  getSnapshot(id) { return this.data.snapshots[id] || null; }
+  /** הצילומים של מתאמן, מהחדש לישן. */
+  listSnapshots(traineeId) {
+    return Object.values(this.data.snapshots)
+      .filter((s) => s.traineeId === traineeId)
+      .sort((a, b) => (a.at < b.at ? 1 : -1));
+  }
+  snapshotsForStudio(studioId) {
+    return Object.values(this.data.snapshots)
+      .filter((s) => s.studioId === studioId)
+      .sort((a, b) => (a.at < b.at ? 1 : -1));
+  }
+
+  // --- יומן אימונים
+  appendLog(traineeId, entries) {
+    const t = this.data.trainees[traineeId];
+    if (!t) throw new Error('מתאמן לא נמצא');
+    t.sessionLog = [...(t.sessionLog || []), ...entries];
+    this.save();
+    return t.sessionLog;
+  }
+  sessionLog(traineeId) { return this.data.trainees[traineeId]?.sessionLog || []; }
+
   reset() {
     this.backup('pre-reset');
     this.data = structuredClone(EMPTY);
