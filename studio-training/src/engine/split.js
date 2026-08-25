@@ -386,11 +386,16 @@ export const PATTERN_FALLBACK = {
   elbow_flexion: ['horizontal_pull'],
   elbow_extension: ['horizontal_push'],
   shoulder_isolation: ['vertical_push', 'horizontal_pull'],
-  core_flexion: ['core_antiextension', 'core_antirotation'],
-  core_antiextension: ['core_antirotation', 'core_antilateralflexion'],
-  core_antirotation: ['core_antiextension', 'core_antilateralflexion'],
-  core_antilateralflexion: ['core_antirotation', 'carry'],
-  carry: ['core_antilateralflexion'],
+  /*
+   * דפוסי ליבה מחליפים זה את זה בקלות ברמת המשבצת: כשאין אפשרות ראויה
+   * באנטי-כיפוף צידי, פאלוף פרס או כפיפת בטן בכבל הם תחליף לגיטימי.
+   * לפני ההרחבה הזאת משבצת צרה נאלצה להסתפק בפלאנק גם למתאמן מנוסה.
+   */
+  core_flexion: ['core_antiextension', 'core_antirotation', 'core_antilateralflexion', 'carry'],
+  core_antiextension: ['core_antirotation', 'core_antilateralflexion', 'core_flexion', 'carry'],
+  core_antirotation: ['core_antiextension', 'core_antilateralflexion', 'core_flexion', 'carry'],
+  core_antilateralflexion: ['core_antirotation', 'carry', 'core_antiextension', 'core_flexion'],
+  carry: ['core_antilateralflexion', 'core_antirotation', 'core_antiextension'],
   conditioning: [],
   mobility: [],
 };

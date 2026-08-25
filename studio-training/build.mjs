@@ -22,6 +22,7 @@ const MODULES = [
   'src/domain/history.js',
   'src/domain/inventory.js',
   'src/domain/labels.js',
+  'src/domain/level.js',
   'src/domain/descriptions.js',
   'src/domain/exercises.js',
   'src/domain/constraints.js',

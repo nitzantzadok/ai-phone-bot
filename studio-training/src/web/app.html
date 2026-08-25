@@ -2792,6 +2792,45 @@ function render() {
   }
 }
 
+/** הסבר קצר לרמה שהמערכת עבדה לפיה, לשימוש ב-tooltip. */
+function levelExplain(r) {
+  if (!r) return '';
+  const parts = [`רמה בפועל: ${levelLabel(r.label)}`];
+  if (r.claimed !== r.label) parts.push(`הוצהר: ${levelLabel(r.claimed)}`);
+  return parts.concat(r.reasons || []).join(' · ');
+}
+
+const CONFIDENCE_LABEL = {
+  high: 'מבוסס על משקלים שנרשמו בשלושה דפוסים ומעלה',
+  medium: 'מבוסס חלקית על משקלים שנרשמו',
+  low: 'מבוסס על ההצהרה בלבד — רישום משקלים יחדד את ההתאמה',
+};
+
+/**
+ * כרטיס הרמה. מוצג רק כשיש מה להסביר: כשהמערכת הסיקה רמה שונה
+ * מזו שהוצהרה, או כשההסתמכות היא על הצהרה בלבד. אחרת זה רעש.
+ */
+function levelCard(r) {
+  if (!r) return '';
+  const changed = r.claimed !== r.label;
+  if (!changed && r.confidence === 'medium') return '';
+
+  const patterns = Object.entries(r.byPattern || {});
+  return `<div class="card">
+    <p class="eyebrow">רמת המתאמן</p>
+    <div class="row" style="gap:.4rem; flex-wrap:wrap; align-items:center">
+      <span class="chip ${changed ? 'key' : ''}">${esc(levelLabel(r.label))}</span>
+      ${changed ? `<span class="hint">הוצהר: ${esc(levelLabel(r.claimed))}</span>` : ''}
+    </div>
+    <p class="hint" style="margin-top:.4rem">${esc(CONFIDENCE_LABEL[r.confidence] || '')}</p>
+    ${(r.reasons || []).length ? `<ul class="cues">${r.reasons.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    ${patterns.length ? `<div class="row" style="gap:.3rem; flex-wrap:wrap; margin-top:.4rem">
+      ${patterns.map(([k, v]) => `<span class="chip mono" title="${v.loadKg} ק״ג — פי ${v.ratio} ממשקל הגוף">
+        ${esc(patternLabel(k))} · ${esc(levelLabel(v.level))}</span>`).join('')}
+    </div>` : ''}
+  </div>`;
+}
+
 function renderRail(p) {
   const m = p.meta;
   const vol = Object.entries(p.weeklyVolume).sort((a, b) => b[1] - a[1]);
@@ -2807,7 +2846,8 @@ function renderRail(p) {
       </div>
       <div class="chips" style="margin-top:.6rem">
         <span class="chip key">${esc(m.goalLabel)}</span>
-        <span class="chip">${esc(levelLabel(m.level))}</span>
+        <span class="chip ${m.resolvedLevel && m.resolvedLevel.label !== m.resolvedLevel.claimed ? 'key' : ''}"
+          title="${esc(levelExplain(m.resolvedLevel))}">${esc(levelLabel(m.resolvedLevel?.label || m.level))}</span>
         <span class="chip mono">${m.daysPerWeek}×${m.sessionMinutes}′</span>
         <span class="chip mono">שבוע ${p.week} · ${esc(phaseLabel(m.phase))}</span>
         ${m.deload ? '<span class="chip warn">הורדת עומס</span>' : ''}
@@ -2824,6 +2864,8 @@ function renderRail(p) {
       ${m.ageNote ? `<p class="note">${esc(m.ageNote)}</p>` : ''}
       ${m.externalLoad.note ? `<p class="note">${esc(m.externalLoad.note)}</p>` : ''}
     </div>
+
+    ${levelCard(p.meta.resolvedLevel)}
 
     ${p.constraints.length ? `<div class="card">
       <p class="eyebrow">מגבלות פעילות</p>

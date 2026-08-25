@@ -7,7 +7,7 @@
  */
 
 import { FATIGUE_COST, SPORTS } from '../domain/taxonomy.js';
-import { LEVEL_DEMAND_FLOOR } from '../domain/exercises.js';
+import { fitsLevel, levelForPattern, levelIndex, trainingValue, valueFloor } from '../domain/level.js';
 
 /** מחולל אקראיות דטרמיניסטי (mulberry32) — מאפשר גיוון יציב וניתן לשחזור. */
 export function makeRng(seedStr) {
@@ -26,6 +26,22 @@ export function makeRng(seedStr) {
 }
 
 /** תגיות שכל מטרה "אוהבת". */
+/**
+ * תגיות שמושכות לכיוון ההפוך מהמטרה.
+ *
+ * עד עכשיו היו רק בונוסים, ולכן תרגיל פילאטיס בתכנית היפרטרופיה קיבל
+ * אפס — לא בונוס אך גם לא קנס — ובמשבצת דלילה הוא ניצח. מטרה היא גם
+ * מה שלא עושים, ולכן יש כאן גם מחיר.
+ */
+const GOAL_TAG_PENALTY = {
+  hypertrophy: { pilates: 6, active_aging: 6, rehab_friendly: 3, regression: 4, beginner_friendly: 2 },
+  strength: { pilates: 7, active_aging: 6, rehab_friendly: 3, regression: 5, beginner_friendly: 2, isometric: 2 },
+  power: { pilates: 7, active_aging: 6, rehab_friendly: 3, regression: 5, low_impact: 3 },
+  athletic_performance: { pilates: 5, active_aging: 5, regression: 4 },
+  fat_loss: { pilates: 2, active_aging: 2 },
+  // שיקום, גיל שלישי, יציבה וניידות: אין קנס — שם אלה בדיוק הכלים הנכונים
+};
+
 const GOAL_TAG_BONUS = {
   fat_loss: { conditioning: 3, functional: 2, low_impact: 1 },
   endurance: { conditioning: 3, low_impact: 1 },
@@ -107,13 +123,39 @@ export function scoreCandidate(cand, slot, ctx) {
   // 2ג. רצפת דרישה: תרגיל עיקרי חייב לספק גירוי שתואם את רמת המתאמן.
   //     בלי זה מתאמן מתקדם עלול לקבל גרסה מוקלת רק משום שהיא בטוחה יותר.
   const isKeySlot = slot.role === 'main' || slot.role === 'secondary';
-  if (isKeySlot && ex.type !== 'conditioning' && ex.type !== 'mobility') {
-    const floor = LEVEL_DEMAND_FLOOR[trainee.level] ?? 1;
-    if (ex.demand < floor) {
-      const gap = floor - ex.demand;
-      score -= 14 * gap; detail.tooEasy = -14 * gap;
-    } else if (ex.demand >= floor + 1) {
-      score += 3; detail.demandFit = 3;
+
+  /*
+   * רצפת ערך אימוני.
+   *
+   * זה השינוי המרכזי מול הגרסה הקודמת: הרצפה חלה על *כל* תפקיד עבודה,
+   * ולא רק על התרגילים העיקריים. קודם לכן מתאמן מתקדם קיבל פלאנק
+   * ותרגילי פילאטיס במשבצות הליבה והעזר, כי שם לא נבדק כלום.
+   *
+   * בנוסף הרמה שנבדקת היא הרמה המיושבת (הצהרה + ותק + כוח מוכח)
+   * ולא ההצהרה בלבד, והיא נבדקת לפי הדפוס — אדם יכול להיות מתקדם
+   * בסקוואט ומתחיל מעל הראש.
+   */
+  if (ex.type !== 'mobility' && slot.role !== 'warmup' && slot.role !== 'cooldown') {
+    const lvl = ctx.resolvedLevel
+      ? levelForPattern(ctx.resolvedLevel, ex.pattern)
+      : levelIndex(trainee.level);
+    const fit = fitsLevel(ex, lvl, slot.role);
+    if (fit.hard) {
+      // פסילה מבנית: תרגיל בידוד במשבצת עיקרית. זו אינה שאלה של ניקוד
+      // אלא של תפקיד, ולכן הקנס בסדר גודל של אי-התאמת דפוס.
+      score -= 80; detail.wrongRole = -80;
+    } else if (!fit.ok) {
+      /*
+       * ככל שהפער גדול יותר כך הפסילה חדה יותר. תרגיל שאיבד את כל ערכו
+       * למתאמן הזה (פלאנק למי שמתאמן שבע שנים) מקבל קנס בסדר גודל של
+       * פסילה מבנית — אחרת הוא עדיין מנצח כשהמשבצת דלילה, וזו בדיוק
+       * הדרך שבה תרגילים קלים מדי חזרו לתכניות של מתקדמים.
+       */
+      const gap = fit.floor - fit.value;
+      const penalty = fit.value <= 0.05 ? 80 : Math.round(20 + 130 * gap);
+      score -= penalty; detail.belowLevel = -penalty;
+    } else if (fit.value >= fit.floor + 0.15) {
+      score += 4; detail.levelFit = 4;
     }
   }
 
@@ -154,6 +196,11 @@ export function scoreCandidate(cand, slot, ctx) {
   if (focusHit) { score += 4 * focusHit; detail.focus = 4 * focusHit; }
 
   // 6. התאמת מטרה לפי תגיות
+  const tagPenalty = GOAL_TAG_PENALTY[trainee.primaryGoal] || {};
+  let tagCost = 0;
+  for (const t of ex.tags || []) tagCost += tagPenalty[t] || 0;
+  if (tagCost) { score -= tagCost; detail.offGoal = -tagCost; }
+
   const tagBonus = GOAL_TAG_BONUS[trainee.primaryGoal] || {};
   let tagScore = 0;
   for (const t of ex.tags) tagScore += tagBonus[t] || 0;

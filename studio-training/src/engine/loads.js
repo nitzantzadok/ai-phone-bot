@@ -9,6 +9,7 @@
  * רושם סט — המספר שלו הופך למקור האמת, וההצעה כבר לא רלוונטית.
  */
 
+import { LEVEL_LABELS } from '../domain/labels.js';
 import { estimate1RM } from './prescription.js';
 import { achievableLoad } from '../domain/inventory.js';
 
@@ -41,6 +42,7 @@ const BW_RATIO = {
 };
 
 const LEVEL_INDEX = { beginner: 0, novice: 1, intermediate: 2, advanced: 3 };
+const LEVEL_ORDER_L = ['beginner', 'novice', 'intermediate', 'advanced'];
 
 /**
  * מקדם לתרגילים שנעשים בפועל קל יותר ממה שהמשפחה שלהם מרמזת.
@@ -133,7 +135,11 @@ export function startingLoad(ex, trainee, studio) {
   const bw = trainee.weightKg;
   if (!bw) return null;
 
-  const idx = LEVEL_INDEX[trainee.level] ?? 1;
+  /*
+   * הערכת המשקל נשענת על הרמה שנקבעה בפועל ולא על ההצהרה: מי שהצהיר
+   * "מתקדם" אחרי שלושה חודשים אינו אמור לקבל הצעת משקל של מתקדם.
+   */
+  const idx = trainee.resolvedLevelIndex ?? LEVEL_INDEX[trainee.level] ?? 1;
   let kg = bw * BW_RATIO[family][idx] * (LOAD_FACTOR[ex.id] ?? 1);
 
   // התאמות גיל — שתיהן זהירות בכוונה
@@ -163,7 +169,7 @@ export function startingLoad(ex, trainee, studio) {
   return {
     kg,
     perSide,
-    basis: `הצעת פתיחה לפי ${bw} ק״ג משקל גוף ורמת ${trainee.level}`,
+    basis: `הצעת פתיחה לפי ${bw} ק״ג משקל גוף ורמת ${LEVEL_LABELS[LEVEL_ORDER_L[idx]] || LEVEL_ORDER_L[idx]}`,
     confidence: 'low',
     atStudioCeiling: !!capped,
   };

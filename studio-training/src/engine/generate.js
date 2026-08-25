@@ -14,6 +14,7 @@ import {
 } from './prescription.js';
 import { DAY_ARCHETYPES, augmentSlots, chooseSplit, fillerSlot, relaxSlot, scheduleDays, segmentSlots } from './split.js';
 import { isDefaultStructure, normalizeStructure, structurePlan } from '../domain/structure.js';
+import { LEVEL_ORDER, resolveLevel } from '../domain/level.js';
 import { LIFESTYLES, MUSCLE_ROLE, SPORTS } from '../domain/taxonomy.js';
 
 /**
@@ -182,6 +183,19 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
   const targets = weeklyVolumeTargets(trainee);
 
   const volume = { sets: Object.fromEntries(MUSCLES.map((m) => [m, 0])), target: targets };
+
+  /*
+   * הרמה המיושבת מחושבת פעם אחת לתכנית: היא נגזרת מהצהרת המתאמן,
+   * מהוותק שלו ומהמשקלים שנרשמו בפועל, ומכאן היא זו שקובעת
+   * אילו תרגילים מספקים לו גירוי אמיתי ואילו כבר קטנים עליו.
+   */
+  const resolvedLevel = resolveLevel(trainee, BY_ID);
+  /**
+   * אותו מתאמן, עם הרמה שנקבעה בפועל מצורפת — כדי שגם הצעות המשקל
+   * ייגזרו ממנה ולא מההצהרה. נשמר כמשתנה נפרד ולא בהשמה חוזרת,
+   * כי trainee הוא קבוע והשמה אליו נכשלת בזמן ריצה.
+   */
+  const traineeLv = { ...trainee, resolvedLevelIndex: resolvedLevel.index };
   const usedThisWeek = new Map();
 
   const days = [];
@@ -220,15 +234,23 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
     const unfilled = [];
 
     /** מוסיף משבצת לאימון אם היא נכנסת בתקציב הזמן והעייפות. */
-    const tryFill = (slot, { allowRelax = true, segmentCap = null } = {}) => {
-      const ctx = { trainee, studio, volume, usedThisWeek, usedToday, prescribed, rng, dayFatigue, fatigueBudget: budget };
+    const tryFill = (slot, { allowRelax = true, segmentCap = null, requireLevelFit = false } = {}) => {
+      const ctx = { trainee, studio, volume, usedThisWeek, usedToday, prescribed, rng, dayFatigue, fatigueBudget: budget, resolvedLevel };
       let best = pickForSlot(eligible, slot, ctx);
       let usedSlot = slot;
-      if (!best && allowRelax) {
-        usedSlot = relaxSlot(slot);
-        best = pickForSlot(eligible, usedSlot, ctx);
+      /*
+       * מרחיבים את המשבצת לא רק כשאין בה אף מועמד, אלא גם כשהמועמד
+       * הטוב ביותר נפסל על היותו מתחת לרמת המתאמן. משבצת צרה שאין בה
+       * שום תרגיל ראוי היא בדיוק המקום שבו נכנסו תרגילים קלים מדי.
+       */
+      if (allowRelax && (!best || best.detail?.belowLevel)) {
+        const relaxed = relaxSlot(slot);
+        const alt = pickForSlot(eligible, relaxed, ctx);
+        if (alt && (!best || alt.score > best.score)) { best = alt; usedSlot = relaxed; }
       }
       if (!best) return { dropped: 'no_candidate' };
+      // תוספת רשות שאינה עומדת ברמה — לא מוסיפים אותה בכלל
+      if (requireLevelFit && best.detail?.belowLevel) return { dropped: 'below_level' };
 
       const ex = best.cand.exercise;
       const rx = prescribe(ex, trainee, { goal: trainee.primaryGoal });
@@ -274,7 +296,7 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
           loadable: ex.loadable, demand: ex.demand,
         },
         prescription: rx,
-        load: withNoteAdjust(planLoad(ex, rx, trainee, studio), trainee),
+        load: withNoteAdjust(planLoad(ex, rx, traineeLv, studio), trainee),
         rampUp: ramp,
         estimatedMinutes: mins,
         coachingNotes: coachingNotes(ex, best.cand, trainee),
@@ -329,7 +351,9 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
       for (const m of behind) {
         if (added >= 2 || minutes >= timeBudget * 0.85 || blocks.length >= Math.min(9, maxBlocks)) break;
         if ((volume.sets[m] || 0) >= volume.target.min) continue;
-        if (tryFill(fillerSlot(m), { allowRelax: false }).ok) added += 1;
+        // גם השלמת נפח כפופה לרמה: עדיף לסיים אימון קצר מלמלא אותו
+        // בתרגיל שאינו מקדם את המתאמן. זו הייתה דלת אחורית לתרגילים קלים מדי.
+        if (tryFill(fillerSlot(m), { allowRelax: true, requireLevelFit: true }).ok) added += 1;
       }
     }
 
@@ -381,6 +405,19 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
       goal: trainee.primaryGoal,
       goalLabel: (GOAL_PROFILES[trainee.primaryGoal] || {}).label || trainee.primaryGoal,
       level: trainee.level,
+      /**
+       * הרמה שהמערכת עבדה לפיה בפועל, והנימוקים שהובילו אליה.
+       * מוצג למאמן כדי שיראה למה נבחרו התרגילים האלה ויוכל לחלוק עליהם.
+       */
+      resolvedLevel: {
+        label: resolvedLevel.label,
+        claimed: resolvedLevel.claimed,
+        confidence: resolvedLevel.confidence,
+        cappedByAge: resolvedLevel.cappedByAge,
+        reasons: resolvedLevel.reasons,
+        byPattern: Object.fromEntries(Object.entries(resolvedLevel.byPattern)
+          .map(([k, v]) => [k, { level: LEVEL_ORDER[v.index], ratio: v.ratio, loadKg: v.loadKg }])),
+      },
       daysPerWeek: trainee.daysPerWeek,
       sessionMinutes: trainee.sessionMinutes,
       deload: isDeloadWeek(trainee),
@@ -486,10 +523,14 @@ function ensurePullBalance(days, eligible, trainee, studio, volume, usedThisWeek
   const usedToday = new Set(day.blocks.map((b) => b.exercise.id));
   usedToday.delete(removed.exercise.id);
   const slot = { role: 'secondary', patterns: PULL_PATTERNS, type: null, muscles: null, label: 'משיכה (איזון)' };
+  // גם תיקון האיזון בונה בלוק מלא, ולכן הוא זקוק לרמה שנקבעה בפועל
+  const resolvedLevel = resolveLevel(trainee, BY_ID);
+  const traineeLv = { ...trainee, resolvedLevelIndex: resolvedLevel.index };
   const ctx = {
     trainee, studio, volume, usedThisWeek, usedToday,
     prescribed: new Set(prescribedExerciseIds(trainee)), rng,
     dayFatigue: day.fatigueLoad, fatigueBudget: fatigueBudget(trainee) + 3,
+    resolvedLevel,
   };
   const best = pickForSlot(eligible, slot, ctx);
   if (!best) return { type: 'pull_unavailable', note: 'לא נמצא תרגיל משיכה שמתאים ליום זה.' };
@@ -508,7 +549,7 @@ function ensurePullBalance(days, eligible, trainee, studio, volume, usedThisWeek
       equipment: best.cand.equipmentOption, unilateral: ex.unilateral, skill: ex.skill,
     },
     prescription: rx,
-    load: withNoteAdjust(planLoad(ex, rx, trainee, studio), trainee),
+    load: withNoteAdjust(planLoad(ex, rx, traineeLv, studio), trainee),
     rampUp: null,
     estimatedMinutes: estimateMinutes(ex, rx),
     coachingNotes: coachingNotes(ex, best.cand, trainee),
@@ -554,6 +595,9 @@ export function swapExercise(program, trainee, studio, sel) {
 
   const { eligible } = buildCandidatePool(EXERCISES, trainee, studio);
   const usedToday = new Set(day.blocks.map((b) => b.exercise.id).filter((id) => id !== block.exercise.id));
+  // גם בהחלפה ידנית הרמה שנקבעה בפועל היא זו שקובעת את הצעת המשקל
+  const swapLevel = resolveLevel(trainee, BY_ID);
+  const traineeLv = { ...trainee, resolvedLevelIndex: swapLevel.index };
 
   let cand;
   if (sel.alternativeId) {
