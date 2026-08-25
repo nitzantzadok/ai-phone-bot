@@ -6,7 +6,8 @@ name: studio-training · Pages
 
 on:
   push:
-    branches: [main]
+    # גם ענף הפיתוח, כדי שאפשר יהיה לפרסם בלי למזג קודם ל-main
+    branches: [main, 'claude/studio-workout-program-system-jxviy3']
     paths: ['studio-training/**']
   workflow_dispatch:
 
