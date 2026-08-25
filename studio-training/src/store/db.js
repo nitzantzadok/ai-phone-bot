@@ -10,13 +10,41 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_FILE = path.resolve(HERE, '../../data/db.json');
 
+export const SCHEMA_VERSION = 3;
+
+/**
+ * מיגרציה בין גרסאות סכימה.
+ * מסד ישן נטען ומתעדכן בשקט, בלי לאבד נתונים ובלי לדרוש מהמשתמש כלום.
+ */
+export function migrate(data) {
+  const from = data.meta?.schemaVersion ?? 1;
+  if (from >= SCHEMA_VERSION) return data;
+
+  if (from < 2) {
+    data.photos = data.photos || {};
+    data.changelog = data.changelog || [];
+  }
+  if (from < 3) {
+    // גרסה 3 הוסיפה מדידות, יומן הערות ומלאי משקלים
+    for (const t of Object.values(data.trainees || {})) {
+      t.measurements = t.measurements || [];
+      t.notesLog = t.notesLog || [];
+      t.approvedExercises = t.approvedExercises || [];
+      t.blockedExercises = t.blockedExercises || [];
+      t.customExercises = t.customExercises || [];
+    }
+  }
+  data.meta = { ...(data.meta || {}), schemaVersion: SCHEMA_VERSION, migratedAt: new Date().toISOString() };
+  return data;
+}
+
 const EMPTY = {
   studios: {}, trainees: {}, programs: {}, events: [],
   /** תמונות ציוד: photoId -> { studioId, item, dataUrl, at } */
   photos: {},
   /** יומן שינויים — כל פעולה שמשנה מצב, לצורך מעקב וסנכרון. */
   changelog: [],
-  meta: { schemaVersion: 2 },
+  meta: { schemaVersion: SCHEMA_VERSION },
 };
 
 export class Db {
@@ -26,18 +54,130 @@ export class Db {
   }
 
   #load() {
+    let parsed;
     try {
-      const raw = fs.readFileSync(this.file, 'utf8');
-      return { ...structuredClone(EMPTY), ...JSON.parse(raw) };
-    } catch {
+      parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+    } catch (err) {
+      if (err.code === 'ENOENT') return structuredClone(EMPTY);
+      // הקובץ קיים אך פגום — לא מוחקים אותו, שומרים בצד ומתחילים נקי
+      const rescued = `${this.file}.corrupt-${Date.now()}`;
+      try { fs.renameSync(this.file, rescued); } catch { /* ניסינו */ }
+      console.error(`מסד הנתונים היה פגום ונשמר בצד: ${rescued}`);
       return structuredClone(EMPTY);
     }
+    return migrate({ ...structuredClone(EMPTY), ...parsed });
   }
 
+  /**
+   * בדיקת שלמות: מוצאת הפניות שבורות ורשומות חסרות מזהה.
+   * @returns {{ok:boolean, issues:string[], stats:object}}
+   */
+  check() {
+    const issues = [];
+    const studioIds = new Set(Object.keys(this.data.studios));
+
+    for (const [id, s] of Object.entries(this.data.studios)) {
+      if (s.id !== id) issues.push(`סטודיו ${id}: המזהה בתוך הרשומה אינו תואם (${s.id})`);
+      if (!s.name) issues.push(`סטודיו ${id}: אין שם`);
+    }
+    for (const [id, t] of Object.entries(this.data.trainees)) {
+      if (t.id !== id) issues.push(`מתאמן ${id}: המזהה בתוך הרשומה אינו תואם (${t.id})`);
+      if (!t.studioId) issues.push(`מתאמן ${id}: לא משויך לסטודיו`);
+      else if (!studioIds.has(t.studioId)) issues.push(`מתאמן ${id}: משויך לסטודיו שאינו קיים (${t.studioId})`);
+    }
+    for (const [id, p] of Object.entries(this.data.programs)) {
+      if (!this.data.trainees[p.traineeId]) issues.push(`תכנית ${id}: המתאמן ${p.traineeId} אינו קיים`);
+    }
+    for (const ph of Object.values(this.data.photos)) {
+      if (!studioIds.has(ph.studioId)) issues.push(`תמונה ${ph.id}: סטודיו ${ph.studioId} אינו קיים`);
+    }
+
+    return { ok: issues.length === 0, issues, stats: this.stats() };
+  }
+
+  /** תמונת מצב מספרית של המסד. */
+  stats() {
+    return {
+      schemaVersion: this.data.meta?.schemaVersion ?? 1,
+      savedAt: this.data.meta?.savedAt || null,
+      studios: Object.keys(this.data.studios).length,
+      trainees: Object.keys(this.data.trainees).length,
+      programs: Object.keys(this.data.programs).length,
+      photos: Object.keys(this.data.photos).length,
+      events: this.data.events.length,
+      changelog: this.data.changelog.length,
+      measurements: Object.values(this.data.trainees).reduce((n, t) => n + (t.measurements?.length || 0), 0),
+      notes: Object.values(this.data.trainees).reduce((n, t) => n + (t.notesLog?.length || 0), 0),
+      fileSizeKb: (() => { try { return +(fs.statSync(this.file).size / 1024).toFixed(1); } catch { return 0; } })(),
+    };
+  }
+
+  /** ייצוא מלא לגיבוי חיצוני. */
+  export() {
+    return { exportedAt: new Date().toISOString(), schemaVersion: SCHEMA_VERSION, data: this.data };
+  }
+
+  /**
+   * ייבוא. מגבה את הקיים לפני הכתיבה, ומאמת שהמבנה הגיוני
+   * לפני שהוא נוגע במשהו.
+   */
+  import(payload, { merge = false } = {}) {
+    const incoming = payload?.data || payload;
+    if (!incoming || typeof incoming !== 'object' || !incoming.studios || !incoming.trainees) {
+      throw new Error('קובץ הגיבוי אינו במבנה מוכר');
+    }
+    const backup = this.backup('pre-import');
+    const next = migrate({ ...structuredClone(EMPTY), ...incoming });
+    this.data = merge
+      ? {
+        ...this.data,
+        studios: { ...this.data.studios, ...next.studios },
+        trainees: { ...this.data.trainees, ...next.trainees },
+        programs: { ...this.data.programs, ...next.programs },
+        photos: { ...this.data.photos, ...next.photos },
+        events: [...this.data.events, ...next.events],
+        changelog: [...this.data.changelog, ...next.changelog],
+      }
+      : next;
+    this.save();
+    this.log('db_imported', { merge, backup });
+    return { ok: true, backup, stats: this.stats() };
+  }
+
+  /**
+   * שמירה אטומית: כותבים לקובץ זמני ורק אז מחליפים.
+   * כך נפילה באמצע הכתיבה לא משאירה מסד פגום — הקובץ הישן נשאר שלם
+   * עד הרגע שבו החדש מוכן במלואו.
+   */
   save() {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf8');
+    const tmp = `${this.file}.tmp`;
+    this.data.meta = { ...(this.data.meta || {}), schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString() };
+    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), 'utf8');
+    fs.renameSync(tmp, this.file);
     return this;
+  }
+
+  /** גיבוי מתוארך לפני פעולה הרסנית. */
+  backup(reason = 'manual') {
+    if (!fs.existsSync(this.file)) return null;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const dest = `${this.file}.${stamp}.${reason}.bak`;
+    fs.copyFileSync(this.file, dest);
+    this.#pruneBackups();
+    return dest;
+  }
+
+  /** שומרים עשרה גיבויים אחרונים; מעבר לזה זה רק מבזבז מקום. */
+  #pruneBackups() {
+    const dir = path.dirname(this.file);
+    const base = path.basename(this.file);
+    const backups = fs.readdirSync(dir)
+      .filter((f) => f.startsWith(`${base}.`) && f.endsWith('.bak'))
+      .sort();
+    for (const f of backups.slice(0, Math.max(0, backups.length - 10))) {
+      try { fs.unlinkSync(path.join(dir, f)); } catch { /* לא קריטי */ }
+    }
   }
 
   // --- סטודיו
@@ -101,5 +241,9 @@ export class Db {
   eventsFor(traineeId, sinceWeek = null) {
     return this.data.events.filter((e) => e.traineeId === traineeId && (sinceWeek == null || e.week === sinceWeek));
   }
-  reset() { this.data = structuredClone(EMPTY); return this.save(); }
+  reset() {
+    this.backup('pre-reset');
+    this.data = structuredClone(EMPTY);
+    return this.save();
+  }
 }

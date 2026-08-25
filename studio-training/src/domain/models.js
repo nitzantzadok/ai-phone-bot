@@ -7,6 +7,8 @@ import { CONSTRAINTS } from './constraints.js';
 import { BY_ID } from './exercises.js';
 import { ALWAYS_AVAILABLE, CYCLE_PHASES, EQUIPMENT, GOALS, LEVELS, LIFESTYLES, SPLITS, SPORTS } from './taxonomy.js';
 import { normalizeNote } from './notes.js';
+import { normalizeInventory } from './inventory.js';
+import { latest, sortMeasurements } from './measurements.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const WEEK_DAYS = DAYS;
@@ -27,7 +29,7 @@ export function normalizeStudio(raw = {}) {
   }
   for (const it of ALWAYS_AVAILABLE) if (!equipment.has(it)) equipment.set(it, 99);
 
-  return {
+  const studio = {
     id: raw.id || 'studio',
     name: raw.name || 'סטודיו',
     equipment,                                           // Map<item, count>
@@ -67,6 +69,9 @@ export function normalizeStudio(raw = {}) {
     createdAt: raw.createdAt || null,
     notes: raw.notes || '',
   };
+  // המלאי המדויק — אילו משקולות, פלטות ומוטות באמת קיימים ובאיזו כמות
+  studio.inventory = normalizeInventory(raw.inventory, studio);
+  return studio;
 }
 
 /**
@@ -117,7 +122,9 @@ export function normalizeTrainee(raw = {}) {
     sex: raw.sex || 'unspecified',
     age: raw.age ?? 30,
     heightCm: raw.heightCm ?? null,
-    weightKg: raw.weightKg ?? null,
+    // המדידה האחרונה גוברת על משקל שהוזן פעם אחת בטופס —
+    // אחרת הצעות המשקל היו נשארות תקועות על נתון ישן
+    weightKg: latest(raw.measurements || [])?.weightKg ?? raw.weightKg ?? null,
     level: LEVELS.includes(raw.level) ? raw.level : 'beginner',
     trainingAgeMonths: raw.trainingAgeMonths ?? 0,
     goals,
@@ -187,6 +194,8 @@ export function normalizeTrainee(raw = {}) {
       : { id: b.id, reason: b.reason || '', at: b.at || null })),
     /** תרגילים שהמאמן כתב בעצמו עבור המתאמן הזה. */
     customExercises: (raw.customExercises || []).map(normalizeCustomExercise),
+    /** מדידות היקפים והרכב גוף לאורך זמן. */
+    measurements: sortMeasurements(raw.measurements || []),
     /** יומן ההערות של המאמנים — כל אחת ניתנת לעריכה, כיבוי או מחיקה. */
     notesLog: (raw.notesLog || []).map(normalizeNote),
     /** התאמות שנובעות מהערות פעילות. */

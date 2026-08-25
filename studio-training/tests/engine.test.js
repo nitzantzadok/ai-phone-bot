@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {
   buildProgram, buildStudioPrograms, normalizeStudio, normalizeTrainee,
   applyFeedback, advanceWeek, nextTarget, chooseSplit, getExercise,
-  buildCandidatePool, buildProbes,
+  buildCandidatePool, buildProbes, achievableLoad,
+  sortMeasurements, series, summary, allSeries,
   EXERCISES, CONSTRAINTS, taxonomy,
 } from '../src/index.js';
 import { FLAGS, STRESS_KEYS } from '../src/domain/exercises.js';
@@ -443,4 +444,93 @@ test('תרגיל שהמתאמן כבר שולט בו מותר לו גם מעל �
     normalizeTrainee({ ...base, knownMovements: ['conventional_deadlift'] }), studio);
   assert.ok(known.eligible.some((c) => c.exercise.id === 'conventional_deadlift'),
     'תרגיל שסומן כידוע עדיין נחסם');
+});
+
+// ---------------------------------------------------------------- מלאי משקלים
+test('משקל מותאם למה שבאמת אפשר להרכיב מהמלאי', () => {
+  const studio = normalizeStudio({
+    id: 'inv', equipment: ['barbell', 'dumbbell', 'squat_rack', 'bench_flat'],
+    inventory: {
+      bars: [{ kg: 20, count: 1, type: 'olympic' }],
+      plates: [{ kg: 20, count: 4 }, { kg: 10, count: 2 }, { kg: 5, count: 2 }],
+      dumbbells: [{ kg: 10, count: 2 }, { kg: 15, count: 2 }, { kg: 20, count: 1 }],
+      kettlebells: [], fixedBars: [],
+    },
+  });
+  const ex = getExercise('bb_back_squat');
+  // מוט 20 + פלטות בזוגות: 20, 30, 40, 50, 60, 70, 80, 90, 100
+  const r = achievableLoad(77, ex, studio);
+  assert.ok([70, 80].includes(r.kg), `התקבל ${r.kg} — לא ניתן להרכבה`);
+  assert.ok(r.text.includes('מוט 20'), 'אין פירוט הרכבה');
+
+  // 100 ק״ג בדיוק: 20 + 2×(20+20)
+  assert.equal(achievableLoad(100, ex, studio).kg, 100);
+
+  // משקולת יד שיש ממנה רק אחת אינה זמינה כזוג
+  const pair = achievableLoad(20, getExercise('db_bench_press'), studio);
+  assert.equal(pair.kg, 15, 'נבחרה משקולת שאין ממנה זוג');
+});
+
+test('סקוואט לא נבנה על מוט EZ, וכפיפת מרפקים כן', () => {
+  const studio = normalizeStudio({ id: 'bars', equipment: ['barbell', 'ez_bar', 'squat_rack'] });
+  const squat = achievableLoad(40, getExercise('bb_back_squat'), studio);
+  assert.ok(squat.text.includes('מוט 20') || squat.text.includes('מוט 15'), squat.text);
+  const curl = achievableLoad(20, getExercise('ez_curl'), studio);
+  assert.ok(curl.text.includes('מוט 7.5'), `כפיפת מרפקים לא השתמשה במוט EZ: ${curl.text}`);
+});
+
+test('התכנית מציגה פירוט הרכבה לתרגילי מוט', () => {
+  const program = buildProgram({ id: 'bd', level: 'intermediate', age: 30, weightKg: 84,
+    daysPerWeek: 3, primaryGoal: 'strength', goals: ['strength'] }, STUDIOS[0]).program;
+  const barbell = allBlocks(program).find((b) => b.exercise.equipment.includes('barbell') && b.load?.kg);
+  if (barbell) assert.ok(barbell.load.setup?.includes('מוט'), `אין פירוט: ${JSON.stringify(barbell.load)}`);
+});
+
+// ---------------------------------------------------------------- מדידות
+test('מדידות: מיון, מניעת כפילות תאריך, וסדרות לכל מדד', () => {
+  const list = [
+    { date: '2026-03-05', weightKg: 88, girths: { waist: 97 } },
+    { date: '2026-01-05', weightKg: 92, bodyFatPct: 28, girths: { waist: 104 } },
+    { date: '2026-03-05', weightKg: 87.5, girths: { waist: 96 } },
+  ];
+  const sorted = sortMeasurements(list);
+  assert.equal(sorted.length, 2, 'כפילות תאריך לא אוחדה');
+  assert.equal(sorted[0].date, '2026-01-05');
+  assert.equal(sorted[1].weightKg, 87.5, 'המדידה המאוחרת לא גברה');
+
+  const w = series(sorted, 'weightKg');
+  assert.equal(w.points.length, 2);
+  assert.equal(w.delta, -4.5);
+
+  const bf = series(sorted, 'bodyFatPct');
+  assert.equal(bf.points.length, 1, 'נקודה ללא ערך נכללה בטעות');
+});
+
+test('סיכום מדידות מזהה אם השינוי בכיוון הרצוי', () => {
+  const s = summary([
+    { date: '2026-01-01', bodyFatPct: 30, girths: { arm: 33 } },
+    { date: '2026-02-01', bodyFatPct: 27, girths: { arm: 34 } },
+  ]);
+  const fat = s.metrics.find((m) => m.key === 'bodyFatPct');
+  const arm = s.metrics.find((m) => m.key === 'arm');
+  assert.equal(fat.favorable, true, 'ירידה באחוז שומן לא סומנה כרצויה');
+  assert.equal(arm.favorable, true, 'עלייה בהיקף זרוע לא סומנה כרצויה');
+});
+
+test('המדידה האחרונה קובעת את המשקל לחישוב עומסים', () => {
+  const t = normalizeTrainee({
+    id: 'm', weightKg: 100,
+    measurements: [{ date: '2026-01-01', weightKg: 95 }, { date: '2026-04-01', weightKg: 88 }],
+  });
+  assert.equal(t.weightKg, 88, 'המשקל לא נלקח מהמדידה האחרונה');
+});
+
+test('מדידה ריקה או תאריך לא תקין אינם שוברים כלום', () => {
+  const clean = sortMeasurements([{ date: 'לא תאריך' }, { date: '2026-05-05', weightKg: 'abc' }]);
+  assert.equal(clean.length, 2);
+  for (const m of clean) {
+    assert.match(m.date, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(m.weightKg, null);
+  }
+  assert.deepEqual(allSeries(clean), [], 'נוצרה סדרה בלי נתונים');
 });

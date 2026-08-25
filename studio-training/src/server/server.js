@@ -232,6 +232,38 @@ const routes = {
     return { ok: true, changes, flags };
   },
 
+  // --- ניהול מסד הנתונים
+  'GET /api/db/stats': async () => db.check(),
+  'GET /api/db/export': async () => db.export(),
+  'POST /api/db/import': async (body) => db.import(body.payload || body, { merge: !!body.merge }),
+  'POST /api/db/backup': async () => ({ ok: true, file: db.backup('manual'), stats: db.stats() }),
+
+  'POST /api/studios/delete': async (body) => {
+    const studio = db.getStudio(body.id);
+    if (!studio) throw new Error('סטודיו לא נמצא');
+    const trainees = db.listTrainees(body.id);
+    if (trainees.length && !body.force) {
+      throw new Error(`לסטודיו משויכים ${trainees.length} מתאמנים. יש להעביר אותם או לאשר מחיקה מלאה.`);
+    }
+    db.backup('pre-delete');
+    for (const t of trainees) delete db.data.trainees[t.id];
+    delete db.data.studios[body.id];
+    db.log('studio_deleted', { studioId: body.id, traineesRemoved: trainees.length });
+    db.save();
+    return { ok: true, removedTrainees: trainees.length };
+  },
+
+  'POST /api/trainees/delete': async (body) => {
+    const t = db.getTrainee(body.id);
+    if (!t) throw new Error('מתאמן לא נמצא');
+    db.backup('pre-delete');
+    delete db.data.trainees[body.id];
+    for (const p of db.listPrograms(body.id)) delete db.data.programs[p.id];
+    db.log('trainee_deleted', { traineeId: body.id });
+    db.save();
+    return { ok: true };
+  },
+
   'POST /api/next-week': async (body) => {
     const raw = db.getTrainee(body.traineeId);
     if (!raw) throw new Error('מתאמן לא נמצא');

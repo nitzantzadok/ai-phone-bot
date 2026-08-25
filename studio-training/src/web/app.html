@@ -144,6 +144,43 @@
   .kgwrap b{font-size:var(--step--1); color:var(--accent); font-weight:600; white-space:nowrap}
   .loadnote{font-size:.75rem; color:var(--muted); margin:.3rem 0 0}
 
+  /* ---------- מלאי משקלים ---------- */
+  .invgroup{border-top:1px solid var(--line); padding:.6rem 0}
+  .invgroup:first-child{border-top:0}
+  .invgroup h4{margin:0 0 .3rem; font-size:var(--step--1); font-weight:700; font-family:Assistant,sans-serif;
+    letter-spacing:.05em; text-transform:uppercase; color:var(--muted)}
+  .invrows{display:flex; flex-wrap:wrap; gap:.3rem}
+  .invchip{display:inline-flex; align-items:center; gap:.3rem; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:999px; padding:.15rem .35rem .15rem .6rem; font-size:var(--step--1)}
+  .invchip b{color:var(--accent)}
+  .invchip .qty{width:42px; padding:.02rem .2rem; text-align:center; border:1px solid var(--line);
+    border-radius:5px; background:var(--surface); color:var(--ink); font-size:.75rem}
+  .invchip button{padding:0 .25rem; border-color:transparent; background:transparent; color:var(--muted); font-size:.8rem}
+  .invchip button:hover{color:var(--crit); border-color:var(--crit)}
+  .invkg,.invct{width:88px}
+  .invct{width:70px}
+
+  /* ---------- גרפים ---------- */
+  .charts{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:.6rem; margin-top:.6rem}
+  .chart{margin:0; border:1px solid var(--line); border-radius:10px; padding:.5rem .55rem .2rem; background:var(--surface)}
+  .chart figcaption{display:flex; align-items:baseline; gap:.4rem; flex-wrap:wrap; margin-bottom:.1rem}
+  .chart .ctitle{font-size:var(--step--1); color:var(--muted); font-weight:600}
+  .chart .cnow{font-size:var(--step-1); font-weight:700; margin-inline-start:auto}
+  .chart .cnow small{font-size:var(--step--1); font-weight:400; color:var(--muted)}
+  .chart .cdelta{font-size:.72rem; font-weight:600; width:100%}
+  .chart .cdelta.good{color:var(--ok)} .chart .cdelta.bad{color:var(--warn)} .chart .cdelta.neutral{color:var(--muted)}
+  .chart svg{display:block; width:100%; height:auto; overflow:visible}
+  .cgrid{stroke:var(--line); stroke-width:1}
+  .carea{fill:var(--accent); opacity:.10}
+  .cline{fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round}
+  .cdot{fill:var(--surface); stroke:var(--accent); stroke-width:2}
+  .cdot.last{fill:var(--accent)}
+  .chit{fill:transparent; cursor:pointer}
+  .cpt:hover .cdot{r:6}
+  .clabel{fill:var(--muted); font-size:9px; font-family:"IBM Plex Mono",monospace}
+  .clabel.end{text-anchor:end}
+  @media print{ .chart{break-inside:avoid} }
+
   /* ---------- הערות ---------- */
   .exnotes{margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem}
   .exnote{display:flex; align-items:center; gap:.4rem; font-size:var(--step--1);
@@ -644,6 +681,14 @@ function renderStudioView() {
 
       <div class="card">
         <fieldset>
+          <legend>מלאי המשקלים</legend>
+          <p class="hint">מה בדיוק יש בחדר ובאיזו כמות. מכאן המערכת יודעת להגיד
+            "40 ק״ג = מוט 20 + 2×10 לכל צד" במקום מספר שאי אפשר להרכיב, ולא תציע זוג משקולות
+            שיש ממנו רק אחת.</p>
+          <div id="invEditor"></div>
+        </fieldset>
+
+        <fieldset>
           <legend>משקלי עבודה</legend>
           <div class="fields">
             <label class="f"><span>משקולת יד — הכי קלה (ק״ג)</span><input name="dumbbellMinKg" type="number" step="0.5" value="1"></label>
@@ -705,24 +750,140 @@ function renderStudioView() {
           <span class="chip">${esc(s.style || 'gym')}</span>
           <span class="chip mono">${n.equipment.size} פריטי ציוד</span>
           <span class="chip mono">${state.trainees.filter((t) => t.studioId === s.id).length} מתאמנים</span>
+          <span class="chip" title="${esc(inventorySummary(n.inventory))}">${esc(inventorySummary(n.inventory).split(' · ')[0] || '')}</span>
           <span class="grow"></span>
-          <button data-pick-studio="${esc(s.id)}">בחר</button>
+          <button data-pick-studio="${esc(s.id)}">מתאמנים</button>
+          <button data-edit-studio="${esc(s.id)}">ערוך</button>
+          <button data-del-studio="${esc(s.id)}">מחק</button>
         </div>`;
       }).join('') : '<p class="empty">עדיין לא נרשם סטודיו. מלאו את הטופס למעלה — זה לוקח דקה.</p>'}
+    </div>
+
+    <div class="card">
+      <p class="eyebrow">מסד הנתונים</p>
+      <p class="hint">${state.server
+        ? 'הנתונים נשמרים בשרת הסטודיו, עם גיבוי אוטומטי לפני כל פעולה הרסנית.'
+        : 'הנתונים נשמרים בדפדפן הזה. כדאי לייצא גיבוי מדי פעם — קובץ אחד שמכיל הכול.'}</p>
+      <div class="row" style="margin-top:.5rem">
+        <button type="button" id="dbExport">ייצוא גיבוי</button>
+        <label class="filebtn" for="dbImport">שחזור מגיבוי</label>
+        <input type="file" id="dbImport" accept="application/json" hidden>
+        <button type="button" id="dbCheck">בדיקת תקינות</button>
+        <span id="dbStats" class="hint"></span>
+      </div>
     </div>`;
 
   eqState = new Map();
+  invState = { dumbbells: [], kettlebells: [], plates: [], bars: [], fixedBars: [] };
   renderEquipmentChecklist();
+  renderInventoryEditor();
+  if (state.editingStudio) loadStudioIntoForm(state.editingStudio);
   wireSteps();
   document.querySelectorAll('[data-preset]').forEach((b) => { b.onclick = () => applyPreset(b.dataset.preset); });
   document.querySelectorAll('[data-pick-studio]').forEach((b) => {
     b.onclick = () => { $('#studio').value = b.dataset.pickStudio; fillTrainees(); setView('trainees'); };
   });
+  document.querySelectorAll('[data-edit-studio]').forEach((b) => {
+    b.onclick = () => { state.editingStudio = b.dataset.editStudio; renderStudioView(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  });
+  document.querySelectorAll('[data-del-studio]').forEach((b) => { b.onclick = () => deleteStudio(b.dataset.delStudio); });
+  $('#dbExport').onclick = exportDb;
+  $('#dbImport').onchange = importDb;
+  $('#dbCheck').onclick = checkDb;
+  showDbStats();
   $('#eqSearch').oninput = (e) => filterEquipment(e.target.value.trim());
   $('#studioForm').onsubmit = onStudioSubmit;
   $('#identifyBtn').onclick = onIdentify;
   $('#eqPhoto').onchange = onPhotoPicked;
   showVisionNote();
+}
+
+/* ---------------------------------------------------------------- מלאי משקלים */
+const INV_GROUPS = [
+  { key: 'dumbbells', label: 'משקולות יד', unit: 'ק״ג', hint: 'כמות = כמה יחידות מהמשקל הזה (2 = זוג)',
+    preset: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22.5, 25, 27.5, 30], defaultCount: 2 },
+  { key: 'kettlebells', label: 'קטלבלים', unit: 'ק״ג', hint: '',
+    preset: [8, 12, 16, 20, 24, 28, 32], defaultCount: 1 },
+  { key: 'plates', label: 'פלטות משקל', unit: 'ק״ג', hint: 'כמות = כמה פלטות בסך הכול (נטענות בזוגות)',
+    preset: [1.25, 2.5, 5, 10, 15, 20, 25], defaultCount: 4 },
+  { key: 'bars', label: 'מוטות', unit: 'ק״ג', hint: 'מוט אולימפי 20, מוט קל 15, מוט EZ 7.5',
+    preset: [7.5, 10, 15, 20], defaultCount: 1 },
+  { key: 'fixedBars', label: 'מוטות קבועים', unit: 'ק״ג', hint: 'מוטות עם משקל קבוע, אם יש',
+    preset: [10, 15, 20, 25, 30, 35, 40], defaultCount: 1 },
+];
+
+let invState = { dumbbells: [], kettlebells: [], plates: [], bars: [], fixedBars: [] };
+
+function renderInventoryEditor() {
+  const el = $('#invEditor');
+  if (!el) return;
+  el.innerHTML = INV_GROUPS.map((g) => `
+    <div class="invgroup" data-invgroup="${g.key}">
+      <h4>${esc(g.label)} <span class="mono" data-invcount="${g.key}"></span></h4>
+      ${g.hint ? `<p class="hint">${esc(g.hint)}</p>` : ''}
+      <div class="invrows"></div>
+      <div class="row" style="margin-top:.35rem">
+        <input class="invkg" type="number" step="0.5" min="0.5" placeholder="משקל" aria-label="משקל חדש">
+        <input class="invct" type="number" min="1" value="${g.defaultCount}" placeholder="כמות" aria-label="כמות">
+        <button type="button" data-invadd="${g.key}">הוסף</button>
+        <button type="button" data-invfill="${g.key}">מלא סט סטנדרטי</button>
+      </div>
+    </div>`).join('');
+
+  for (const g of INV_GROUPS) drawInvRows(g.key);
+  document.querySelectorAll('[data-invadd]').forEach((b) => { b.onclick = () => addInvRow(b.dataset.invadd); });
+  document.querySelectorAll('[data-invfill]').forEach((b) => { b.onclick = () => fillInvPreset(b.dataset.invfill); });
+}
+
+function drawInvRows(key) {
+  const g = INV_GROUPS.find((x) => x.key === key);
+  const wrap = document.querySelector(`[data-invgroup="${key}"] .invrows`);
+  const list = invState[key];
+  wrap.innerHTML = list.length
+    ? list.map((row, i) => `<span class="invchip">
+        <b class="mono">${row.kg}</b> ${esc(g.unit)}
+        <input class="qty mono" type="number" min="1" value="${row.count}" data-invqty="${key}:${i}" aria-label="כמות">
+        <button type="button" data-invdel="${key}:${i}" aria-label="הסר">✕</button>
+      </span>`).join('')
+    : '<span class="hint">לא הוגדר — המערכת תניח סט סטנדרטי.</span>';
+
+  document.querySelector(`[data-invcount="${key}"]`).textContent = list.length ? `(${list.length})` : '';
+  wrap.querySelectorAll('[data-invqty]').forEach((inp) => {
+    inp.onchange = () => {
+      const [k, idx] = inp.dataset.invqty.split(':');
+      invState[k][+idx].count = Math.max(1, +inp.value || 1);
+    };
+  });
+  wrap.querySelectorAll('[data-invdel]').forEach((btn) => {
+    btn.onclick = () => {
+      const [k, idx] = btn.dataset.invdel.split(':');
+      invState[k].splice(+idx, 1);
+      drawInvRows(k);
+    };
+  });
+}
+
+function addInvRow(key) {
+  const group = document.querySelector(`[data-invgroup="${key}"]`);
+  const kg = parseFloat(group.querySelector('.invkg').value);
+  const count = Math.max(1, parseInt(group.querySelector('.invct').value, 10) || 1);
+  if (!Number.isFinite(kg) || kg <= 0) { log('מלאי', 'יש להזין משקל תקין.'); return; }
+  const list = invState[key];
+  const existing = list.find((r) => r.kg === kg);
+  if (existing) existing.count = count;
+  else list.push({ kg, count, type: key === 'bars' ? (kg <= 10 ? 'ez' : 'olympic') : undefined });
+  list.sort((a, b) => a.kg - b.kg);
+  group.querySelector('.invkg').value = '';
+  drawInvRows(key);
+}
+
+function fillInvPreset(key) {
+  const g = INV_GROUPS.find((x) => x.key === key);
+  invState[key] = g.preset.map((kg) => ({
+    kg, count: g.defaultCount,
+    type: key === 'bars' ? (kg <= 10 ? 'ez' : 'olympic') : undefined,
+  }));
+  drawInvRows(key);
 }
 
 /** כמה תרגילים נפתחים עם הציוד שנבחר — משוב חי בזמן המילוי. */
@@ -869,6 +1030,7 @@ async function onStudioSubmit(e) {
   const equipment = [...eqState.entries()].map(([item, count]) => ({ item, count }));
 
   const studio = {
+    id: state.editingStudio || undefined,
     name: f.get('name'),
     style: f.get('style'),
     sessionMinutes: +f.get('sessionMinutes'),
@@ -883,6 +1045,10 @@ async function onStudioSubmit(e) {
     dumbbellMaxKg: +f.get('dumbbellMaxKg') || null,
     weightIncrementKg: +f.get('weightIncrementKg') || 2.5,
     equipment,
+    inventory: {
+      dumbbells: invState.dumbbells, kettlebells: invState.kettlebells,
+      plates: invState.plates, bars: invState.bars, fixedBars: invState.fixedBars,
+    },
     notes: f.get('notes'),
     profile: { contact: f.get('contact'), dumbbellMinKg: +f.get('dumbbellMinKg') || null, barWeightKg: +f.get('barWeightKg') || null },
   };
@@ -893,6 +1059,7 @@ async function onStudioSubmit(e) {
       for (const dataUrl of pendingPhotos) await api('/api/equipment/photo', { studioId: r.id, dataUrl });
     }
     pendingPhotos = [];
+    state.editingStudio = null;
     fillStudios();
     $('#studio').value = r.id;
     fillTrainees();
@@ -903,6 +1070,137 @@ async function onStudioSubmit(e) {
     setView('trainees');
   } catch (err) {
     $('#studioMsg').textContent = `שגיאה: ${err.message}`;
+  }
+}
+
+/** טעינת סטודיו קיים לטופס לעריכה. */
+function loadStudioIntoForm(id) {
+  const raw = studioById(id);
+  if (!raw) { state.editingStudio = null; return; }
+  const form = $('#studioForm');
+  const n = normalizeStudio(raw);
+
+  const setVal = (name, value) => { if (form[name] != null && value != null) form[name].value = String(value); };
+  setVal('name', raw.name); setVal('style', raw.style || 'gym');
+  setVal('sessionMinutes', n.sessionMinutes); setVal('concurrentTrainees', n.concurrentTrainees);
+  setVal('trainersOnFloor', n.trainersOnFloor); setVal('ceilingHeightCm', n.ceilingHeightCm);
+  setVal('spaceLevel', n.spaceLevel); setVal('noiseRestricted', String(n.noiseRestricted));
+  setVal('climateControlled', String(n.climateControlled));
+  setVal('allowSupersets', String(n.allowSupersets)); setVal('preferredSplit', n.preferredSplit || '');
+  setVal('dumbbellMaxKg', n.dumbbellMaxKg || ''); setVal('weightIncrementKg', n.weightIncrementKg);
+  setVal('contact', raw.profile?.contact || ''); setVal('notes', raw.notes || '');
+
+  for (const [item, count] of n.equipment) { if (item !== 'bodyweight') setEquipment(item, true, count); }
+  if (!n.inventory.generated) {
+    invState = {
+      dumbbells: n.inventory.dumbbells, kettlebells: n.inventory.kettlebells,
+      plates: n.inventory.plates, bars: n.inventory.bars, fixedBars: n.inventory.fixedBars,
+    };
+    for (const g of INV_GROUPS) drawInvRows(g.key);
+  }
+  const btn = form.querySelector('button[type=submit]');
+  if (btn) btn.textContent = 'עדכן סטודיו';
+  $('#studioMsg').textContent = `עריכת "${raw.name}". שמירה תעדכן את הסטודיו הקיים.`;
+}
+
+async function deleteStudio(id) {
+  const studio = studioById(id);
+  const count = state.trainees.filter((t) => t.studioId === id).length;
+  const msg = count
+    ? `למחוק את "${studio.name}"?\n\nמשויכים אליו ${count} מתאמנים — הם יימחקו יחד איתו.`
+    : `למחוק את "${studio.name}"?`;
+  if (!confirm(msg)) return;
+
+  if (state.server) {
+    try { await api('/api/studios/delete', { id, force: true }); await store.load(); }
+    catch (err) { log('המחיקה נכשלה', esc(err.message)); return; }
+  } else {
+    state.studios = state.studios.filter((x) => x.id !== id);
+    state.trainees = state.trainees.filter((t) => t.studioId !== id);
+    store.persistLocal();
+  }
+  state.editingStudio = null;
+  fillStudios();
+  renderStudioView();
+  log('סטודיו נמחק', `${esc(studio.name)}${count ? ` · ${count} מתאמנים הוסרו` : ''}`);
+}
+
+/* ---------------------------------------------------------------- גיבוי ושחזור */
+async function exportDb() {
+  const payload = state.server
+    ? await api('/api/db/export')
+    : { exportedAt: new Date().toISOString(), data: { studios: Object.fromEntries(state.studios.map((s) => [s.id, s])), trainees: Object.fromEntries(state.trainees.map((t) => [t.id, t])), programs: {}, events: [] } };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `studio-training-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  log('גיבוי יוצא', 'הקובץ ירד למחשב. שמור אותו במקום בטוח.');
+}
+
+async function importDb(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const text = await file.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { log('השחזור נכשל', 'הקובץ אינו JSON תקין.'); return; }
+  const data = payload.data || payload;
+  if (!data.studios || !data.trainees) { log('השחזור נכשל', 'הקובץ אינו גיבוי של המערכת.'); return; }
+  if (!confirm('שחזור מגיבוי יחליף את הנתונים הקיימים. להמשיך?')) return;
+
+  if (state.server) {
+    try {
+      const r = await api('/api/db/import', { payload });
+      await store.load();
+      log('שוחזר מגיבוי', `${r.stats.studios} סטודיואים · ${r.stats.trainees} מתאמנים. גיבוי של המצב הקודם נשמר.`);
+    } catch (err) { log('השחזור נכשל', esc(err.message)); return; }
+  } else {
+    state.studios = Object.values(data.studios);
+    state.trainees = Object.values(data.trainees);
+    store.persistLocal();
+    log('שוחזר מגיבוי', `${state.studios.length} סטודיואים · ${state.trainees.length} מתאמנים.`);
+  }
+  fillStudios();
+  renderStudioView();
+  e.target.value = '';
+}
+
+async function checkDb() {
+  if (state.server) {
+    const r = await api('/api/db/stats');
+    log(r.ok ? 'המסד תקין' : 'נמצאו בעיות', [
+      `${r.stats.studios} סטודיואים · ${r.stats.trainees} מתאמנים · ${r.stats.measurements} מדידות · ${r.stats.fileSizeKb}KB`,
+      ...r.issues.map(esc),
+    ]);
+    return;
+  }
+  const issues = [];
+  const ids = new Set(state.studios.map((s) => s.id));
+  for (const t of state.trainees) {
+    if (!ids.has(t.studioId)) issues.push(`${t.name}: משויך לסטודיו שאינו קיים`);
+    if (!t.name) issues.push(`מתאמן ${t.id}: אין שם`);
+  }
+  log(issues.length ? 'נמצאו בעיות' : 'המסד תקין', [
+    `${state.studios.length} סטודיואים · ${state.trainees.length} מתאמנים`,
+    ...issues,
+  ]);
+}
+
+async function showDbStats() {
+  const el = $('#dbStats');
+  if (!el) return;
+  if (state.server) {
+    try {
+      const r = await api('/api/db/stats');
+      el.textContent = `${r.stats.studios} סטודיואים · ${r.stats.trainees} מתאמנים · ${r.stats.measurements} מדידות · ${r.stats.fileSizeKb}KB`;
+    } catch { el.textContent = ''; }
+  } else {
+    el.textContent = `${state.studios.length} סטודיואים · ${state.trainees.length} מתאמנים`;
   }
 }
 
@@ -1277,6 +1575,10 @@ function render() {
   document.querySelectorAll('[data-note-toggle]').forEach((el) => { el.onclick = () => toggleNote(el.dataset.noteToggle); });
   document.querySelectorAll('[data-note-del]').forEach((el) => { el.onclick = () => deleteNote(el.dataset.noteDel); });
   document.querySelectorAll('[data-note-edit]').forEach((el) => { el.onclick = () => openNoteForm({ id: el.dataset.noteEdit }); });
+  const mf = $('#measForm');
+  if (mf) mf.onsubmit = onMeasurementSubmit;
+  document.querySelectorAll('[data-meas-del]').forEach((el) => { el.onclick = () => onMeasurementDelete(el.dataset.measDel); });
+
   const nf = $('#noteForm');
   if (nf) {
     nf.onsubmit = onNoteSubmit;
@@ -1344,6 +1646,8 @@ function renderRail(p) {
              אפשר להזין משקל בכל שדה בתכנית והוא יישמר, או להשלים את משקל הגוף בכרטיס המתאמן.</div></div>`
         : '';
     })()}
+
+    ${measurementsCard(p)}
 
     ${notesCard(p)}
 
@@ -1563,6 +1867,150 @@ function exerciseRow(b, di, bi) {
 function exerciseNotes(exerciseId) {
   const t = traineeById(state.program?.traineeId);
   return (t?.notesLog || []).filter((n) => n.scope === 'exercise' && n.exerciseId === exerciseId);
+}
+
+/* ==================================================================
+   מדידות: כרטיס ניהול + ריבוי גרפים קטנים.
+   כל מדד בגרף נפרד עם סקאלה משלו — ק״ג, אחוזים וסנטימטרים לא חולקים ציר.
+   ================================================================== */
+
+/** גרף קו קטן למדד אחד. SVG טהור, בלי תלויות, עובד גם בהדפסה. */
+function metricChart(s) {
+  const W = 320, H = 96, PAD_X = 10, PAD_TOP = 14, PAD_BOTTOM = 18;
+  const pts = s.points;
+
+  // סקאלה: תמיד עם שוליים, וגם כשכל הערכים זהים
+  const lo = Math.min(...pts.map((p) => p.value));
+  const hi = Math.max(...pts.map((p) => p.value));
+  const pad = (hi - lo) === 0 ? Math.max(1, hi * 0.05) : (hi - lo) * 0.15;
+  const yMin = lo - pad, yMax = hi + pad;
+
+  const x = (i) => (pts.length === 1
+    ? W / 2
+    : PAD_X + (i / (pts.length - 1)) * (W - PAD_X * 2));
+  const y = (v) => PAD_TOP + (1 - (v - yMin) / (yMax - yMin)) * (H - PAD_TOP - PAD_BOTTOM);
+
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join('');
+  const area = pts.length > 1
+    ? `${line}L${x(pts.length - 1).toFixed(1)},${H - PAD_BOTTOM}L${x(0).toFixed(1)},${H - PAD_BOTTOM}Z`
+    : '';
+
+  const fmtDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+  const dir = s.delta === 0 ? 'flat' : s.delta > 0 ? 'up' : 'down';
+  const arrow = { up: '▲', down: '▼', flat: '■' }[dir];
+  const favor = s.goodDirection === 'context' || s.delta === 0
+    ? 'neutral' : ((s.goodDirection === 'down') === (s.delta < 0) ? 'good' : 'bad');
+
+  return `<figure class="chart">
+    <figcaption>
+      <span class="ctitle">${esc(s.label)}</span>
+      <span class="cnow mono">${s.last}<small> ${esc(s.unit)}</small></span>
+      <span class="cdelta ${favor}">${arrow} ${s.delta > 0 ? '+' : ''}${s.delta} ${esc(s.unit)}</span>
+    </figcaption>
+    <svg viewBox="0 0 ${W} ${H}" role="img"
+         aria-label="${esc(s.label)}: מ-${s.first} ל-${s.last} ${esc(s.unit)} על פני ${pts.length} מדידות">
+      <line class="cgrid" x1="${PAD_X}" y1="${H - PAD_BOTTOM}" x2="${W - PAD_X}" y2="${H - PAD_BOTTOM}"></line>
+      ${area ? `<path class="carea" d="${area}"></path>` : ''}
+      ${pts.length > 1 ? `<path class="cline" d="${line}"></path>` : ''}
+      ${pts.map((p, i) => `<g class="cpt">
+        <circle class="cdot ${i === pts.length - 1 ? 'last' : ''}" cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="${i === pts.length - 1 ? 4 : 3}"></circle>
+        <circle class="chit" cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="12">
+          <title>${fmtDate(p.date)} — ${p.value} ${esc(s.unit)}</title>
+        </circle>
+      </g>`).join('')}
+      <text class="clabel" x="${PAD_X}" y="${H - 5}">${fmtDate(pts[0].date)}</text>
+      ${pts.length > 1 ? `<text class="clabel end" x="${W - PAD_X}" y="${H - 5}">${fmtDate(pts[pts.length - 1].date)}</text>` : ''}
+    </svg>
+  </figure>`;
+}
+
+/** כרטיס המדידות: היסטוריה, גרפים, טופס הוספה. */
+function measurementsCard(p) {
+  const t = traineeById(p.traineeId);
+  const list = sortMeasurements(t?.measurements || []);
+  const charts = allSeries(list);
+  const sum = summary(list);
+
+  return `<div class="card">
+    <p class="eyebrow">מדידות ומעקב</p>
+    <p class="hint">היקפים ואחוז שומן לפי תאריך. המשקל מהמדידה האחרונה הוא זה שמשמש
+      לחישוב משקלי העבודה, כך שהתכנית מתעדכנת מעצמה ככל שהמתאמן משתנה.</p>
+
+    ${charts.length ? `<div class="charts">${charts.map(metricChart).join('')}</div>`
+      : '<p class="empty">אין עדיין מדידות. אחרי מדידה שנייה יופיע גרף התקדמות לכל מדד.</p>'}
+
+    ${list.length ? `<details class="optional" style="margin-top:.7rem"><summary>טבלת המדידות (${sum.count})</summary>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>תאריך</th>${METRICS.map((m) => `<th>${esc(m.label)}</th>`).join('')}<th></th></tr></thead>
+        <tbody>${[...list].reverse().map((m) => `<tr>
+          <td class="mono">${new Date(m.date).toLocaleDateString('he-IL')}</td>
+          ${METRICS.map((mt) => `<td class="num">${metricValue(m, mt.key) ?? '—'}</td>`).join('')}
+          <td><button data-meas-del="${esc(m.id)}" title="מחק מדידה">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      ${list.some((m) => m.notes) ? `<ul class="cues">${list.filter((m) => m.notes).map((m) => `<li>${new Date(m.date).toLocaleDateString('he-IL')}: ${esc(m.notes)}</li>`).join('')}</ul>` : ''}
+    </details>` : ''}
+
+    <details class="optional" id="measFormWrap" style="margin-top:.6rem">
+      <summary>הוספת מדידה</summary>
+      <form id="measForm">
+        <div class="fields">
+          <label class="f"><span class="req">תאריך</span><input name="date" type="date" required value="${new Date().toISOString().slice(0, 10)}"></label>
+          <label class="f"><span>משקל (ק״ג)</span><input name="weightKg" type="number" step="0.1" min="20" max="300"></label>
+          <label class="f"><span>אחוז שומן</span><input name="bodyFatPct" type="number" step="0.1" min="3" max="70"></label>
+        </div>
+        <div class="fields" style="margin-top:.5rem">
+          ${METRICS.filter((m) => !['weightKg', 'bodyFatPct'].includes(m.key)).map((m) => `
+            <label class="f"><span>${esc(m.label)} (ס״מ)</span>
+              <input name="${m.key}" type="number" step="0.1" min="10" max="250"></label>`).join('')}
+        </div>
+        <label class="f" style="margin-top:.5rem"><span>הערה למדידה</span>
+          <input name="notes" placeholder="לדוגמה: נמדד בבוקר לפני אימון"></label>
+        <div class="row" style="margin-top:.6rem">
+          <button class="primary" type="submit">שמור מדידה</button>
+          <span class="hint">שדות ריקים פשוט לא נשמרים — אפשר למדוד רק חלק.</span>
+        </div>
+      </form>
+    </details>
+  </div>`;
+}
+
+async function onMeasurementSubmit(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const raw = traineeById(state.program.traineeId);
+  const entry = normalizeMeasurement(Object.fromEntries(f.entries()));
+
+  const hasValue = entry.weightKg != null || entry.bodyFatPct != null || Object.keys(entry.girths).length;
+  if (!hasValue) { log('המדידה לא נשמרה', 'לא הוזן אף ערך.'); return; }
+
+  raw.measurements = sortMeasurements([...(raw.measurements || []).filter((m) => m.date !== entry.date), entry]);
+  if (entry.weightKg) raw.weightKg = entry.weightKg;
+  if (entry.bodyFatPct) raw.bodyFatPct = entry.bodyFatPct;
+  await store.updateTrainee(raw);
+  e.target.reset();
+  $('#measFormWrap').open = false;
+  generate();
+
+  const s = summary(raw.measurements);
+  log('מדידה נשמרה', [
+    `${new Date(entry.date).toLocaleDateString('he-IL')} — ${s.count} מדידות בסך הכול.`,
+    ...s.metrics.filter((x) => x.delta !== 0).slice(0, 4)
+      .map((x) => `${esc(x.label)}: ${x.delta > 0 ? '+' : ''}${x.delta} ${esc(x.unit)} מאז המדידה הראשונה`),
+    entry.weightKg ? 'משקלי העבודה חושבו מחדש לפי המשקל המעודכן.' : '',
+  ]);
+}
+
+async function onMeasurementDelete(id) {
+  const raw = traineeById(state.program.traineeId);
+  const m = (raw.measurements || []).find((x) => x.id === id);
+  if (!m || !confirm(`למחוק את המדידה מתאריך ${new Date(m.date).toLocaleDateString('he-IL')}?`)) return;
+  raw.measurements = (raw.measurements || []).filter((x) => x.id !== id);
+  const last = latest(raw.measurements);
+  if (last?.weightKg) raw.weightKg = last.weightKg;
+  await store.updateTrainee(raw);
+  generate();
+  log('מדידה נמחקה', new Date(m.date).toLocaleDateString('he-IL'));
 }
 
 /** כרטיס יומן ההערות של המתאמן. */

@@ -16,6 +16,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MODULES = [
   'src/domain/taxonomy.js',
   'src/domain/notes.js',
+  'src/domain/measurements.js',
+  'src/domain/inventory.js',
   'src/domain/labels.js',
   'src/domain/descriptions.js',
   'src/domain/exercises.js',

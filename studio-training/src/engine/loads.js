@@ -10,6 +10,7 @@
  */
 
 import { estimate1RM } from './prescription.js';
+import { achievableLoad } from '../domain/inventory.js';
 
 /**
  * יחס משקל גוף לכל משפחת תרגילים, לפי רמה.
@@ -50,7 +51,7 @@ const LEVEL_INDEX = { beginner: 0, novice: 1, intermediate: 2, advanced: 3 };
  * תרגילים שמוחזקים בכלי אחד בשתי ידיים — המשקל הוא סך הכול ולא "לכל יד".
  * ההבחנה הזו קריטית: 40 ק״ג בגובלט זה כלי אחד, 40 ק״ג בלחיצה זה שתי משקולות.
  */
-const SINGLE_IMPLEMENT = new Set([
+export const SINGLE_IMPLEMENT = new Set([
   'goblet_squat', 'kb_swing', 'kb_clean', 'overhead_ext', 'russian_twist',
   'med_ball_slam', 'med_ball_rotational_throw', 'sandbag_carry',
   'landmine_press', 'landmine_row', 'cable_crunch', 'pallof_press', 'skullcrusher',
@@ -168,6 +169,25 @@ export function startingLoad(ex, trainee, studio) {
   };
 }
 
+/**
+ * התאמת המשקל למה שבאמת אפשר להרכיב מהמלאי, והוספת הפירוט למאמן:
+ * "מוט 20 + 2×10 לכל צד" במקום מספר שאי אפשר לבנות ממנו כלום.
+ */
+function snap(load, ex, studio) {
+  if (load.kg == null || !studio.inventory) return load;
+  const real = achievableLoad(load.kg, ex, studio);
+  if (real.kg == null) return load;
+  return {
+    ...load,
+    kg: real.kg,
+    setup: real.text || null,
+    exactFromInventory: real.exact,
+    label: real.exact || Math.abs(real.kg - load.kg) < 0.01
+      ? load.label
+      : `${load.label} · הותאם למלאי הסטודיו`,
+  };
+}
+
 /** עיגול לקפיצת המשקל שבאמת קיימת בסטודיו. */
 export function roundToIncrement(kg, studio, perSide = false) {
   const step = perSide ? Math.min(studio.weightIncrementKg || 2.5, 2) : (studio.weightIncrementKg || 2.5);
@@ -181,6 +201,7 @@ export function roundToIncrement(kg, studio, perSide = false) {
 export function planLoad(ex, rx, trainee, studio) {
   const h = trainee.history?.[ex.id];
 
+  // משקל שהמאמן קבע מוצג כפי שהוא — הוא ראה את הציוד במו עיניו
   if (h?.trainerSet?.kg) {
     return {
       kg: h.trainerSet.kg,
@@ -199,17 +220,17 @@ export function planLoad(ex, rx, trainee, studio) {
     const perSide = !!h.perSide;
     kg = roundToIncrement(kg, studio, perSide);
     const cap = perSide && studio.dumbbellMaxKg ? studio.dumbbellMaxKg : null;
-    return {
+    return snap({
       kg: cap && kg > cap ? cap : kg,
       perSide,
       source: 'history',
       label: `לפי הביצוע האחרון: ${h.load} ק״ג × ${h.reps || '?'} חזרות`,
       atStudioCeiling: !!(cap && kg > cap),
-    };
+    }, ex, studio);
   }
 
   const start = startingLoad(ex, trainee, studio);
-  if (start) return { ...start, source: 'estimate', label: `${start.basis} — לאמת בסט חימום` };
+  if (start) return snap({ ...start, source: 'estimate', label: `${start.basis} — לאמת בסט חימום` }, ex, studio);
 
   return {
     kg: null,
