@@ -1,27 +1,31 @@
-# פרסום אוטומטי של מסך המאמן ל-GitHub Pages.
+# בדיקות למערכת תכניות האימון.
 #
-# הקובץ נוגע אך ורק בתיקיית studio-training ואינו משפיע על שום פרויקט אחר בריפו.
-# כדי להפעיל: Settings → Pages → Source: GitHub Actions. משם זה אוטומטי בכל דחיפה.
-name: studio-training · Pages
+# למה אין כאן פרסום ל-Pages: לריפו יש אתר Pages אחד בלבד, והוא כבר משמש
+# את הפרויקט השני (.github/workflows/nextjs.yml). פרסום מכאן היה דורס אותו.
+# המערכת הזאת מתפרסמת מריפו עצמאי משלה — ראה scripts/publish-standalone.sh,
+# ושם יושב תהליך הפרסום ל-Pages.
+#
+# מה שנשאר כאן הוא מה שבאמת שייך לריפו הזה: לוודא שהמערכת נבנית
+# והבדיקות עוברות בכל שינוי.
+name: studio-training · בדיקות
 
 on:
   push:
-    # גם ענף הפיתוח, כדי שאפשר יהיה לפרסם בלי למזג קודם ל-main
     branches: [main, 'claude/studio-workout-program-system-jxviy3']
+    paths: ['studio-training/**']
+  pull_request:
     paths: ['studio-training/**']
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: studio-training-pages
+  group: studio-training-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,23 +39,11 @@ jobs:
 
       - name: בנייה
         working-directory: studio-training
+        run: node build.mjs
+
+      - name: הקובץ הבנוי אינו ריק
+        working-directory: studio-training
         run: |
-          node build.mjs
-          mkdir -p _site
-          cp dist/artifact.html _site/index.html
-          # דף 404 שמחזיר לאותה אפליקציה, כדי שקישור שגוי לא יוביל למסך ריק
-          cp dist/artifact.html _site/404.html
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: studio-training/_site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          test -s dist/artifact.html
+          test -s dist/app.html
+          echo "נבנה: $(wc -c < dist/artifact.html) בתים"
