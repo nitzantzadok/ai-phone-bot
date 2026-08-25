@@ -28,6 +28,11 @@ import {
   exerciseHistory, groupSessions, historySummary, normalizeLogEntry, personalBests, programSnapshot,
   SESSION_EVENTS,
 } from '../domain/history.js';
+import {
+  addSession, isoDate, markDoneByDate, monthSummary, moveSession, nextSession, normalizeSession,
+  planWeek, removeSession, setStatus,
+} from '../domain/schedule.js';
+import { describeStructure, normalizeStructure, STRUCTURE_PRESETS } from '../domain/structure.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = path.resolve(HERE, '../web');
@@ -409,7 +414,15 @@ const routes = {
       ...e, traineeId: raw.id, week: body.week, programId: body.programId,
       dayLabel: e.dayLabel, exerciseName: e.exerciseName,
     }));
-    if (logEntries.length) db.appendLog(raw.id, logEntries);
+    if (logEntries.length) {
+      db.appendLog(raw.id, logEntries);
+      // מה שנרשם בשטח מסמן את היום בלוח כבוצע, בלי שהמאמן יצטרך לזכור
+      const day = logEntries[0];
+      raw.sessions = markDoneByDate((raw.sessions || []).map(normalizeSession), day.date, {
+        traineeId: raw.id, programId: day.programId, week: day.week,
+        dayIndex: day.dayIndex, dayLabel: day.dayLabel,
+      });
+    }
     const trainee = normalizeTrainee(raw);
     const { trainee: updated, changes, flags } = applyFeedback(trainee, events);
     db.putTrainee({ ...raw, ...updated });
@@ -533,6 +546,71 @@ const routes = {
       }).sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || '')),
     };
   },
+
+  // --- לוח האימונים
+  /** האימונים של מתאמן, עם סיכום חודשי. */
+  'GET /api/schedule': async (_b, url, ctx) => {
+    const t = requireTrainee(ctx, url.searchParams.get('traineeId'));
+    const sessions = (t.sessions || []).map(normalizeSession);
+    const y = +(url.searchParams.get('year') || new Date().getFullYear());
+    const m = +(url.searchParams.get('month') ?? new Date().getMonth());
+    return { ok: true, sessions, summary: monthSummary(sessions, y, m), next: nextSession(sessions) };
+  },
+
+  /** פריסת התכנית הנוכחית על לוח השנה. */
+  'POST /api/schedule/plan': async (body, _url, ctx) => {
+    const raw = requireTrainee(ctx, body.traineeId);
+    const program = db.latestProgram(raw.id);
+    if (!program) throw new Error('אין תכנית לפרוס');
+    const planned = planWeek(program, { startDate: body.startDate, weekdays: body.weekdays });
+    // אימונים שכבר בוצעו נשמרים; רק המתוכננים של אותו שבוע מוחלפים
+    const keep = (raw.sessions || []).map(normalizeSession)
+      .filter((s) => s.status !== 'planned' || s.week !== program.week);
+    raw.sessions = [...keep, ...planned].sort((a, b) => a.date.localeCompare(b.date));
+    db.putTrainee(raw);
+    return { ok: true, sessions: raw.sessions, added: planned.length };
+  },
+
+  /** העברת אימון לתאריך אחר — הפעולה הנפוצה ביותר בלוח. */
+  'POST /api/schedule/move': async (body, _url, ctx) => {
+    const raw = requireTrainee(ctx, body.traineeId);
+    const before = (raw.sessions || []).map(normalizeSession);
+    if (!before.some((s) => s.id === body.sessionId)) throw notFound('אימון לא נמצא');
+    raw.sessions = moveSession(before, body.sessionId, body.date);
+    db.putTrainee(raw);
+    db.log('session_moved', { traineeId: raw.id, sessionId: body.sessionId, to: isoDate(body.date) });
+    return { ok: true, sessions: raw.sessions };
+  },
+
+  'POST /api/schedule/status': async (body, _url, ctx) => {
+    const raw = requireTrainee(ctx, body.traineeId);
+    raw.sessions = setStatus((raw.sessions || []).map(normalizeSession), body.sessionId, body.status);
+    db.putTrainee(raw);
+    return { ok: true, sessions: raw.sessions };
+  },
+
+  'POST /api/schedule/add': async (body, _url, ctx) => {
+    const raw = requireTrainee(ctx, body.traineeId);
+    raw.sessions = addSession((raw.sessions || []).map(normalizeSession), { ...body, traineeId: raw.id });
+    db.putTrainee(raw);
+    return { ok: true, sessions: raw.sessions };
+  },
+
+  'POST /api/schedule/remove': async (body, _url, ctx) => {
+    const raw = requireTrainee(ctx, body.traineeId);
+    raw.sessions = removeSession((raw.sessions || []).map(normalizeSession), body.sessionId);
+    db.putTrainee(raw);
+    return { ok: true, sessions: raw.sessions };
+  },
+
+  /** מבני אימון מוכנים לבחירה ברישום הסטודיו. */
+  'GET /api/structure/presets': async () => ({
+    ok: true,
+    presets: Object.entries(STRUCTURE_PRESETS).map(([key, p]) => ({
+      key, label: p.label, segments: p.segments,
+      preview: describeStructure(p.segments, 60),
+    })),
+  }),
 
   'POST /api/next-week': async (body, _url, ctx) => {
     const raw = requireTrainee(ctx, body.traineeId);

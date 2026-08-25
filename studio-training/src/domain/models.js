@@ -9,6 +9,8 @@ import { ALWAYS_AVAILABLE, CYCLE_PHASES, EQUIPMENT, GOALS, LEVELS, LIFESTYLES, S
 import { normalizeNote } from './notes.js';
 import { normalizeInventory } from './inventory.js';
 import { latest, sortMeasurements } from './measurements.js';
+import { normalizeStructure } from './structure.js';
+import { normalizeSession } from './schedule.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const WEEK_DAYS = DAYS;
@@ -58,6 +60,8 @@ export function normalizeStudio(raw = {}) {
     /** האם המקום ממוזג — רלוונטי לטרשת נפוצה, הריון ומצבים לבביים. */
     climateControlled: raw.climateControlled ?? true,
     trainers: raw.trainers || [],
+    /** מבנה האימון של הסטודיו: סדר המקטעים והזמן לכל אחד. */
+    sessionStructure: normalizeStructure(raw.sessionStructure),
     /** ספריית התרגילים שהמאמנים בסטודיו כתבו בעצמם. */
     customExercises: (raw.customExercises || []).map(normalizeCustomExercise),
     /** פרטי רישום: כתובת, טלפון, שעות, וכל מה שהוזן בתהליך ההרשמה. */
@@ -116,9 +120,28 @@ export function normalizeTrainee(raw = {}) {
   const goals = (raw.goals && raw.goals.length ? raw.goals : ['general_fitness'])
     .map((g) => (typeof g === 'string' ? { goal: g, weight: 1 } : { goal: g.goal, weight: g.weight ?? 1 }));
 
+  /*
+   * שיוך לסטודיו. ארגון אחד יכול להפעיל כמה סניפים עם מכשור שונה
+   * ואותו מאגר מתאמנים: המתאמן שייך לחשבון, לא לסניף. homeStudioId הוא
+   * הסניף שבו הוא מתאמן בדרך כלל, ו-studioIds הם כל הסניפים שהוא רשאי
+   * להתאמן בהם. סטודיו יחיד ממשיך לעבודכרגיל בלי לשנות כלום.
+   */
+  const homeStudioId = raw.homeStudioId || raw.studioId || null;
+  const studioIds = [...new Set([
+    ...(Array.isArray(raw.studioIds) ? raw.studioIds : []),
+    ...(homeStudioId ? [homeStudioId] : []),
+  ])];
+
   return {
     id: raw.id || `trainee_${Math.random().toString(36).slice(2, 8)}`,
     name: raw.name || 'מתאמן',
+    /** הסניף הראשי, והסניפים הנוספים שהמתאמן מורשה להתאמן בהם. */
+    homeStudioId,
+    studioIds,
+    /** נשמר לתאימות: קוד קיים שמצפה ל-studioId ממשיך לעבוד. */
+    studioId: homeStudioId,
+    /** לוח האימונים של המתאמן — תאריכים אמיתיים שניתן להזיז. */
+    sessions: (raw.sessions || []).map(normalizeSession),
     sex: raw.sex || 'unspecified',
     age: raw.age ?? 30,
     heightCm: raw.heightCm ?? null,

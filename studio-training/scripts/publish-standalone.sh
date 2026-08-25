@@ -99,15 +99,40 @@ else
   echo "→ Node לא מותקן כאן; מדלג על הבדיקות (הן ירוצו ב-GitHub)"
 fi
 
-echo "→ יוצר ריפו ודוחף ל-$REMOTE"
-cd "$STAGE"
-git init -q -b main
-git add -A
-git -c user.email="${GIT_AUTHOR_EMAIL:-studio@local}" \
-    -c user.name="${GIT_AUTHOR_NAME:-studio}" \
-    commit -q -m "מערכת תכניות אימון לסטודיו — גרסה ראשונה"
-git remote add origin "$REMOTE"
-git push -u origin main
+echo "→ דוחף ל-$REMOTE"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$STAGE" "$WORK"' EXIT
+
+# ריפו שכבר קיים מתעדכן ולא נדרס: מושכים את ההיסטוריה, מחליפים את הקבצים,
+# ודוחפים קומיט רגיל. כך הקישור החי לא נשבר ואפשר לחזור אחורה.
+# בודקים את הענף עצמו ולא את HEAD: ריפו שה-HEAD שלו מצביע לענף אחר
+# היה נראה ריק בטעות, והעדכון היה הופך לדריסה.
+if [ -n "$(git ls-remote --heads "$REMOTE" main 2>/dev/null)" ]; then
+  git clone -q --branch main "$REMOTE" "$WORK"
+  echo "   ריפו קיים — מעדכן"
+  find "$WORK" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+  tar -C "$STAGE" -cf - . | tar -C "$WORK" -xf -
+  cd "$WORK"
+  git add -A
+  if git diff --cached --quiet; then
+    echo "   אין שינויים — לא נדרש עדכון"
+    exit 0
+  fi
+  git -c user.email="${GIT_AUTHOR_EMAIL:-studio@local}" \
+      -c user.name="${GIT_AUTHOR_NAME:-studio}" \
+      commit -q -m "${COMMIT_MESSAGE:-עדכון מערכת תכניות האימון}"
+  git push -q origin HEAD:main
+else
+  echo "   ריפו חדש — מאתחל"
+  cd "$STAGE"
+  git init -q -b main
+  git add -A
+  git -c user.email="${GIT_AUTHOR_EMAIL:-studio@local}" \
+      -c user.name="${GIT_AUTHOR_NAME:-studio}" \
+      commit -q -m "מערכת תכניות אימון לסטודיו — גרסה ראשונה"
+  git remote add origin "$REMOTE"
+  git push -u origin main
+fi
 
 cat <<'DONE'
 

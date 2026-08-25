@@ -17,6 +17,8 @@ const MODULES = [
   'src/domain/taxonomy.js',
   'src/domain/notes.js',
   'src/domain/measurements.js',
+  'src/domain/structure.js',
+  'src/domain/schedule.js',
   'src/domain/history.js',
   'src/domain/inventory.js',
   'src/domain/labels.js',

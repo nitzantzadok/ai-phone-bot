@@ -320,6 +320,49 @@
     font-size:var(--step--1); margin:.8rem 0 0; animation:popIn .3s var(--ease-out)}
   #gateFields .f{margin-bottom:.7rem}
 
+  /* ---------------------------------------------------------- לוח שנה */
+  .calbar{display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.7rem}
+  .calbar h3{margin:0; font-family:"Secular One",system-ui,sans-serif; font-size:var(--step-2); min-width:9ch}
+  .calgrid{display:grid; grid-template-columns:repeat(7,1fr); gap:.3rem}
+  .calhead{font-size:var(--step--2); color:var(--muted); text-align:center; padding:.3rem 0; font-weight:600}
+  .cell{min-height:74px; background:var(--surface-2); border:1px solid var(--line-soft);
+    border-radius:var(--radius-sm); padding:.3rem; display:flex; flex-direction:column; gap:.2rem;
+    transition:border-color .18s var(--ease), background .18s var(--ease)}
+  .cell.out{opacity:.38}
+  .cell.today{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-line) inset}
+  .cell .dnum{font-family:"IBM Plex Mono",monospace; font-size:var(--step--2); color:var(--muted)}
+  .cell.today .dnum{color:var(--accent); font-weight:700}
+  .cell.drop{border-color:var(--accent); background:var(--accent-soft)}
+  .sess{font-size:var(--step--2); padding:.25rem .35rem; border-radius:6px; cursor:grab;
+    background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--ink);
+    text-align:start; line-height:1.25; transition:transform .15s var(--ease)}
+  .sess:hover{transform:translateY(-1px)}
+  .sess.done{background:var(--ok-soft,rgba(52,211,153,.14)); border-color:var(--ok); color:var(--ok)}
+  .sess.missed{background:var(--warn-soft,rgba(251,191,36,.14)); border-color:var(--warn); color:var(--warn)}
+  .sess.moved::after{content:' ⇄'; opacity:.7}
+  .sess.picked{outline:2px solid var(--accent); outline-offset:1px}
+  .callegend{display:flex; gap:.6rem; flex-wrap:wrap; font-size:var(--step--2); color:var(--muted); margin-top:.6rem}
+  .callegend b{display:inline-block; width:10px; height:10px; border-radius:3px; margin-inline-end:.25rem}
+  @media (max-width:700px){
+    .cell{min-height:56px; padding:.2rem}
+    .sess{font-size:9px; padding:.15rem .2rem}
+    .calbar h3{font-size:var(--step-1)}
+  }
+
+  /* ---------------------------------------------------------- מבנה אימון */
+  .segrow{display:grid; grid-template-columns:auto 1fr 5.5rem auto; gap:.5rem; align-items:center;
+    background:var(--surface-2); border:1px solid var(--line-soft); border-radius:var(--radius-sm);
+    padding:.45rem .6rem; margin-bottom:.4rem}
+  .segrow .grip{cursor:grab; color:var(--muted); font-size:var(--step-1); line-height:1}
+  .segrow select,.segrow input{min-height:36px; margin:0}
+  .segbar{display:flex; height:10px; border-radius:999px; overflow:hidden; margin:.5rem 0 .3rem;
+    border:1px solid var(--line)}
+  .segbar span{display:block}
+  .segkey{display:flex; gap:.7rem; flex-wrap:wrap; font-size:var(--step--2); color:var(--muted)}
+  .segkey i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-inline-end:.25rem}
+  .seghead{font-size:var(--step--1); color:var(--accent); font-weight:700; margin:.9rem 0 .2rem;
+    padding-inline-start:.4rem; border-inline-start:3px solid var(--accent)}
+
   /* ---------------------------------------------------------- היסטוריה */
   .hcols{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:1.1rem; align-items:start}
   @media (max-width:1000px){ .hcols{grid-template-columns:1fr} }
@@ -663,7 +706,8 @@
     <button data-view="studio">1 · סטודיו</button>
     <button data-view="trainees">2 · מתאמנים</button>
     <button data-view="program">3 · אימון</button>
-    <button data-view="history">4 · היסטוריה</button>
+    <button data-view="calendar">4 · לוח</button>
+    <button data-view="history">5 · היסטוריה</button>
   </nav>
   <span class="spacer"></span>
   <span id="who" class="chip" title="החשבון המחובר"></span>
@@ -674,6 +718,7 @@
 </header>
 
 <main class="wrap" id="app" hidden>
+  <section id="viewCalendar" hidden></section>
   <section id="viewHistory" hidden></section>
   <section id="viewStudio" hidden></section>
   <section id="viewTrainees" hidden></section>
@@ -1169,7 +1214,9 @@ function setView(view, opts = {}) {
   $('#viewTrainees').hidden = view !== 'trainees';
   $('#viewProgram').hidden = view !== 'program';
   $('#viewHistory').hidden = view !== 'history';
+  $('#viewCalendar').hidden = view !== 'calendar';
   if (view === 'history') renderHistoryView();
+  if (view === 'calendar') renderCalendarView();
   if (view === 'studio') { renderStudioView(); animateIn($('#viewStudio')); countUp($('#viewStudio')); }
   if (view === 'trainees') { renderTraineesView(); animateIn($('#viewTrainees')); countUp($('#viewTrainees')); }
   if (view === 'program') {
@@ -1189,10 +1236,19 @@ function fillStudios() {
 }
 
 function fillTrainees() {
-  const list = state.trainees.filter((t) => t.studioId === $('#studio').value);
+  // מתאמן יכול להיות משויך לכמה סניפים — הרשימה מציגה את כל מי
+  // שמורשה להתאמן כאן, ולא רק את מי שזה הסניף הראשי שלו.
+  const sid = $('#studio').value;
+  const list = state.trainees.filter((t) => {
+    const ids = (t.studioIds && t.studioIds.length) ? t.studioIds : [t.homeStudioId || t.studioId];
+    return ids.includes(sid);
+  });
+  const keep = $('#trainee').value;
   $('#trainee').innerHTML = list.length
     ? list.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')
     : '<option value="">— אין מתאמנים —</option>';
+  // מעבר בין סניפים לא אמור להחליף מתאמן — אותו אדם, ציוד אחר
+  if (keep && list.some((t) => t.id === keep)) $('#trainee').value = keep;
 }
 
 /* ==================================================================
@@ -1380,6 +1436,25 @@ function renderStudioView() {
     </div>
 
     <div class="card">
+      <p class="eyebrow">מבנה האימון</p>
+      <h3 style="margin:.1rem 0 .3rem">איך נראה אימון אצלכם</h3>
+      <p class="hint">בכל סטודיו סדר העבודה שונה. כאן מגדירים את השלד —
+        למשל רבע שעה בטן ואז כוח — והמערכת תבנה כל תכנית לפיו.
+        הזמנים הם יחסים: אותו מבנה מתכווץ לאימון של 45 דקות ומתרחב ל-75.</p>
+
+      <div class="row" style="gap:.35rem; flex-wrap:wrap; margin:.6rem 0">
+        ${Object.entries(STRUCTURE_PRESETS).map(([k, p]) => `
+          <button type="button" data-struct="${esc(k)}" title="${esc(p.preview || '')}">${esc(p.label)}</button>`).join('')}
+      </div>
+
+      <div id="structEditor"></div>
+      <div class="row" style="margin-top:.5rem">
+        <button type="button" id="structAdd">+ הוספת מקטע</button>
+        <span class="hint" id="structTotal"></span>
+      </div>
+    </div>
+
+    <div class="card">
       <p class="eyebrow">מסד הנתונים</p>
       <p class="hint">${state.server
         ? 'הנתונים נשמרים בשרת הסטודיו, עם גיבוי אוטומטי לפני כל פעולה הרסנית.'
@@ -1395,11 +1470,24 @@ function renderStudioView() {
 
   eqState = new Map();
   invState = { dumbbells: [], kettlebells: [], plates: [], bars: [], fixedBars: [] };
+  // גם המבנה מתאפס: אחרת סטודיו חדש היה יורש בשקט את המבנה של הקודם
+  structState = normalizeStructure(null);
   renderEquipmentChecklist();
   renderInventoryEditor();
+  renderStructureEditor();
   if (state.editingStudio) loadStudioIntoForm(state.editingStudio);
   wireSteps();
   document.querySelectorAll('[data-preset]').forEach((b) => { b.onclick = () => applyPreset(b.dataset.preset); });
+  document.querySelectorAll('[data-struct]').forEach((b) => {
+    b.onclick = () => {
+      structState = normalizeStructure(STRUCTURE_PRESETS[b.dataset.struct].segments);
+      renderStructureEditor();
+    };
+  });
+  $('#structAdd').onclick = () => {
+    structState = [...structState, normalizeSegment({ kind: 'core' })];
+    renderStructureEditor();
+  };
   document.querySelectorAll('[data-pick-studio]').forEach((b) => {
     b.onclick = () => { $('#studio').value = b.dataset.pickStudio; fillTrainees(); setView('trainees'); };
   });
@@ -1433,6 +1521,95 @@ const INV_GROUPS = [
 ];
 
 let invState = { dumbbells: [], kettlebells: [], plates: [], bars: [], fixedBars: [] };
+
+/* ---------------------------------------------------------------- מבנה האימון */
+
+/** המבנה שנערך כרגע בטופס הסטודיו. */
+let structState = normalizeStructure(null);
+
+const SEG_COLOR = {
+  warmup: '#60A5FA', mobility: '#38BDF8', core: '#F59E0B', prehab: '#A78BFA',
+  strength: '#4C8DFF', conditioning: '#34D399', cooldown: '#94A3B8', custom: '#F472B6',
+};
+
+function renderStructureEditor() {
+  const host = $('#structEditor');
+  if (!host) return;
+
+  const minutes = +($('#studioForm')?.sessionMinutes?.value) || 60;
+  const plan = structurePlan(structState, minutes);
+  const total = plan.reduce((n, p) => n + p.minutes, 0);
+
+  host.innerHTML = `
+    ${structState.map((seg, i) => `
+      <div class="segrow" data-seg="${esc(seg.id)}">
+        <span class="grip" title="גרירה לשינוי סדר" draggable="true">⋮⋮</span>
+        <div style="display:grid; gap:.3rem">
+          <select data-seg-kind="${esc(seg.id)}" aria-label="סוג מקטע">
+            ${Object.entries(SEGMENT_KINDS).map(([k, v]) => `
+              <option value="${k}" ${k === seg.kind ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}
+          </select>
+          <input data-seg-label="${esc(seg.id)}" value="${esc(seg.label)}"
+            placeholder="שם המקטע" aria-label="שם המקטע">
+        </div>
+        <input type="number" min="3" max="120" step="1" value="${seg.minutes}"
+          data-seg-min="${esc(seg.id)}" aria-label="דקות">
+        <div style="display:flex; gap:.2rem">
+          <button type="button" data-seg-up="${esc(seg.id)}" ${i === 0 ? 'disabled' : ''} title="למעלה">↑</button>
+          <button type="button" data-seg-down="${esc(seg.id)}" ${i === structState.length - 1 ? 'disabled' : ''} title="למטה">↓</button>
+          <button type="button" data-seg-del="${esc(seg.id)}" title="הסרה">✕</button>
+        </div>
+      </div>`).join('')}
+
+    <div class="segbar">${plan.map((p) => `
+      <span style="flex:${p.minutes}; background:${SEG_COLOR[p.kind] || '#888'}"
+        title="${esc(p.label)} · ${p.minutes} דקות"></span>`).join('')}</div>
+    <div class="segkey">${plan.map((p) => `
+      <span><i style="background:${SEG_COLOR[p.kind] || '#888'}"></i>${esc(p.label)} ${p.minutes}′</span>`).join('')}</div>`;
+
+  $('#structTotal').textContent = `סה״כ ${total} דקות באימון של ${minutes} דקות`;
+  wireStructureEditor();
+}
+
+function wireStructureEditor() {
+  const update = (id, patch) => {
+    structState = structState.map((x) => (x.id === id ? normalizeSegment({ ...x, ...patch }) : x));
+    renderStructureEditor();
+  };
+  document.querySelectorAll('[data-seg-kind]').forEach((el) => {
+    el.onchange = () => {
+      const seg = structState.find((x) => x.id === el.dataset.segKind);
+      // שינוי הסוג מעדכן גם את השם, אלא אם המשתמש כתב שם משלו
+      const spec = SEGMENT_KINDS[el.value];
+      const renamed = seg.label === SEGMENT_KINDS[seg.kind].label ? spec.label : seg.label;
+      update(el.dataset.segKind, { kind: el.value, label: renamed, minutes: seg.minutes });
+    };
+  });
+  document.querySelectorAll('[data-seg-label]').forEach((el) => {
+    el.onchange = () => update(el.dataset.segLabel, { label: el.value });
+  });
+  document.querySelectorAll('[data-seg-min]').forEach((el) => {
+    el.onchange = () => update(el.dataset.segMin, { minutes: +el.value });
+  });
+  document.querySelectorAll('[data-seg-del]').forEach((el) => {
+    el.onclick = () => {
+      if (structState.length <= 1) { log('אי אפשר', ['חייב להישאר מקטע אחד לפחות.']); return; }
+      structState = structState.filter((x) => x.id !== el.dataset.segDel);
+      renderStructureEditor();
+    };
+  });
+  const swap = (id, delta) => {
+    const i = structState.findIndex((x) => x.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= structState.length) return;
+    const next = structState.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    structState = next;
+    renderStructureEditor();
+  };
+  document.querySelectorAll('[data-seg-up]').forEach((el) => { el.onclick = () => swap(el.dataset.segUp, -1); });
+  document.querySelectorAll('[data-seg-down]').forEach((el) => { el.onclick = () => swap(el.dataset.segDown, 1); });
+}
 
 function renderInventoryEditor() {
   const el = $('#invEditor');
@@ -1664,6 +1841,8 @@ async function onStudioSubmit(e) {
     preferredSplit: f.get('preferredSplit') || null,
     dumbbellMaxKg: +f.get('dumbbellMaxKg') || null,
     weightIncrementKg: +f.get('weightIncrementKg') || 2.5,
+    /** מבנה האימון שהוגדר בעורך המקטעים. */
+    sessionStructure: structState,
     equipment,
     inventory: {
       dumbbells: invState.dumbbells, kettlebells: invState.kettlebells,
@@ -1710,6 +1889,8 @@ function loadStudioIntoForm(id) {
   setVal('dumbbellMaxKg', n.dumbbellMaxKg || ''); setVal('weightIncrementKg', n.weightIncrementKg);
   setVal('contact', raw.profile?.contact || ''); setVal('notes', raw.notes || '');
 
+  structState = normalizeStructure(n.sessionStructure);
+  renderStructureEditor();
   for (const [item, count] of n.equipment) { if (item !== 'bodyweight') setEquipment(item, true, count); }
   if (!n.inventory.generated) {
     invState = {
@@ -1845,6 +2026,216 @@ async function showDbStats() {
    שלב 2 — רישום מתאמן
    ================================================================== */
 const DAY_KEYS = [['sun', 'א'], ['mon', 'ב'], ['tue', 'ג'], ['wed', 'ד'], ['thu', 'ה'], ['fri', 'ו'], ['sat', 'ש']];
+
+/* ================================================================
+   לוח האימונים.
+   אימון זז במציאות. הלוח מראה מה מתוכנן, מה בוצע ומה הועבר,
+   ומאפשר לגרור אימון ליום אחר או להעביר אותו בשתי לחיצות.
+   ================================================================ */
+
+const calState = { traineeId: null, year: null, month: null, picked: null };
+
+const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+  'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+/**
+ * שורות התרגילים, עם כותרת לכל מקטע כשהסטודיו הגדיר מבנה משלו.
+ * בלי מבנה מותאם התצוגה נשארת בדיוק כפי שהייתה.
+ */
+function blocksWithSegments(day, di) {
+  const rows = day.blocks.map((b, bi) => ({ b, bi }));
+  if (!day.segments || !day.segments.length) {
+    return rows.map(({ b, bi }) => exerciseRow(b, di, bi)).join('');
+  }
+  let lastSeg = null;
+  return rows.map(({ b, bi }) => {
+    let head = '';
+    const segId = b.segment?.id || null;
+    if (segId && segId !== lastSeg) {
+      const seg = day.segments.find((x) => x.id === segId);
+      lastSeg = segId;
+      if (seg) {
+        head = `<p class="seghead">${esc(seg.label)} · ${seg.minutes}′${seg.note ? ` — ${esc(seg.note)}` : ''}</p>`;
+      }
+    }
+    return head + exerciseRow(b, di, bi);
+  }).join('');
+}
+
+async function renderCalendarView() {
+  const host = $('#viewCalendar');
+  const list = state.trainees;
+  if (!list.length) {
+    host.innerHTML = `<div class="hero"><h2>לוח אימונים</h2>
+      <p class="lede">אחרי רישום מתאמן ובניית תכנית, האימונים יופיעו כאן על לוח שנה
+      ואפשר יהיה להזיז אותם בין ימים.</p></div>`;
+    return;
+  }
+
+  if (!calState.traineeId || !list.some((t) => t.id === calState.traineeId)) {
+    calState.traineeId = ($('#trainee')?.value) || list[0].id;
+  }
+  const now = new Date();
+  if (calState.year == null) { calState.year = now.getFullYear(); calState.month = now.getMonth(); }
+
+  const t = traineeById(calState.traineeId);
+  const sessions = (t?.sessions || []).map(normalizeSession);
+  const weeks = monthGrid(calState.year, calState.month, sessions);
+  const sum = monthSummary(sessions, calState.year, calState.month);
+  const next = nextSession(sessions);
+
+  host.innerHTML = `
+    <div class="hero">
+      <div>
+        <h2>לוח אימונים</h2>
+        <p class="lede">כל אימון מתוכנן יושב על תאריך. אם מתאמן לא הגיע או ביקש להזיז —
+          גוררים את האימון ליום אחר, או לוחצים עליו ואז על היום החדש.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile accent"><b>${sum.done}</b><span>בוצעו החודש</span></div>
+        <div class="tile"><b>${sum.planned}</b><span>מתוכננים</span></div>
+        <div class="tile"><b>${sum.moved}</b><span>הועברו</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="gap:.6rem; flex-wrap:wrap; align-items:end">
+        <label class="f" style="max-width:260px"><span>מתאמן</span>
+          <select id="calTrainee">${list.map((x) => `
+            <option value="${esc(x.id)}" ${x.id === calState.traineeId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
+          </select></label>
+        <button id="calPlan" class="primary">פרוס את התכנית על הלוח</button>
+        ${next ? `<span class="chip">האימון הבא: ${fmtDate(next.date)}${next.dayLabel ? ` · ${esc(next.dayLabel)}` : ''}</span>` : ''}
+      </div>
+
+      <div class="calbar" style="margin-top:.9rem">
+        <button id="calPrev" aria-label="חודש קודם">‹</button>
+        <h3>${MONTHS_HE[calState.month]} ${calState.year}</h3>
+        <button id="calNext" aria-label="חודש הבא">›</button>
+        <button id="calToday">היום</button>
+        ${calState.picked ? '<span class="chip key">בחר יום שאליו להעביר — או לחץ שוב לביטול</span>' : ''}
+      </div>
+
+      <div class="calgrid">
+        ${WEEKDAYS.map((d) => `<div class="calhead">${d.short}</div>`).join('')}
+        ${weeks.flat().map(cellHtml).join('')}
+      </div>
+
+      <div class="callegend">
+        <span><b style="background:var(--accent)"></b>מתוכנן</span>
+        <span><b style="background:var(--ok)"></b>בוצע</span>
+        <span><b style="background:var(--warn)"></b>לא הגיע</span>
+        <span>⇄ הועבר מתאריך אחר</span>
+      </div>
+    </div>`;
+
+  wireCalendar();
+  animateIn(host);
+  countUp(host);
+}
+
+function cellHtml(c) {
+  return `<div class="cell ${c.inMonth ? '' : 'out'} ${c.isToday ? 'today' : ''}" data-date="${c.date}">
+    <span class="dnum">${c.day}</span>
+    ${c.sessions.map((s) => `
+      <button class="sess ${s.status} ${s.movedFrom ? 'moved' : ''} ${calState.picked === s.id ? 'picked' : ''}"
+        draggable="true" data-sess="${esc(s.id)}"
+        title="${esc(s.dayLabel || 'אימון')}${s.movedFrom ? ` · הועבר מ-${fmtDate(s.movedFrom)}` : ''}">
+        ${esc(s.dayLabel || 'אימון')}
+      </button>`).join('')}
+  </div>`;
+}
+
+function wireCalendar() {
+  $('#calTrainee').onchange = (e) => { calState.traineeId = e.target.value; calState.picked = null; renderCalendarView(); };
+  $('#calPrev').onclick = () => { shiftMonth(-1); };
+  $('#calNext').onclick = () => { shiftMonth(1); };
+  $('#calToday').onclick = () => {
+    const n = new Date();
+    calState.year = n.getFullYear(); calState.month = n.getMonth();
+    renderCalendarView();
+  };
+  $('#calPlan').onclick = planOntoCalendar;
+
+  // בחירה בלחיצה — עובד גם במגע, שם גרירה קשה
+  document.querySelectorAll('[data-sess]').forEach((el) => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const id = el.dataset.sess;
+      // אם כבר בחרנו אימון אחר, לחיצה על אימון קיים מעבירה לתאריך שלו —
+      // אחרת אי אפשר היה להעביר אימון ליום שכבר יש בו אימון
+      if (calState.picked && calState.picked !== id) {
+        const target = el.closest('.cell')?.dataset.date;
+        if (target) { doMoveSession(calState.picked, target); return; }
+      }
+      calState.picked = calState.picked === id ? null : id;
+      renderCalendarView();
+    };
+    el.ondragstart = (ev) => {
+      ev.dataTransfer.setData('text/plain', el.dataset.sess);
+      ev.dataTransfer.effectAllowed = 'move';
+    };
+  });
+
+  document.querySelectorAll('.cell').forEach((cell) => {
+    cell.ondragover = (ev) => { ev.preventDefault(); cell.classList.add('drop'); };
+    cell.ondragleave = () => cell.classList.remove('drop');
+    cell.ondrop = (ev) => {
+      ev.preventDefault();
+      cell.classList.remove('drop');
+      const id = ev.dataTransfer.getData('text/plain');
+      if (id) doMoveSession(id, cell.dataset.date);
+    };
+    cell.onclick = () => {
+      if (calState.picked) doMoveSession(calState.picked, cell.dataset.date);
+    };
+  });
+}
+
+function shiftMonth(delta) {
+  let m = calState.month + delta;
+  let y = calState.year;
+  if (m < 0) { m = 11; y -= 1; }
+  if (m > 11) { m = 0; y += 1; }
+  calState.month = m; calState.year = y;
+  renderCalendarView();
+}
+
+async function doMoveSession(sessionId, toDate) {
+  const raw = traineeById(calState.traineeId);
+  const before = (raw.sessions || []).map(normalizeSession);
+  const target = before.find((s) => s.id === sessionId);
+  if (!target || target.date === toDate) { calState.picked = null; renderCalendarView(); return; }
+
+  raw.sessions = moveSession(before, sessionId, toDate);
+  calState.picked = null;
+  await store.updateTrainee(raw);
+  renderCalendarView();
+  log('האימון הועבר', [
+    `${esc(target.dayLabel || 'אימון')}: ${fmtDate(target.date)} ← ${fmtDate(toDate)}.`,
+    'התאריך המקורי נשמר, כך שרואים שהאימון הועבר ולא נמחק.',
+  ]);
+}
+
+/** פריסת התכנית הנוכחית על לוח השנה. */
+async function planOntoCalendar() {
+  const raw = traineeById(calState.traineeId);
+  const program = state.program && state.program.traineeId === raw.id ? state.program : null;
+  if (!program) {
+    log('אין תכנית לפרוס', ['בנה תכנית למתאמן הזה במסך האימון, ואז חזור לכאן.']);
+    return;
+  }
+  const planned = planWeek(program, { startDate: isoDate(new Date()) });
+  const keep = (raw.sessions || []).map(normalizeSession)
+    .filter((x) => x.status !== 'planned' || x.week !== program.week);
+  raw.sessions = [...keep, ...planned].sort((a, b) => a.date.localeCompare(b.date));
+  await store.updateTrainee(raw);
+  renderCalendarView();
+  log('התכנית נפרסה על הלוח', [
+    `${planned.length} אימונים נקבעו, החל מ-${fmtDate(planned[0]?.date)}.`,
+    'אפשר לגרור כל אימון ליום אחר.',
+  ]);
+}
 
 /* ================================================================
    מסך ההיסטוריה.
@@ -2014,13 +2405,27 @@ function renderTraineesView() {
           <legend>הבסיס</legend>
           <div class="fields">
             <label class="f"><span class="req">שם מלא</span><input name="name" required autocomplete="off"></label>
-            <label class="f"><span class="req">סטודיו</span><select name="studioId" required>${studioOptions}</select></label>
+            <label class="f"><span class="req">סניף ראשי</span><select name="studioId" required>${studioOptions}</select>
+              <small class="hint">הסניף שבו הוא מתאמן בדרך כלל.</small></label>
             <label class="f"><span class="req">מטרה עיקרית</span>
               <select name="primaryGoal">${GOALS.map((g) => `<option value="${g}">${esc(GOAL_PROFILES[g]?.label || g)}</option>`).join('')}</select></label>
             <label class="f"><span class="req">ימי אימון בשבוע</span><input name="daysPerWeek" type="number" min="1" max="6" value="3"></label>
             <label class="f"><span>אורך אימון (דקות)</span><input name="sessionMinutes" type="number" min="20" max="120" value="60"></label>
             <label class="f"><span>רמת ניסיון</span>
               <select name="level">${LEVELS.map((l) => `<option value="${l}">${esc(levelLabel(l))}</option>`).join('')}</select></label>
+          </div>
+          ${state.studios.length > 1 ? `
+          <div style="margin-top:.6rem">
+            <span class="hint">סניפים נוספים שהוא רשאי להתאמן בהם — אותו מתאמן, אותה היסטוריה,
+              והתכנית מותאמת לציוד של הסניף שבו הוא נמצא באותו יום.</span>
+            <div class="row" style="gap:.4rem; flex-wrap:wrap; margin-top:.35rem">
+              ${state.studios.map((st) => `
+                <label class="chip" style="cursor:pointer; display:inline-flex; gap:.35rem; align-items:center">
+                  <input type="checkbox" name="alsoStudio" value="${esc(st.id)}" style="width:auto; min-height:auto">
+                  ${esc(st.name)}</label>`).join('')}
+            </div>
+          </div>` : ''}
+          <div class="fields" hidden>
           </div>
         </fieldset>
       </div>
@@ -2234,7 +2639,11 @@ async function onTraineeSubmit(e) {
   }));
 
   const trainee = {
-    name: f.get('name'), studioId: f.get('studioId'),
+    name: f.get('name'),
+    // הסניף הראשי, ובנוסף כל סניף שסומן — אותו מתאמן בכמה מקומות
+    homeStudioId: f.get('studioId'),
+    studioIds: [...new Set([f.get('studioId'), ...f.getAll('alsoStudio')])].filter(Boolean),
+    studioId: f.get('studioId'),
     age: +f.get('age') || 35, sex: f.get('sex'),
     heightCm: +f.get('heightCm') || null, weightKg: +f.get('weightKg') || null,
     level: f.get('level'), trainingAgeMonths: +f.get('trainingAgeMonths') || 0,
@@ -2287,7 +2696,10 @@ function generate() {
     $('#days').innerHTML = '<p class="empty">אין מתאמנים בסטודיו הזה. אפשר לרשום מתאמן בשלב 2.</p>';
     return;
   }
-  const res = buildProgram(t, studioById(t.studioId));
+  // התכנית נבנית לפי הסניף שנבחר במסך, לא לפי הסניף הראשי של המתאמן:
+  // אותו מתאמן בסניף אחר מקבל תכנית שמתאימה לציוד שיש שם.
+  const studio = studioById($('#studio').value) || studioById(t.homeStudioId || t.studioId);
+  const res = buildProgram(t, studio);
   if (!res.ok) {
     state.program = null;
     $('#rail').innerHTML = '';
@@ -2580,7 +2992,7 @@ function dayCard(day, di) {
       <span class="meta mono">${day.blocks.length} תרגילים · ${day.estimatedMinutes}′ מתוך ${day.sessionMinutes}′</span>
     </header>
     ${day.compressionNote ? `<p class="note">${esc(day.compressionNote)}</p>` : ''}
-    ${day.blocks.map((b, bi) => exerciseRow(b, di, bi)).join('')}
+    ${blocksWithSegments(day, di)}
   </article>`;
 }
 

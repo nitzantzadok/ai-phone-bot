@@ -418,6 +418,48 @@ export const MUSCLE_PATTERNS = {
 };
 
 /** בניית משבצת השלמה לשריר שנשאר מתחת ליעד. */
+/**
+ * משבצות למקטע שהסטודיו הגדיר במבנה האימון.
+ * מתרגם "רבע שעה בטן" לכמות משבצות ליבה סבירה לזמן שהוקצה.
+ */
+export function segmentSlots(plan, archetypeSlots) {
+  const byRole = (role) => archetypeSlots.filter((x) => x.role === role);
+
+  // מקטע כוח לוקח את משבצות הארכיטיפ עצמן — שם יושב הידע על החלוקה
+  if (plan.roles.includes('main')) {
+    return archetypeSlots.filter((x) => plan.roles.includes(x.role));
+  }
+
+  // מקטע אחר: אם לארכיטיפ כבר יש משבצות מהתפקיד הזה, מתחילים מהן
+  const role = plan.roles[0];
+  const existing = byRole(role);
+  const want = plan.maxExercises || Math.max(1, Math.round(plan.minutes / 5));
+
+  const out = existing.slice(0, want).map((x) => ({ ...x, optional: false }));
+  while (out.length < want) {
+    const template = existing[0] || SEGMENT_TEMPLATE[role];
+    if (!template) break;
+    out.push({
+      ...template,
+      role,
+      muscles: plan.muscles || template.muscles || null,
+      label: out.length ? `${plan.label} ${out.length + 1}` : plan.label,
+      optional: out.length >= 1,
+    });
+  }
+  return out.length ? out : (SEGMENT_TEMPLATE[role] ? [{ ...SEGMENT_TEMPLATE[role], label: plan.label }] : []);
+}
+
+/** ברירת מחדל למקטע שהארכיטיפ לא כלל בכלל. */
+const SEGMENT_TEMPLATE = {
+  warmup: S('warmup', ['mobility'], { label: 'חימום' }),
+  cooldown: S('cooldown', ['mobility'], { label: 'שחרור' }),
+  core: S('core', ['core_antiextension', 'core_antirotation', 'core_antilateralflexion', 'core_flexion', 'carry'], { label: 'ליבה' }),
+  conditioning: S('conditioning', ['conditioning'], { label: 'קונדישן' }),
+  prehab: S('prehab', ['mobility', 'core_antiextension'], { label: 'מניעה' }),
+  accessory: S('accessory', ['shoulder_isolation', 'elbow_flexion', 'elbow_extension', 'calf'], { label: 'עזר' }),
+};
+
 export function fillerSlot(muscle) {
   return S('accessory', MUSCLE_PATTERNS[muscle] || ['core_antiextension'], {
     muscles: [muscle], optional: true, label: 'השלמת נפח',

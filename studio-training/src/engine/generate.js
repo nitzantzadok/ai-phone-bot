@@ -12,7 +12,8 @@ import {
   ageAdjustments, externalLoadFactor, isDeloadWeek, prescribe, recoveryScore, suggestLoad,
   volumeMultiplier, weekProgression, weeklyVolumeTargets, GOAL_PROFILES,
 } from './prescription.js';
-import { DAY_ARCHETYPES, augmentSlots, chooseSplit, fillerSlot, relaxSlot, scheduleDays } from './split.js';
+import { DAY_ARCHETYPES, augmentSlots, chooseSplit, fillerSlot, relaxSlot, scheduleDays, segmentSlots } from './split.js';
+import { isDefaultStructure, normalizeStructure, structurePlan } from '../domain/structure.js';
 import { LIFESTYLES, MUSCLE_ROLE, SPORTS } from '../domain/taxonomy.js';
 
 /**
@@ -190,6 +191,16 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
     const dayKey = dayKeys[i];
     const timeBudget = trainee.sessionMinutesByDay[dayKey] || trainee.sessionMinutes;
     let daySlots = augmentSlots(arch.slots, trainee, ageAdj);
+
+    /*
+     * מבנה האימון של הסטודיו.
+     * כשהמבנה הוא ברירת המחדל, שום דבר לא משתנה — אותו מסלול שרץ עד היום.
+     * מבנה מותאם (למשל רבע שעה בטן לפני הכוח) מפצל את היום למקטעים,
+     * כל מקטע עם תקציב זמן משלו וסדר תצוגה משלו.
+     */
+    const structure = normalizeStructure(studio.sessionStructure);
+    const structured = !isDefaultStructure(structure);
+    const segPlans = structured ? structurePlan(structure, timeBudget, i) : [];
     // אימון קצר מאוד: מוותרים על חימום מובנה ועל סיום, ומתמקדים בעיקר.
     // המאמן יחמם בשטח — עדיף מלגלוש 30% מעבר לזמן שהמתאמן הקצה.
     if (timeBudget <= 30) daySlots = daySlots.filter((x) => x.role !== 'warmup' && x.role !== 'cooldown');
@@ -209,7 +220,7 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
     const unfilled = [];
 
     /** מוסיף משבצת לאימון אם היא נכנסת בתקציב הזמן והעייפות. */
-    const tryFill = (slot, { allowRelax = true } = {}) => {
+    const tryFill = (slot, { allowRelax = true, segmentCap = null } = {}) => {
       const ctx = { trainee, studio, volume, usedThisWeek, usedToday, prescribed, rng, dayFatigue, fatigueBudget: budget };
       let best = pickForSlot(eligible, slot, ctx);
       let usedSlot = slot;
@@ -235,6 +246,8 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
       }
 
       if (blocks.length >= maxBlocks) return { dropped: 'time' };
+      // תקציב המקטע גובר: מקטע בטן של רבע שעה לא גולש לתוך הכוח
+      if (segmentCap != null && minutes + mins > segmentCap * 1.08) return { dropped: 'time' };
       if (minutes + mins > timeBudget * 1.05) {
         // עדיין לא נכנס: רק אימון שאין בו מינימום סביר מקבל חריגה קטנה
         const wouldOverrun = minutes + mins > timeBudget * 1.12;
@@ -247,6 +260,10 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
       blocks.push({
         slotLabel: usedSlot.relaxed ? `${slot.label} (חלופי)` : slot.label,
         role: slot.role,
+        /** לאיזה מקטע במבנה הסטודיו התרגיל שייך (null במבנה ברירת המחדל). */
+        segment: slot.segment
+          ? { id: slot.segment.segmentId, label: slot.segment.label, kind: slot.segment.kind, order: slot.segment.order }
+          : null,
         setType: 'straight',
         group: null,
         relaxed: !!usedSlot.relaxed,
@@ -276,12 +293,30 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
     };
 
     const droppedForTime = [];
-    for (const slot of daySlots) {
-      const res = tryFill(slot);
-      if (res.ok || slot.optional) continue;
-      const label = slot.label || slot.patterns.join('/');
-      if (res.dropped === 'time') droppedForTime.push(label);
-      else unfilled.push(label);
+    if (structured) {
+      // ממלאים מקטע אחרי מקטע, כל אחד בתוך תקציב הזמן שהוקצה לו
+      let spent = 0;
+      for (const plan of segPlans) {
+        const slots = segmentSlots(plan, daySlots);
+        const cap = spent + plan.minutes;
+        for (const slot of slots) {
+          if (minutes >= cap) { if (!slot.optional) droppedForTime.push(slot.label || plan.label); continue; }
+          const res = tryFill({ ...slot, segment: plan }, { segmentCap: cap });
+          if (res.ok || slot.optional) continue;
+          const label = slot.label || plan.label;
+          if (res.dropped === 'time') droppedForTime.push(label);
+          else unfilled.push(label);
+        }
+        spent = Math.max(cap, minutes);
+      }
+    } else {
+      for (const slot of daySlots) {
+        const res = tryFill(slot);
+        if (res.ok || slot.optional) continue;
+        const label = slot.label || slot.patterns.join('/');
+        if (res.dropped === 'time') droppedForTime.push(label);
+        else unfilled.push(label);
+      }
     }
 
     // השלמת זמן פנוי: מוסיפים עבודת עזר לשרירים שנשארו מתחת ליעד השבועי.
@@ -299,7 +334,11 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
     }
 
     // סידור לסדר ביצוע נכון להצגה למאמן
-    blocks.sort((a, b) => ROLE_DISPLAY_ORDER.indexOf(a.role) - ROLE_DISPLAY_ORDER.indexOf(b.role));
+    // סדר התצוגה: לפי המקטעים כשיש מבנה, ואחרת לפי סדר הביצוע הרגיל
+    blocks.sort((a, b) => (structured
+      ? (a.segment?.order ?? 99) - (b.segment?.order ?? 99)
+        || ROLE_DISPLAY_ORDER.indexOf(a.role) - ROLE_DISPLAY_ORDER.indexOf(b.role)
+      : ROLE_DISPLAY_ORDER.indexOf(a.role) - ROLE_DISPLAY_ORDER.indexOf(b.role)));
     applySupersets(blocks, trainee, studio);
 
     const dayForCompression = { blocks, sessionMinutes: timeBudget, estimatedMinutes: 0 };
@@ -312,6 +351,8 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
       sessionMinutes: timeBudget,
       archetype: archetypes[i],
       label: arch.label,
+      /** המקטעים שהיום נבנה לפיהם, לתצוגה ולבקרה. ריק = מבנה ברירת מחדל. */
+      segments: segPlans.map((x) => ({ id: x.segmentId, label: x.label, kind: x.kind, minutes: x.minutes, note: x.note })),
       estimatedMinutes: dayForCompression.estimatedMinutes,
       compressionNote,
       fatigueLoad: dayFatigue,

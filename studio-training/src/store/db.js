@@ -12,7 +12,7 @@ import { sameContent as sameSnapshotContent } from '../domain/history.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_FILE = path.resolve(HERE, '../../data/db.json');
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * מיגרציה בין גרסאות סכימה.
@@ -46,6 +46,19 @@ export function migrate(data) {
     // מסמנים אותו ולא ממציאים בעלים, כדי שלא ניצור שיוך שגוי בשקט.
     for (const st of Object.values(data.studios || {})) {
       if (st.accountId === undefined) st.accountId = null;
+    }
+  }
+  if (from < 5) {
+    // גרסה 5: מתאמן שייך לחשבון ויכול להתאמן בכמה סניפים; נוסף לוח אימונים
+    for (const t of Object.values(data.trainees || {})) {
+      t.homeStudioId = t.homeStudioId || t.studioId || null;
+      t.studioIds = t.studioIds && t.studioIds.length
+        ? t.studioIds
+        : (t.homeStudioId ? [t.homeStudioId] : []);
+      t.sessions = t.sessions || [];
+      // הבעלים נגזר מהסניף הקיים, כדי שהבידוד יישאר בדיוק כפי שהיה
+      const st = data.studios?.[t.homeStudioId];
+      if (st && t.accountId === undefined) t.accountId = st.accountId ?? null;
     }
   }
   data.meta = { ...(data.meta || {}), schemaVersion: SCHEMA_VERSION, migratedAt: new Date().toISOString() };
@@ -138,6 +151,8 @@ export class Db {
       accounts: Object.keys(this.data.accounts).length,
       sessions: Object.keys(this.data.sessions).length,
       snapshots: Object.keys(this.data.snapshots).length,
+      scheduledSessions: Object.values(this.data.trainees)
+        .reduce((n, t) => n + (t.sessions || []).length, 0),
       loggedSets: Object.values(this.data.trainees)
         .reduce((n, t) => n + (t.sessionLog || []).filter((e) => e.type === 'log_set').length, 0),
       fileSizeKb: (() => { try { return +(fs.statSync(this.file).size / 1024).toFixed(1); } catch { return 0; } })(),
@@ -270,7 +285,13 @@ export class Db {
   // --- מתאמנים
   putTrainee(t) {
     const existing = this.data.trainees[t.id];
-    this.data.trainees[t.id] = { ...t, createdAt: existing?.createdAt || t.createdAt || new Date().toISOString() };
+    // הבעלות נקבעת פעם אחת ואינה משתנה דרך גוף בקשה
+    const accountId = existing?.accountId ?? t.accountId
+      ?? this.data.studios[t.homeStudioId || t.studioId]?.accountId ?? null;
+    this.data.trainees[t.id] = {
+      ...t, accountId,
+      createdAt: existing?.createdAt || t.createdAt || new Date().toISOString(),
+    };
     this.log(existing ? 'trainee_updated' : 'trainee_created', { traineeId: t.id, studioId: t.studioId });
     return this.save();
   }
@@ -356,19 +377,34 @@ export class Db {
     const st = this.data.studios[studioId];
     return !!(st && accountId && st.accountId === accountId);
   }
-  /** האם המתאמן שייך לחשבון — דרך הסטודיו שלו. */
+  /**
+   * האם המתאמן שייך לחשבון.
+   * מתאמן יכול להיות משויך לכמה סניפים, ולכן הבעלות נקבעת לפי החשבון עצמו,
+   * ורק כגיבוי לפי הסניף הראשי (רשומות שנוצרו לפני גרסה 5).
+   */
   ownsTrainee(accountId, traineeId) {
     const t = this.data.trainees[traineeId];
-    return !!(t && this.ownsStudio(accountId, t.studioId));
+    if (!t || !accountId) return false;
+    if (t.accountId) return t.accountId === accountId;
+    return this.ownsStudio(accountId, t.homeStudioId || t.studioId);
   }
 
   listStudiosFor(accountId) {
     return Object.values(this.data.studios).filter((s) => s.accountId === accountId);
   }
+  /**
+   * מתאמני החשבון. סינון לפי סניף מחזיר את מי שמורשה להתאמן בו —
+   * לא רק את מי שהסניף הזה הוא ביתו.
+   */
   listTraineesFor(accountId, studioId = null) {
     const mine = new Set(this.listStudiosFor(accountId).map((s) => s.id));
-    return Object.values(this.data.trainees)
-      .filter((t) => mine.has(t.studioId) && (!studioId || t.studioId === studioId));
+    return Object.values(this.data.trainees).filter((t) => {
+      const owned = t.accountId ? t.accountId === accountId : mine.has(t.homeStudioId || t.studioId);
+      if (!owned) return false;
+      if (!studioId) return true;
+      const ids = t.studioIds && t.studioIds.length ? t.studioIds : [t.homeStudioId || t.studioId];
+      return ids.includes(studioId);
+    });
   }
 
   // --- ארכיון תכניות
