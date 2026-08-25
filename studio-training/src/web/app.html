@@ -1131,11 +1131,28 @@ async function exportDb() {
     ? await api('/api/db/export')
     : { exportedAt: new Date().toISOString(), data: { studios: Object.fromEntries(state.studios.map((s) => [s.id, s])), trainees: Object.fromEntries(state.trainees.map((t) => [t.id, t])), programs: {}, events: [] } };
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const filename = `studio-training-${new Date().toISOString().slice(0, 10)}.json`;
+  const text = JSON.stringify(payload, null, 2);
+
+  // בעמוד מפורסם ההורדה עוברת דרך המארח; בשרת המקומי קישור רגיל עובד.
+  // מנסים קודם את המסלול המתווך, ורק אם אינו זמין נופלים לקישור.
+  try {
+    const downloads = await window.claude?.use?.('downloads');
+    if (downloads) {
+      await downloads.save({ filename, data: text });
+      log('גיבוי יוצא', 'הקובץ נשמר. שמור אותו במקום בטוח.');
+      return;
+    }
+  } catch (err) {
+    log('ההורדה לא הושלמה', esc(err?.message || 'הפעולה בוטלה'));
+    return;
+  }
+
+  const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `studio-training-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
