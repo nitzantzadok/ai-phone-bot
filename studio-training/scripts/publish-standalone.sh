@@ -85,10 +85,19 @@ jobs:
         uses: actions/deploy-pages@v4
 YAML
 
-echo "→ מוודא שהבדיקות עוברות לפני שדוחפים"
-( cd "$STAGE" && node --test tests/*.test.js >/dev/null 2>&1 ) \
-  && echo "   הבדיקות עברו" \
-  || { echo "   הבדיקות נכשלו — לא דוחפים" >&2; exit 1; }
+# הבדיקות הן שער בטיחות, אבל אין טעם להיכשל רק כי Node לא מותקן —
+# ב-GitHub Actions הן ירוצו בכל מקרה לפני הפרסום.
+if command -v node >/dev/null 2>&1; then
+  echo "→ מריץ את הבדיקות לפני שדוחפים"
+  if ( cd "$STAGE" && node --test tests/*.test.js >/dev/null 2>&1 ); then
+    echo "   הבדיקות עברו"
+  else
+    echo "   הבדיקות נכשלו — לא דוחפים" >&2
+    exit 1
+  fi
+else
+  echo "→ Node לא מותקן כאן; מדלג על הבדיקות (הן ירוצו ב-GitHub)"
+fi
 
 echo "→ יוצר ריפו ודוחף ל-$REMOTE"
 cd "$STAGE"
