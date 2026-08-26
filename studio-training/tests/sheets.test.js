@@ -483,3 +483,48 @@ test('תיקון ידני של עמודה גובר על הזיהוי האוטו�
   assert.equal(off.sheets[0].columns[2].field, null);
   assert.ok(numberCol, 'העמודה קיימת גם בזיהוי האוטומטי');
 });
+
+test('כמות שכתובה בתוך שם הפריט נספרת', () => {
+  const out = shBuildImport(shAnalyzeWorkbook([
+    sheet('ציוד', '12 זוגות משקולות יד\n2 הליכונים\nמוט מתח אחד\n6 קטלבלים\nמשקולות יד 2-30 ק"ג'),
+  ]), { studioName: 'ס' });
+  const eq = Object.fromEntries(out.studios[0].equipment.map((e) => [e.item, e.count]));
+  assert.equal(eq.dumbbell, 12);
+  assert.equal(eq.treadmill, 2);
+  assert.equal(eq.kettlebell, 6);
+  assert.equal(eq.pullup_bar, 1);
+  assert.equal(out.studios[0].dumbbellMaxKg, 30, 'טווח משקלים אינו כמות');
+});
+
+test('שם המתאמן נלקח מכותרת הגיליון כשהלשונית חסרת שם', () => {
+  const out = shBuildImport(shAnalyzeWorkbook([
+    sheet('גיליון1', 'תכנית אימון — מיכל אבן,,,\n,,,\nתרגיל,סטים,חזרות,משקל\nסקוואט,4,8,60\nמתח,3,6,'),
+  ]), { studioName: 'ס' });
+  assert.deepEqual(out.trainees.map((t) => t.name), ['מיכל אבן']);
+  assert.equal(out.snapshots.length, 1);
+  assert.equal(out.snapshots[0].totalExercises, 2);
+});
+
+test('הניסוח המקורי של המטרה נשמר לצד הקטגוריה', () => {
+  const out = shBuildImport(shAnalyzeWorkbook([
+    sheet('מתאמנים', 'שם,גיל,מטרה\nשירה כהן,29,לרזות לקראת החתונה\nאבי לוי,50,כוח'),
+  ]), { studioName: 'ס' });
+  const shira = out.trainees.find((t) => t.name === 'שירה כהן');
+  assert.equal(shira.primaryGoal, 'fat_loss');
+  assert.equal(shira.goalDetail, 'לרזות לקראת החתונה');
+  assert.equal(out.trainees.find((t) => t.name === 'אבי לוי').goalDetail, undefined, 'מילה אחת לא צריכה פירוט');
+});
+
+test('כותרות באנגלית מזוהות כמו כותרות בעברית', () => {
+  const out = shBuildImport(shAnalyzeWorkbook([
+    sheet('Members', 'Full Name,Age,Gender,Phone,Weight,Level,Goal,Injuries,Days per week\nRon Cohen,34,M,054-1234567,82,advanced,muscle,knee pain,3'),
+  ]), { studioName: 'ס' });
+  const ron = out.trainees[0];
+  assert.equal(ron.name, 'Ron Cohen');
+  assert.equal(ron.age, 34);
+  assert.equal(ron.sex, 'male');
+  assert.equal(ron.level, 'advanced');
+  assert.equal(ron.primaryGoal, 'hypertrophy');
+  assert.equal(ron.daysPerWeek, 3);
+  assert.equal(ron.constraints[0].id, 'knee_pain_patellofemoral');
+});

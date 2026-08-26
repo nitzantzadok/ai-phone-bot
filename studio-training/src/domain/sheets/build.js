@@ -195,7 +195,14 @@ function traineeFromRow(row, byField, ctx) {
   }
 
   const goals = pickGoals(cell('goal'));
-  if (goals.length) { t.goals = goals; t.primaryGoal = goals[0]; }
+  if (goals.length) {
+    t.goals = goals;
+    t.primaryGoal = goals[0];
+    // הניסוח המקורי נשמר: "לרזות לקראת החתונה" אומר למאמן משהו
+    // שהקטגוריה "ירידה באחוזי שומן" לא אומרת.
+    const raw = cell('goal').trim();
+    if (raw.length > 8) t.goalDetail = raw.slice(0, 200);
+  }
   else if (!shEmpty(cell('goal'))) { t.goalDetail = cell('goal').slice(0, 200); ctx.unmatched.goals.add(cell('goal').trim()); }
   if (!shEmpty(cell('goalDetail'))) t.goalDetail = cell('goalDetail').slice(0, 200);
 
@@ -280,8 +287,14 @@ function equipmentFromTable(sheet, ctx) {
     const hit = shMatchPhrase(raw, eqCands, { min: 0.7 });
     if (!hit) { ctx.unmatched.equipment.add(String(raw).trim()); continue; }
 
+    // הכמות יכולה להיות בעמודה משלה, ויכולה להיות כתובה בתוך השורה עצמה:
+    // "12 זוגות משקולות יד". טווח משקלים אינו כמות, ולכן נבדק בנפרד.
     const countCell = shCell(row, sheet.byField, 'count');
-    const count = shNum(countCell);
+    let count = shNum(countCell);
+    if (count === null && !/\d+\s*[-–]\s*\d+/.test(String(raw))) {
+      const lead = String(raw).match(/^\s*(\d{1,3})\b/);
+      if (lead) count = +lead[1];
+    }
     found.set(hit.key, Math.max(found.get(hit.key) || 0, count !== null && count > 0 ? Math.round(count) : 1));
 
     const range = shRange(shCell(row, sheet.byField, 'weightRange') || raw);
@@ -349,10 +362,25 @@ function exerciseFrom(raw, ctx) {
   };
 }
 
+/**
+ * למי שייכת הלשונית הזאת.
+ * לרוב שם הלשונית הוא שם המתאמן, אבל לא תמיד: לפעמים היא נקראת "גיליון1"
+ * והשם כתוב בכותרת שמעל הטבלה ("תכנית אימון — מיכל אבן").
+ */
+function sheetOwner(sheet, traineeNames) {
+  const byName = shSheetPersonName(sheet.name, traineeNames);
+  if (byName) return byName;
+  const title = String(sheet.table.title || '');
+  if (!title) return null;
+  // החלק שאחרי הקו המפריד הוא השם; בלי קו — הכותרת כולה
+  const tail = title.split(/[—–:|-]/).pop().trim();
+  return shSheetPersonName(tail, traineeNames);
+}
+
 /** תכניות: כל שורה היא תרגיל; הקיבוץ הוא לפי מתאמן ולפי יום. */
 function programsFromSheet(sheet, ctx) {
   const byTrainee = new Map();
-  const sheetPerson = shSheetPersonName(sheet.name, ctx.traineeNames);
+  const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
 
   for (const row of sheet.table.rows) {
     const rawEx = shCell(row, sheet.byField, 'exercise')
@@ -392,7 +420,7 @@ function programsFromSheet(sheet, ctx) {
 /** יומן ביצועים: מה בוצע בפועל, עם תאריך. */
 function logFromSheet(sheet, ctx) {
   const out = [];
-  const sheetPerson = shSheetPersonName(sheet.name, ctx.traineeNames);
+  const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
   for (const row of sheet.table.rows) {
     const rawEx = shCell(row, sheet.byField, 'exercise');
     const date = shDate(shCell(row, sheet.byField, 'date'));
@@ -424,7 +452,7 @@ const GIRTH_FIELDS = ['waist', 'chest', 'hips', 'arm', 'thigh', 'calf'];
 
 function measurementsFromSheet(sheet, ctx) {
   const out = [];
-  const sheetPerson = shSheetPersonName(sheet.name, ctx.traineeNames);
+  const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
   for (const row of sheet.table.rows) {
     const date = shDate(shCell(row, sheet.byField, 'date'));
     const person = shCell(row, sheet.byField, 'name').trim() || sheetPerson;
