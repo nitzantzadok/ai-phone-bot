@@ -172,8 +172,6 @@ export function shHas(row, byField, field) {
   return !shEmpty(shCell(row, byField, field));
 }
 
-export { VALUE_TESTS as SH_VALUE_TESTS, shNorm as shNormValue };
-
 /**
  * גיליון בלי שורת כותרת בכלל.
  *

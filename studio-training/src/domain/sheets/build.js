@@ -502,20 +502,30 @@ function attendanceFromSheet(sheet) {
   return out;
 }
 
-/** פרטי הסטודיו מלשונית "תווית: ערך". */
+/**
+ * פרטי הסטודיו מלשונית "תווית: ערך".
+ *
+ * ההשוואה נעשית על טקסט מנורמל, ולכן הביטויים כאן כתובים בלי אותיות
+ * סופיות: "שם" הופך ל"שמ", "טלפון" ל"טלפונ". השורה הראשונה נכללת גם היא —
+ * בגיליון כזה אין שורת כותרת, ומה שנראה ככותרת הוא הפרט הראשון.
+ */
 function studioFromKeyValue(sheet) {
   const info = {};
-  for (const row of sheet.table.rows) {
+  const rows = sheet.table.headers.some((h) => !shEmpty(h))
+    ? [sheet.table.headers, ...sheet.table.rows]
+    : sheet.table.rows;
+
+  for (const row of rows) {
     const label = String(row[0] || '').trim();
     const value = String(row[1] || '').trim();
     if (!label || !value) continue;
     const n = shNorm(label);
-    if (/שם/.test(n)) info.name = info.name || value;
-    else if (/טלפון|נייד/.test(n)) info.phone = value;
+    if (/שמ/.test(n)) info.name = info.name || value;
+    else if (/טלפונ|נייד/.test(n)) info.phone = value;
     else if (/כתובת|עיר/.test(n)) info.address = value;
-    else if (/מייל|אימייל/.test(n)) info.email = value;
-    else if (/אורכ אימונ|משכ|דקות/.test(n)) info.sessionMinutes = shNum(value);
-    else if (/במקביל|מתאמנימ בו/.test(n)) info.concurrentTrainees = shNum(value);
+    else if (/מייל/.test(n)) info.email = value;
+    else if (/אורכ|משכ|דקות/.test(n)) info.sessionMinutes = shNum(value);
+    else if (/במקביל|מתאמנימ/.test(n)) info.concurrentTrainees = shNum(value);
     else if (/מאמנימ/.test(n)) info.trainersOnFloor = shNum(value);
     else if (/תקרה|גובה/.test(n)) info.ceilingHeightCm = shNum(value);
     else info[label] = value;

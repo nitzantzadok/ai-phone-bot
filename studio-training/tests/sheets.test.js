@@ -528,3 +528,26 @@ test('כותרות באנגלית מזוהות כמו כותרות בעברית'
   assert.equal(ron.daysPerWeek, 3);
   assert.equal(ron.constraints[0].id, 'knee_pain_patellofemoral');
 });
+
+test('לשונית פרטי סטודיו מזוהה לפי התוכן גם כשהשם שלה חסר משמעות', () => {
+  const info = sheet('גיליון2', [
+    'שם הסטודיו,פאוור לאב',
+    'כתובת,הרצל 5 תל אביב',
+    'טלפון,03-1234567',
+    'אורך אימון,60',
+    'מתאמנים במקביל,8',
+    'מאמנים,2',
+  ].join('\n'));
+  assert.equal(shClassifyTable(info.table).role, 'studio');
+
+  const out = shBuildImport(shAnalyzeWorkbook([info]), { studioName: 'זמני' });
+  assert.equal(out.studios[0].name, 'פאוור לאב');
+  assert.equal(out.studios[0].sessionMinutes, 60);
+  assert.equal(out.studios[0].concurrentTrainees, 8);
+  assert.equal(out.studios[0].trainersOnFloor, 2);
+  assert.equal(out.studios[0].profile.phone, '03-1234567');
+
+  // רשימת שמות וטלפונים היא אותה צורה בדיוק — ואסור שתיקרא כפרטי מקום
+  const people = sheet('גיליון3', 'רון כהן,0541234567\nדנה לוי,0521112222\nיוסי מור,0509998888');
+  assert.equal(shClassifyTable(people.table).role, 'trainees');
+});

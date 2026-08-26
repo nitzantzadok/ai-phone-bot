@@ -8,6 +8,7 @@
  */
 
 import { shDate, shEmpty, shMatch, shNorm } from './text.js';
+import { shLooksLikeKeyValue } from './table.js';
 import { shMapColumns } from './columns.js';
 import { equipmentCandidates, exerciseCandidates } from './vocab.js';
 
@@ -23,6 +24,10 @@ const SHEET_NAME_TERMS = {
 };
 
 const NAME_CANDIDATES = Object.entries(SHEET_NAME_TERMS).map(([key, terms]) => ({ key, terms }));
+
+/** תוויות שמופיעות בגיליון פרטי סטודיו ולא ברשימת אנשים. */
+const STUDIO_LABELS = ['סטודיו', 'כתובת', 'שעות', 'אורכ אימונ', 'משכ אימונ', 'מתאמנימ במקביל',
+  'מאמנימ', 'תקרה', 'שטח', 'סוג הסטודיו', 'עיר'].map(shNorm);
 
 /** האם רוב הכותרות הן תאריכים — הסימן המובהק ללוח נוכחות. */
 function dateHeaderRatio(table) {
@@ -113,6 +118,17 @@ export function shClassifyTable(table) {
   if (has('date') && any('weightKg', 'bodyFatPct', 'waist', 'chest', 'hips', 'arm', 'thigh') && !fields.has('exercise')) {
     // תאריך לצד מדדי גוף הוא חתימה חד-משמעית: רשימת מתאמנים לא נראית כך
     add('measurements', 2.4 + repeat, 'תאריך יחד עם מדדי גוף');
+  }
+
+  /*
+   * פרטי הסטודיו נכתבים כרשימת "תווית: ערך" ולא כטבלה. רשימת מתאמנים
+   * של שם וטלפון נראית אותו דבר, ולכן לא די בצורה — נדרש שהתוויות עצמן
+   * ידברו על המקום ולא על אנשים.
+   */
+  if (shLooksLikeKeyValue(table)) {
+    const labels = table.rows.map((r) => shNorm(r[0]));
+    const hits = labels.filter((l) => STUDIO_LABELS.some((t) => l.includes(t))).length;
+    if (hits >= 2) add('studio', 1.4 + hits * 0.2, 'רשימה של פרטי המקום');
   }
 
   if (!scores.length) add('unknown', 0.2, 'לא זוהה מבנה מוכר');

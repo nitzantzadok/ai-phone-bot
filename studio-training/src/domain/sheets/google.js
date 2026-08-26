@@ -63,10 +63,8 @@ export function shGvizToMatrix(payload) {
   return out;
 }
 
-/** שם הלשונית מתוך התגובה, כשהוא מגיע. */
-export const shGvizSheetName = (payload) => payload?.table?.parsedNumHeaders !== undefined
-  ? (payload.sheetName || payload?.table?.name || '')
-  : (payload?.sheetName || '');
+/** שם הלשונית מתוך התגובה, כשהוא מגיע. לא כל תשובה כוללת אותו. */
+export const shGvizSheetName = (payload) => payload?.sheetName || payload?.table?.name || '';
 
 let jsonpSeq = 0;
 

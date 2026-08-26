@@ -132,11 +132,6 @@ export function shToTable(matrix, { name = '' } = {}) {
   };
 }
 
-/** ערכי עמודה אחת, בלי תאים ריקים — הבסיס לזיהוי לפי תוכן. */
-export function shColumn(table, index) {
-  return table.rows.map((r) => r[index]).filter((v) => !shEmpty(v));
-}
-
 /** טבלה מטקסט: הדרך המהירה — הדבקה מהגיליון או קובץ CSV. */
 export function shTableFromText(text, { name = '', delim = null } = {}) {
   return shToTable(shParseDelimited(text, delim), { name });
