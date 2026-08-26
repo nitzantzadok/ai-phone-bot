@@ -793,8 +793,16 @@ export function shBuildImport(analysis, {
     warnings.push(`הציוד הועתק גם ל${inherited.length === 1 ? 'סניף' : `-${inherited.length} הסניפים`} ${inherited.map((s) => s.name).join(', ')}. אם המכשור שם שונה — אפשר לערוך כל סניף בנפרד.`);
   }
 
-  // תרגילים שלא זוהו נשמרים כספריית התרגילים של הסטודיו
-  studios[0].customExercises = [...ctx.customExercises.values()];
+  /*
+   * תרגילים שלא זוהו נשמרים כספריית התרגילים של הסטודיו — בתוספת למה
+   * שכבר קיים בו. ייבוא לסטודיו פעיל לא מוחק תרגילים שהמאמנים כתבו.
+   */
+  const existingCustom = baseStudio?.customExercises || [];
+  const customByName = new Map(existingCustom.map((c) => [shNorm(c.name), c]));
+  for (const c of ctx.customExercises.values()) {
+    if (!customByName.has(shNorm(c.name))) customByName.set(shNorm(c.name), c);
+  }
+  studios[0].customExercises = [...customByName.values()];
 
   if (!studios[0].equipment.length) {
     warnings.push('לא נמצאה לשונית ציוד. אפשר לבחור חבילת ציוד במסך הסטודיו — זה לוקח פחות מדקה.');

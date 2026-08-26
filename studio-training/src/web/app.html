@@ -2700,8 +2700,14 @@ function impStudioName() {
   return state.account?.studioName || impState.sheets[0]?.name || 'הסטודיו שלי';
 }
 
-/** בנייה יבשה כדי להראות מספרים אמיתיים לפני האישור. */
+/**
+ * בנייה יבשה כדי להראות מספרים אמיתיים לפני האישור.
+ * התוצאה נשמרת: מסך הסקירה מצייר את עצמו מחדש בכל שינוי, וגיליון של אלפי
+ * שורות לא צריך להיבנות מחדש רק כדי לצייר את אותם מספרים.
+ */
 function impPreview() {
+  const key = JSON.stringify([impState.target, impStudioName(), impState.roleOverrides, impState.columnOverrides]);
+  if (impState.previewKey === key && impState.preview) return impState.preview.report;
   try {
     const built = shBuildImport(impState.analysis, {
       studioName: impStudioName(),
@@ -2709,6 +2715,7 @@ function impPreview() {
       baseStudio: impState.target === 'new' ? null : studioById(impState.target),
     });
     impState.preview = built;
+    impState.previewKey = key;
     return built.report;
   } catch (err) {
     return { counts: { trainees: 0, equipment: 0, programs: 0, logs: 0, attendance: 0 }, warnings: [err.message], unmatched: {}, perSheet: [] };
@@ -2717,6 +2724,7 @@ function impPreview() {
 
 function impAnalyze() {
   if (!impState.sheets.length) return;
+  impState.previewKey = null;
   impState.analysis = shAnalyzeWorkbook(
     impState.sheets.map((s) => ({ name: s.name, table: shToTable(s.rows, { name: s.name }) })),
     { overrides: impState.roleOverrides, columnOverrides: impState.columnOverrides },
@@ -2755,9 +2763,10 @@ async function impApply() {
 function impAddSheet(name, rows) {
   if (!rows.length) { impState.error = 'לא נמצאו שורות בלשונית הזאת.'; return; }
   const taken = new Set(impState.sheets.map((s) => s.name));
-  let unique = name || `לשונית ${impState.sheets.length + 1}`;
+  const base = name || `לשונית ${impState.sheets.length + 1}`;
+  let unique = base;
   let n = 2;
-  while (taken.has(unique)) unique = `${name} ${n++}`;
+  while (taken.has(unique)) unique = `${base} ${n++}`;
   impState.sheets.push({ name: unique, rows });
   impState.error = '';
 }
@@ -2823,7 +2832,7 @@ function wireImport() {
   on('#impClear', 'click', () => {
     Object.assign(impState, {
       stage: 'source', sheets: [], analysis: null, roleOverrides: {}, columnOverrides: {},
-      result: null, preview: null, error: '',
+      result: null, preview: null, previewKey: null, error: '',
     });
     renderImportView();
   });

@@ -445,3 +445,41 @@ test('תשובת gviz הופכת למטריצה עם שורת כותרות', () 
   assert.deepEqual(matrix, [['שם', 'תאריך'], ['רון', '03/02/2026'], ['דנה', '']]);
   assert.deepEqual(shGvizToMatrix({}), []);
 });
+
+test('ייבוא לתוך סטודיו קיים מוסיף ואינו מוחק', () => {
+  const existing = {
+    id: 'studio_kayam', name: 'סטודיו קיים',
+    equipment: [{ item: 'reformer', count: 4 }, { item: 'dumbbell', count: 6 }],
+    customExercises: [{ id: 'c1', name: 'תרגיל ותיק של הבית', custom: true }],
+  };
+  const out = shBuildImport(shAnalyzeWorkbook([
+    sheet('ציוד', 'פריט,כמות\nמשקולות יד,12\nמוט מתח,1'),
+    sheet('תכנית של יעל', 'תרגיל,סטים,חזרות\nסקוואט,3,10\nתרגיל חדש של הבית,3,12'),
+  ]), { studioName: 'לא בשימוש', studioId: existing.id, baseStudio: existing });
+
+  const studio = out.studios[0];
+  assert.equal(studio.id, 'studio_kayam');
+  assert.equal(studio.name, 'סטודיו קיים', 'שם הסטודיו הקיים נשמר');
+  assert.ok(studio.equipment.some((e) => e.item === 'reformer'), 'ציוד קיים לא נמחק');
+  assert.ok(studio.equipment.some((e) => e.item === 'pullup_bar'), 'ציוד חדש נוסף');
+  const dumbbell = studio.equipment.find((e) => e.item === 'dumbbell');
+  assert.equal(dumbbell.count, 12, 'הכמות הגדולה מבין השתיים');
+  assert.ok(studio.customExercises.some((c) => c.name === 'תרגיל ותיק של הבית'), 'תרגילי הבית נשמרו');
+  assert.ok(studio.customExercises.some((c) => c.name === 'תרגיל חדש של הבית'), 'ותרגיל חדש נוסף');
+});
+
+test('תיקון ידני של עמודה גובר על הזיהוי האוטומטי', () => {
+  const sheets = [sheet('מתאמנים', 'שם,מספר,הערות\nרון כהן,3,אוהב בוקר\nדנה לוי,2,ערב בלבד')];
+  const auto = shAnalyzeWorkbook(sheets);
+  const numberCol = auto.sheets[0].columns[1];
+
+  const fixed = shAnalyzeWorkbook(sheets, { columnOverrides: { מתאמנים: { 1: 'daysPerWeek' } } });
+  assert.equal(fixed.sheets[0].byField.daysPerWeek, 1);
+  assert.equal(fixed.sheets[0].columns[1].why, 'נבחר ידנית');
+  const built = shBuildImport(fixed, { studioName: 'ס' });
+  assert.equal(built.trainees.find((t) => t.name === 'רון כהן').daysPerWeek, 3);
+
+  const off = shAnalyzeWorkbook(sheets, { columnOverrides: { מתאמנים: { 2: 'none' } } });
+  assert.equal(off.sheets[0].columns[2].field, null);
+  assert.ok(numberCol, 'העמודה קיימת גם בזיהוי האוטומטי');
+});
