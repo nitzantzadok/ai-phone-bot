@@ -185,6 +185,12 @@ export function normalizeTrainee(raw = {}) {
     /** שבוע נסיעה/מלון — תכנית ממשקל גוף וגומיות בלבד. */
     travelWeek: raw.travelWeek ?? false,
     units: raw.units === 'lb' ? 'lb' : 'kg',
+    /**
+     * פרטי קשר. המנוע אינו משתמש בהם, אבל הם מגיעים מכל גיליון קיים של
+     * סטודיו, והשמטתם הייתה מאלצת את המאמן לנהל שתי רשימות במקום אחת.
+     */
+    phone: raw.phone || '',
+    email: raw.email || '',
     /** מי המאמן האחראי, ומתי התחיל להתאמן. */
     coach: raw.coach || '',
     startDate: raw.startDate || null,

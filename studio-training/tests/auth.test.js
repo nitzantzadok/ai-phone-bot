@@ -356,3 +356,45 @@ test('צילום מצב מזהה תוכן זהה מול תוכן שהשתנה', 
   assert.ok(!sameContent(a, programSnapshot(changed)), 'שינוי משקל הוא תוכן חדש');
   assert.equal(a.totalExercises, 1);
 });
+
+/* ------------------------------------------------ ייבוא תכניות מגיליון */
+
+test('ייבוא תכניות נשמר בארכיון של המתאמן הנכון', async () => {
+  const snap = {
+    id: 'snap_imported_1', programId: 'p_imported', traineeId: traineeA, traineeName: 'דנה',
+    studioId: studioA, week: 0, at: '2026-02-01T10:00:00.000Z', reason: 'imported',
+    daysPerWeek: 2, totalExercises: 3,
+    program: { id: 'p_imported', traineeId: traineeA, days: [{ blocks: [] }, { blocks: [] }] },
+  };
+  const r = await gymA.post('/api/import/snapshots', { snapshots: [snap] });
+  assert.equal(r.body.ok, true);
+  assert.equal(r.body.saved, 1);
+
+  const history = await gymA.get(`/api/history?traineeId=${traineeA}`);
+  assert.ok(history.body.programs.some((p) => p.reason === 'imported'));
+});
+
+test('ייבוא לא יכול לכתוב לארכיון של חשבון אחר', async () => {
+  const stolen = {
+    id: 'snap_stolen', programId: 'p', traineeId: traineeB, traineeName: 'גנוב',
+    studioId: studioB, week: 0, at: '2026-02-01T10:00:00.000Z',
+    program: { id: 'p', traineeId: traineeB, days: [] },
+  };
+  const r = await gymA.post('/api/import/snapshots', { snapshots: [stolen] });
+  assert.equal(r.status, 404, 'מתאמן של חשבון אחר אינו קיים מבחינת החשבון הזה');
+
+  const history = await gymB.get(`/api/history?traineeId=${traineeB}`);
+  assert.ok(!history.body.programs.some((p) => p.id === 'snap_stolen'), 'שום דבר לא נכתב');
+});
+
+test('ייבוא בלי תכניות או בכמות חריגה נדחה', async () => {
+  assert.equal((await gymA.post('/api/import/snapshots', { snapshots: [] })).status, 400);
+  const many = Array.from({ length: 501 }, (_, i) => ({ id: `s${i}`, traineeId: traineeA, program: { days: [] } }));
+  assert.equal((await gymA.post('/api/import/snapshots', { snapshots: many })).status, 400);
+});
+
+test('ייבוא בלי התחברות נדחה', async () => {
+  const anon = client();
+  const r = await anon.post('/api/import/snapshots', { snapshots: [{ traineeId: traineeA, program: { days: [] } }] });
+  assert.equal(r.status, 401);
+});

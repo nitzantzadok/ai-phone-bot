@@ -74,6 +74,9 @@
   }
 
   *{box-sizing:border-box}
+  /* גלישה אופקית רגעית — למשל בזמן שהגופנים עוד נטענים — גורמת לדפדפן
+     נייד להקטין את כל העמוד ולהשאיר אותו כך. clip חוסם את זה בלי ליצור
+     מיכל גלילה, ולכן position:sticky ממשיך לעבוד. */
   html{-webkit-text-size-adjust:100%}
 
   body, .wrap, header.bar, .log{direction:rtl}
@@ -350,11 +353,13 @@
   }
 
   /* ---------------------------------------------------------- מבנה אימון */
-  .segrow{display:grid; grid-template-columns:auto 1fr 5.5rem auto; gap:.5rem; align-items:center;
+  /* minmax(0,1fr) ולא 1fr: בלעדיו הרוחב של הבחירה נקבע לפי הטקסט הארוך ביותר,
+     השורה גולשת מהמסך, ודפדפן נייד מקטין את כל העמוד כדי להכיל אותה. */
+  .segrow{display:grid; grid-template-columns:auto minmax(0,1fr) 5.5rem auto; gap:.5rem; align-items:center;
     background:var(--surface-2); border:1px solid var(--line-soft); border-radius:var(--radius-sm);
     padding:.45rem .6rem; margin-bottom:.4rem}
   .segrow .grip{cursor:grab; color:var(--muted); font-size:var(--step-1); line-height:1}
-  .segrow select,.segrow input{min-height:36px; margin:0}
+  .segrow select,.segrow input{min-height:36px; margin:0; min-width:0; max-width:100%}
   .segbar{display:flex; height:10px; border-radius:999px; overflow:hidden; margin:.5rem 0 .3rem;
     border:1px solid var(--line)}
   .segbar span{display:block}
@@ -444,8 +449,8 @@
   details.more summary::before{content:'⌄'; transition:transform .25s var(--ease); display:inline-block}
   details.more[open] summary::before{transform:rotate(180deg)}
   details.more summary:hover{color:var(--accent)}
-  .swap{display:flex; gap:.4rem; margin-top:.5rem}
-  .swap select{flex:1; font-size:var(--step--1); max-width:none}
+  .swap{display:flex; gap:.4rem; margin-top:.5rem; flex-wrap:wrap}
+  .swap select{flex:1 1 8rem; min-width:0; font-size:var(--step--1); max-width:none}
 
   /* ---------- בורר ציוד ---------- */
   .presets{display:flex; gap:.4rem; flex-wrap:wrap; margin:.2rem 0 .85rem}
@@ -493,6 +498,29 @@
   .thumbs{display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.6rem}
   .thumbs img{width:78px; height:78px; object-fit:cover; border-radius:var(--radius-sm);
     border:1px solid var(--line)}
+
+
+  /* ---------- ייבוא מגיליון ---------- */
+  .imp-paste{width:100%; font-family:"IBM Plex Mono",monospace; font-size:var(--step--1);
+    background:var(--surface-2); color:var(--ink); border:1px solid var(--line);
+    border-radius:var(--radius-sm); padding:.6rem; resize:vertical; line-height:1.5}
+  .imp-paste:focus{border-color:var(--accent-line); outline:none}
+  .imp-tab{gap:.35rem}
+  .imp-tab button{padding:0 .2rem; line-height:1; font-size:var(--step--1)}
+  .imp-scroll{display:block; overflow-x:auto; margin-top:.6rem;
+    border:1px solid var(--line); border-radius:var(--radius-sm)}
+  .imp-map{width:100%; border-collapse:collapse; font-size:var(--step--1)}
+  .imp-map th{text-align:start; font-weight:600; color:var(--muted);
+    padding:.45rem .6rem; border-bottom:1px solid var(--line); white-space:nowrap}
+  .imp-map td{padding:.4rem .6rem; border-bottom:1px solid var(--line); vertical-align:middle}
+  .imp-map tr:last-child td{border-bottom:0}
+  .imp-map tr:hover td{background:var(--surface-2)}
+  .imp-map select{max-width:15rem}
+  .imp-map .hint{margin:.1rem 0 0}
+  @media (max-width:760px){
+    .imp-map td, .imp-map th{padding:.35rem .4rem}
+    .imp-map select{max-width:9rem}
+  }
 
   /* ---------- גרפים ---------- */
   .charts{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:.7rem; margin-top:.7rem}
@@ -618,7 +646,15 @@
       backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
       justify-content:space-around;
     }
-    .tabs button{flex:1; padding:.6rem .4rem; font-size:var(--step--1); border-radius:var(--radius-sm)}
+    /* שש לשוניות על מסך טלפון: המספרים יורדים, והשמות נשארים קריאים.
+       הגלילה האופקית היא רשת ביטחון למסכים צרים במיוחד. */
+    .tabs{overflow-x:auto; scrollbar-width:none; width:100vw; max-width:100vw}
+    .tabs::-webkit-scrollbar{display:none}
+    /* הלשוניות מתכווצות ולא גולשות: גלישה של שורת הניווט גורמת לדפדפן הנייד
+       להקטין את כל העמוד, וזה קורה עוד לפני שהגופנים נטענים. */
+    .tabs button{flex:1 1 auto; min-width:0; padding:.6rem .25rem; font-size:.78rem;
+      border-radius:var(--radius-sm); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .tabs button b{display:none}
     body{padding-bottom:72px}
     .log{inset-block-end:80px; max-height:38vh}
 
@@ -649,6 +685,9 @@
     button,select,input{min-height:42px}
     .fields{grid-template-columns:1fr}
     .charts{grid-template-columns:1fr 1fr; gap:.5rem}
+    /* עורך מבנה האימון: הכפתורים יורדים לשורה משלהם, ונשאר מקום לשם המקטע */
+    .segrow{grid-template-columns:auto minmax(0,1fr) 4.2rem; gap:.35rem .4rem}
+    .segrow > div:last-child{grid-column:1 / -1; justify-content:flex-end}
     .eqchip{padding:.4rem .4rem .4rem .8rem}
     .eqchip .mark{width:20px; height:20px}
   }
@@ -703,11 +742,12 @@
 <header class="bar" id="topbar" hidden>
   <h1>מסך המאמן</h1>
   <nav class="tabs" id="tabs">
-    <button data-view="studio">1 · סטודיו</button>
-    <button data-view="trainees">2 · מתאמנים</button>
-    <button data-view="program">3 · אימון</button>
-    <button data-view="calendar">4 · לוח</button>
-    <button data-view="history">5 · היסטוריה</button>
+    <button data-view="studio"><b>1 ·</b> סטודיו</button>
+    <button data-view="trainees"><b>2 ·</b> מתאמנים</button>
+    <button data-view="program"><b>3 ·</b> אימון</button>
+    <button data-view="calendar"><b>4 ·</b> לוח</button>
+    <button data-view="history"><b>5 ·</b> היסטוריה</button>
+    <button data-view="import"><b>6 ·</b> ייבוא</button>
   </nav>
   <span class="spacer"></span>
   <span id="who" class="chip" title="החשבון המחובר"></span>
@@ -719,6 +759,7 @@
 
 <main class="wrap" id="app" hidden>
   <section id="viewCalendar" hidden></section>
+  <section id="viewImport" hidden></section>
   <section id="viewHistory" hidden></section>
   <section id="viewStudio" hidden></section>
   <section id="viewTrainees" hidden></section>
@@ -918,6 +959,17 @@ const store = {
       .sort((a, b) => (a.at < b.at ? 1 : -1))[0];
     if (last && sameContent(last, snap)) return;
     state.snapshots = [...state.snapshots, snap].slice(-400);
+    this.persistLocal();
+  },
+
+  /** צילומי מצב שהגיעו מייבוא — נכנסים לארכיון בלי לדרוס מה שכבר יש. */
+  async importSnapshots(snapshots) {
+    if (state.server) {
+      await api('/api/import/snapshots', { snapshots });
+      return;
+    }
+    const known = new Set(state.snapshots.map((x) => x.id));
+    state.snapshots = [...state.snapshots, ...snapshots.filter((x) => !known.has(x.id))].slice(-400);
     this.persistLocal();
   },
 
@@ -1215,6 +1267,8 @@ function setView(view, opts = {}) {
   $('#viewProgram').hidden = view !== 'program';
   $('#viewHistory').hidden = view !== 'history';
   $('#viewCalendar').hidden = view !== 'calendar';
+  $('#viewImport').hidden = view !== 'import';
+  if (view === 'import') renderImportView();
   if (view === 'history') renderHistoryView();
   if (view === 'calendar') renderCalendarView();
   if (view === 'studio') { renderStudioView(); animateIn($('#viewStudio')); countUp($('#viewStudio')); }
@@ -1232,17 +1286,27 @@ function fillStudios() {
   const cur = sel.value;
   sel.innerHTML = state.studios.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
   if (cur && state.studios.some((s) => s.id === cur)) sel.value = cur;
+  // אחרי ייבוא של רשת, הסניפים הם שמחזיקים את המתאמנים. פתיחה על סניף ריק
+  // נראית כאילו הייבוא נכשל, ולכן נבחר הסניף הראשון שבאמת יש בו מי להתאמן.
+  if (!traineesOf(sel.value).length) {
+    const populated = state.studios.find((s) => traineesOf(s.id).length);
+    if (populated) sel.value = populated.id;
+  }
   fillTrainees();
+}
+
+/** המתאמנים שרשאים להתאמן בסניף מסוים. */
+function traineesOf(studioId) {
+  return state.trainees.filter((t) => {
+    const ids = (t.studioIds && t.studioIds.length) ? t.studioIds : [t.homeStudioId || t.studioId];
+    return ids.includes(studioId);
+  });
 }
 
 function fillTrainees() {
   // מתאמן יכול להיות משויך לכמה סניפים — הרשימה מציגה את כל מי
   // שמורשה להתאמן כאן, ולא רק את מי שזה הסניף הראשי שלו.
-  const sid = $('#studio').value;
-  const list = state.trainees.filter((t) => {
-    const ids = (t.studioIds && t.studioIds.length) ? t.studioIds : [t.homeStudioId || t.studioId];
-    return ids.includes(sid);
-  });
+  const list = traineesOf($('#studio').value);
   const keep = $('#trainee').value;
   $('#trainee').innerHTML = list.length
     ? list.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')
@@ -1270,7 +1334,9 @@ function stepsBar(current) {
 }
 
 function wireSteps() {
-  document.querySelectorAll('[data-goto]').forEach((a) => { a.onclick = () => setView(a.dataset.goto); });
+  document.querySelectorAll('[data-goto]').forEach((a) => {
+    a.onclick = (e) => { e.preventDefault(); setView(a.dataset.goto); };
+  });
 }
 
 /* ==================================================================
@@ -2381,6 +2447,413 @@ async function openArchivedProgram(snapshotId) {
   ]);
 }
 
+
+/* ==================================================================
+   ייבוא מ-Google Sheets
+
+   סטודיו שכבר עובד לא מתחיל מדף ריק: יש לו גיליון עם המתאמנים, הציוד
+   והתכניות. המסך הזה קורא את הגיליון, מראה מה הוא הבין, נותן לתקן, ורק
+   אז מייבא. הנתונים עוברים מהגיליון לדפדפן של המאמן ישירות — בלי שרת
+   אמצע ובלי הרשאות לחשבון Google.
+   ================================================================== */
+
+const impState = {
+  stage: 'source',      // source | review | done
+  sheets: [],           // [{name, rows}]
+  analysis: null,
+  roleOverrides: {},
+  columnOverrides: {},
+  target: 'new',        // מזהה סטודיו קיים או 'new'
+  busy: '',
+  error: '',
+  result: null,
+};
+
+const IMPORT_FIELDS = Object.entries(SH_FIELD_LABELS);
+
+function renderImportView() {
+  const el = $('#viewImport');
+  el.innerHTML = impState.stage === 'review' && impState.analysis
+    ? importReviewHtml()
+    : impState.stage === 'done' && impState.result
+      ? importDoneHtml()
+      : importSourceHtml();
+  wireImport();
+  animateIn(el);
+  countUp(el);
+}
+
+function importSourceHtml() {
+  return `
+    ${flashHtml()}
+    <div class="hero">
+      <div>
+        <h2>ייבוא מגיליון Google</h2>
+        <p>אם המתאמנים, הציוד והתכניות שלך נמצאים בגיליון — אין צורך להקליד אותם מחדש.
+           המערכת קוראת את הגיליון, מזהה מה כל לשונית ומה כל עמודה, ובונה מזה את הסטודיו,
+           את כרטיסי המתאמנים ואת ההיסטוריה. כל מה שהיא הבינה מוצג לאישור לפני שנשמר משהו.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile accent"><b>${state.trainees.length}</b><span>מתאמנים כרגע</span></div>
+        <div class="tile"><b>${state.studios.length}</b><span>סטודיואים</span></div>
+      </div>
+    </div>
+
+    ${impState.error ? `<div class="banner warn">${esc(impState.error)}</div>` : ''}
+    ${impState.busy ? `<div class="banner">${esc(impState.busy)}</div>` : ''}
+
+    <div class="card">
+      <fieldset>
+        <legend>1 · הדבקה מהגיליון <span class="chip ok">הכי מהיר</span></legend>
+        <p class="hint">בגיליון: לוחצים על הפינה השמאלית העליונה כדי לסמן הכול, Ctrl+C, ומדביקים כאן.
+           אפשר להדביק לשונית אחת, ללחוץ "הוסף", ואז להדביק את הלשונית הבאה.</p>
+        <label class="f"><span>שם הלשונית</span>
+          <input id="impPasteName" placeholder="למשל: מתאמנים" autocomplete="off"></label>
+        <textarea id="impPaste" class="imp-paste" rows="6" placeholder="הדביקו כאן את תוכן הגיליון…"></textarea>
+        <div class="acts">
+          <button class="primary" id="impPasteAdd" type="button">הוסף לשונית</button>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="card">
+      <fieldset>
+        <legend>2 · קובץ מהמחשב</legend>
+        <p class="hint">בגיליון: קובץ ← הורדה ← ערכים מופרדים בפסיקים (CSV). אפשר לבחור כמה קבצים יחד,
+           קובץ לכל לשונית.</p>
+        <label class="filebtn">
+          <input type="file" id="impFile" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/plain" multiple hidden>
+          <span>בחירת קבצים</span>
+        </label>
+      </fieldset>
+    </div>
+
+    <div class="card">
+      <fieldset>
+        <legend>3 · חיבור ישיר לקישור</legend>
+        <p class="hint">בגיליון: שיתוף ← "כל מי שיש לו הקישור" ← צופה. ואז מדביקים כאן את הכתובת מהדפדפן.
+           אם החיבור הישיר חסום בדפדפן שלך, ההדבקה למעלה תמיד עובדת.</p>
+        <div class="row">
+          <input id="impUrl" class="grow" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off">
+          <button class="primary" id="impUrlGo" type="button">התחבר לגיליון</button>
+        </div>
+      </fieldset>
+    </div>
+
+    ${impState.sheets.length ? `
+      <div class="card">
+        <fieldset>
+          <legend>לשוניות שנטענו</legend>
+          <div class="chips">
+            ${impState.sheets.map((s, i) => `<span class="chip imp-tab">${esc(s.name)} · ${s.rows.length} שורות
+              <button class="ghost" data-imp-drop="${i}" aria-label="הסר">✕</button></span>`).join('')}
+          </div>
+          <div class="acts">
+            <button class="primary" id="impAnalyze" type="button">נתח את הגיליון</button>
+            <button id="impClear" type="button">התחל מחדש</button>
+          </div>
+        </fieldset>
+      </div>` : ''}
+  `;
+}
+
+function importReviewHtml() {
+  const a = impState.analysis;
+  const totals = a.sheets.reduce((acc, s) => {
+    acc[s.role] = (acc[s.role] || 0) + s.rowCount;
+    return acc;
+  }, {});
+  const preview = impPreview();
+
+  return `
+    <div class="hero">
+      <div>
+        <h2>מה מצאנו בגיליון</h2>
+        <p>כל לשונית וכל עמודה ניתנות לשינוי. מה שלא זוהה לא נזרק — הוא נשמר כהערה על המתאמן
+           או כתרגיל של הסטודיו, כדי ששום מידע לא ייעלם בדרך.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile accent"><b data-count>${preview.counts.trainees}</b><span>מתאמנים</span></div>
+        <div class="tile"><b data-count>${preview.counts.equipment}</b><span>פריטי ציוד</span></div>
+        <div class="tile"><b data-count>${preview.counts.programs}</b><span>תכניות</span></div>
+        <div class="tile"><b data-count>${preview.counts.logs + preview.counts.attendance}</b><span>רישומי היסטוריה</span></div>
+      </div>
+    </div>
+
+    ${impState.error ? `<div class="banner warn">${esc(impState.error)}</div>` : ''}
+
+    <div class="card">
+      <fieldset>
+        <legend>לאן לייבא</legend>
+        <div class="row">
+          <select id="impTarget">
+            <option value="new"${impState.target === 'new' ? ' selected' : ''}>סטודיו חדש</option>
+            ${state.studios.map((s) => `<option value="${esc(s.id)}"${impState.target === s.id ? ' selected' : ''}>הוספה ל: ${esc(s.name)}</option>`).join('')}
+          </select>
+          <input id="impStudioName" placeholder="שם הסטודיו" value="${esc(impStudioName())}"
+                 ${impState.target === 'new' ? '' : 'disabled'}>
+        </div>
+        <p class="hint">ייבוא לסטודיו קיים מוסיף ציוד ומתאמנים ואינו מוחק דבר ממה שכבר רשום.</p>
+      </fieldset>
+    </div>
+
+    ${a.sheets.map((s, si) => importSheetCard(s, si)).join('')}
+
+    ${preview.warnings.length ? `<div class="card"><fieldset><legend>לתשומת לבך</legend>
+      <ul class="notecard">${preview.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></fieldset></div>` : ''}
+
+    ${importUnmatchedHtml(preview.unmatched)}
+
+    <div class="card">
+      <div class="acts">
+        <button class="primary" id="impApply" type="button">ייבא הכול</button>
+        <button id="impBack" type="button">חזרה למקורות</button>
+      </div>
+      <p class="hint">הייבוא מוסיף נתונים בלבד. אפשר למחוק אחר כך כל מתאמן או סטודיו שנוצר.</p>
+    </div>
+  `;
+}
+
+function importSheetCard(sheet, si) {
+  const roleOptions = SHEET_ROLES.map((r) => `<option value="${r.key}"${r.key === sheet.role ? ' selected' : ''}>${r.label}</option>`).join('');
+  const skipped = sheet.role === 'skip';
+  return `
+    <div class="card">
+      <fieldset>
+        <legend>לשונית: ${esc(sheet.name || 'ללא שם')} <span class="chip mono">${sheet.rowCount} שורות</span></legend>
+        <div class="row">
+          <label class="f"><span>סוג הלשונית</span>
+            <select data-imp-role="${si}">${roleOptions}</select></label>
+          <p class="hint grow">${esc(sheet.why)}${sheet.headerless ? ' · אין שורת כותרת, הזיהוי נעשה לפי התוכן' : ''}</p>
+        </div>
+        ${skipped ? '<p class="hint">הלשונית הזאת לא תיובא.</p>' : `
+        <div class="imp-scroll">
+          <table class="imp-map">
+            <thead><tr>
+              <th style="text-align:start">עמודה בגיליון</th>
+              <th style="text-align:start">מה זה</th>
+              <th style="text-align:start">דוגמאות</th>
+            </tr></thead>
+            <tbody>
+              ${sheet.columns.map((c) => `<tr>
+                <td><b>${esc(c.header || `עמודה ${c.index + 1}`)}</b>
+                    ${c.why ? `<div class="hint">${esc(c.why)}</div>` : ''}</td>
+                <td><select data-imp-col="${si}_${c.index}">
+                  <option value="none"${!c.field ? ' selected' : ''}>— לא לייבא —</option>
+                  ${IMPORT_FIELDS.map(([f, label]) => `<option value="${f}"${c.field === f ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+                </select></td>
+                <td class="hint mono">${esc(c.samples.join(' · ').slice(0, 70))}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`}
+      </fieldset>
+    </div>`;
+}
+
+function importUnmatchedHtml(unmatched) {
+  const groups = Object.entries(unmatched).filter(([, list]) => list.length);
+  if (!groups.length) return '';
+  return `<div class="card"><fieldset><legend>לא זוהה אוטומטית</legend>
+    ${groups.map(([key, list]) => `<div class="invgroup">
+      <b>${esc(SH_UNMATCHED_LABELS[key] || key)}</b>
+      <div class="chips">${list.map((x) => `<span class="chip">${esc(x)}</span>`).join('')}</div>
+    </div>`).join('')}
+    <p class="hint">תרגילים שלא זוהו נשמרים כתרגילים של הסטודיו ואפשר להשתמש בהם.
+       ציוד ומגבלות שלא זוהו אפשר להוסיף ידנית במסך הסטודיו או בכרטיס המתאמן.</p>
+  </fieldset></div>`;
+}
+
+function importDoneHtml() {
+  const r = impState.result.report;
+  return `
+    <div class="hero">
+      <div>
+        <h2>הייבוא הושלם</h2>
+        <p>הכול נשמר. אפשר לעבור למסך המתאמנים ולבנות תכנית לכל אחד מהם.</p>
+      </div>
+      <div class="tiles">
+        <div class="tile accent"><b data-count>${r.counts.trainees}</b><span>מתאמנים</span></div>
+        <div class="tile"><b data-count>${r.counts.equipment}</b><span>פריטי ציוד</span></div>
+        <div class="tile"><b data-count>${r.counts.programs}</b><span>תכניות</span></div>
+      </div>
+    </div>
+    <div class="card"><fieldset><legend>מה נבנה מכל לשונית</legend>
+      <table class="imp-map">
+        <tbody>${r.perSheet.map((p) => `<tr>
+          <td><b>${esc(p.name)}</b></td>
+          <td class="hint">${esc(ROLE_LABEL[p.role] || p.role)}</td>
+          <td class="mono">${p.built} ${esc(p.what)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${r.warnings.length ? `<ul class="notecard">${r.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+    </fieldset></div>
+    <div class="card"><div class="acts">
+      <button class="primary" id="impGoTrainees" type="button">למסך המתאמנים</button>
+      <button id="impClear" type="button">ייבוא נוסף</button>
+    </div></div>`;
+}
+
+/** שם ברירת מחדל לסטודיו החדש: שם החשבון, ואם אין — שם הלשונית הראשונה. */
+function impStudioName() {
+  if (impState.studioName) return impState.studioName;
+  return state.account?.studioName || impState.sheets[0]?.name || 'הסטודיו שלי';
+}
+
+/** בנייה יבשה כדי להראות מספרים אמיתיים לפני האישור. */
+function impPreview() {
+  try {
+    const built = shBuildImport(impState.analysis, {
+      studioName: impStudioName(),
+      studioId: impState.target === 'new' ? null : impState.target,
+      baseStudio: impState.target === 'new' ? null : studioById(impState.target),
+    });
+    impState.preview = built;
+    return built.report;
+  } catch (err) {
+    return { counts: { trainees: 0, equipment: 0, programs: 0, logs: 0, attendance: 0 }, warnings: [err.message], unmatched: {}, perSheet: [] };
+  }
+}
+
+function impAnalyze() {
+  if (!impState.sheets.length) return;
+  impState.analysis = shAnalyzeWorkbook(
+    impState.sheets.map((s) => ({ name: s.name, table: shToTable(s.rows, { name: s.name }) })),
+    { overrides: impState.roleOverrides, columnOverrides: impState.columnOverrides },
+  );
+  impState.stage = 'review';
+  impState.error = '';
+  renderImportView();
+}
+
+async function impApply() {
+  const built = impState.preview || shBuildImport(impState.analysis, {
+    studioName: impStudioName(),
+    studioId: impState.target === 'new' ? null : impState.target,
+    baseStudio: impState.target === 'new' ? null : studioById(impState.target),
+  });
+  try {
+    status('שומר את הנתונים…');
+    for (const studio of built.studios) await store.saveStudio(studio);
+    for (const trainee of built.trainees) {
+      const res = await store.saveTrainee(trainee);
+      if (res && res.ok === false) log('ייבוא', `${esc(trainee.name)}: ${(res.errors || []).join(', ')}`);
+    }
+    if (built.snapshots.length) await store.importSnapshots(built.snapshots);
+    await store.load();
+    impState.result = built;
+    impState.stage = 'done';
+    flash(`יובאו ${built.report.counts.trainees} מתאמנים ו-${built.report.counts.equipment} פריטי ציוד.`, 'ok');
+  } catch (err) {
+    impState.error = err.message;
+  } finally {
+    status('');
+    renderImportView();
+  }
+}
+
+function impAddSheet(name, rows) {
+  if (!rows.length) { impState.error = 'לא נמצאו שורות בלשונית הזאת.'; return; }
+  const taken = new Set(impState.sheets.map((s) => s.name));
+  let unique = name || `לשונית ${impState.sheets.length + 1}`;
+  let n = 2;
+  while (taken.has(unique)) unique = `${name} ${n++}`;
+  impState.sheets.push({ name: unique, rows });
+  impState.error = '';
+}
+
+function wireImport() {
+  const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
+
+  on('#impPasteAdd', 'click', () => {
+    const text = $('#impPaste').value;
+    if (!text.trim()) { impState.error = 'אין מה להוסיף — התיבה ריקה.'; renderImportView(); return; }
+    impAddSheet($('#impPasteName').value.trim(), shParseDelimited(text));
+    renderImportView();
+  });
+
+  on('#impFile', 'change', async (e) => {
+    const files = [...e.target.files];
+    for (const file of files) {
+      try {
+        const text = await file.text();
+        // קובץ Excel הוא ארכיון דחוס ולא טקסט. עדיף לומר את זה מיד מאשר
+        // להראות שורות של ג'יבריש ולתת למאמן לנחש מה השתבש.
+        if (text.startsWith('PK') || /\.xlsx?$/i.test(file.name)) {
+          impState.error = `${file.name} הוא קובץ Excel. בגיליון: קובץ ← הורדה ← CSV, או פשוט להדביק את התוכן למעלה.`;
+          continue;
+        }
+        impAddSheet(file.name.replace(/\.[^.]+$/, ''), shParseDelimited(text));
+      } catch (err) {
+        impState.error = `לא הצלחנו לקרוא את ${file.name}: ${err.message}`;
+      }
+    }
+    renderImportView();
+  });
+
+  on('#impUrlGo', 'click', async () => {
+    const url = $('#impUrl').value.trim();
+    if (!url) return;
+    status('מתחבר לגיליון…');
+    impState.busy = 'מתחבר לגיליון…';
+    renderImportView();
+    try {
+      const sheets = await shLoadGoogleSheet(url, { onProgress: (msg) => { impState.busy = msg; } });
+      for (const s of sheets) impAddSheet(s.name, s.rows);
+      impState.busy = '';
+      renderImportView();
+      impAnalyze();
+    } catch (err) {
+      impState.busy = '';
+      impState.error = err.message;
+      renderImportView();
+    } finally {
+      status('');
+    }
+  });
+
+  document.querySelectorAll('[data-imp-drop]').forEach((b) => {
+    b.onclick = () => { impState.sheets.splice(+b.dataset.impDrop, 1); renderImportView(); };
+  });
+
+  on('#impAnalyze', 'click', impAnalyze);
+  on('#impBack', 'click', () => { impState.stage = 'source'; renderImportView(); });
+  on('#impApply', 'click', impApply);
+  on('#impGoTrainees', 'click', () => setView('trainees'));
+  on('#impClear', 'click', () => {
+    Object.assign(impState, {
+      stage: 'source', sheets: [], analysis: null, roleOverrides: {}, columnOverrides: {},
+      result: null, preview: null, error: '',
+    });
+    renderImportView();
+  });
+
+  document.querySelectorAll('[data-imp-role]').forEach((sel) => {
+    sel.onchange = () => {
+      const sheet = impState.analysis.sheets[+sel.dataset.impRole];
+      impState.roleOverrides[sheet.name] = sel.value;
+      // שינוי סוג הלשונית משנה גם את פירוש העמודות, ולכן המיפוי הידני שלה מתאפס
+      delete impState.columnOverrides[sheet.name];
+      impAnalyze();
+    };
+  });
+
+  document.querySelectorAll('[data-imp-col]').forEach((sel) => {
+    sel.onchange = () => {
+      const [si, index] = sel.dataset.impCol.split('_').map(Number);
+      const sheet = impState.analysis.sheets[si];
+      impState.columnOverrides[sheet.name] = { ...(impState.columnOverrides[sheet.name] || {}), [index]: sel.value };
+      impAnalyze();
+    };
+  });
+
+  on('#impTarget', 'change', (e) => {
+    impState.target = e.target.value;
+    renderImportView();
+  });
+  on('#impStudioName', 'input', (e) => { impState.studioName = e.target.value; });
+}
+
 function renderTraineesView() {
   const studioOptions = state.studios.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
 
@@ -2455,7 +2928,8 @@ function renderTraineesView() {
             <label class="f"><span>משקל (ק״ג)</span><input name="weightKg" type="number" min="30" max="250">
               <span class="hint" style="font-size:.72rem">בלי משקל גוף אין הצעות משקלי עבודה</span></label>
             <label class="f"><span>ותק אימונים (חודשים)</span><input name="trainingAgeMonths" type="number" min="0" value="0"></label>
-            <label class="f"><span>טלפון</span><input name="phone" autocomplete="off"></label>
+            <label class="f"><span>טלפון</span><input name="phone" type="tel" autocomplete="off"></label>
+            <label class="f"><span>אימייל</span><input name="email" type="email" autocomplete="off"></label>
           </div>
         </details>
 
@@ -2576,7 +3050,9 @@ function renderTraineesView() {
         ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
         <span class="grow"></span>
         <button data-open-trainee="${esc(t.id)}">פתח תכנית</button>
-      </div>`).join('') : '<p class="empty">עדיין לא נרשם מתאמן.</p>'}
+      </div>`).join('') : `<p class="empty">עדיין לא נרשם מתאמן.
+        אם הרשימה שלך כבר קיימת בגיליון Google —
+        <a href="#" data-goto="import">אפשר לייבא ממנו את כולם בבת אחת</a>.</p>`}
     </div>`;
 
   wireSteps();
@@ -2667,7 +3143,7 @@ async function onTraineeSubmit(e) {
     bloodPressure: f.get('bloodPressure') || '',
     pastInjuries: f.get('pastInjuries') || '',
     knownMovements: f.getAll('knownMovements'),
-    notes: f.get('notes'), phone: f.get('phone'),
+    notes: f.get('notes'), phone: f.get('phone') || '', email: f.get('email') || '',
   };
 
   try {
@@ -2693,7 +3169,8 @@ function generate() {
   const t = traineeById($('#trainee').value);
   if (!t) {
     $('#rail').innerHTML = '';
-    $('#days').innerHTML = '<p class="empty">אין מתאמנים בסטודיו הזה. אפשר לרשום מתאמן בשלב 2.</p>';
+    $('#days').innerHTML = `<p class="empty">אין מתאמנים בסטודיו הזה. אפשר לרשום מתאמן בשלב 2,
+      או <a href="#" data-goto="import">לייבא את כולם מגיליון קיים</a>.</p>`;
     return;
   }
   // התכנית נבנית לפי הסניף שנבחר במסך, לא לפי הסניף הראשי של המתאמן:

@@ -304,7 +304,8 @@ const routes = {
    */
   'POST /api/trainees': async (body, _url, ctx) => {
     if (!body.name) throw new Error('חובה למלא שם מתאמן');
-    const rawStudio = requireStudio(ctx, body.studioId);
+    // מתאמן שמשויך לכמה סניפים מגיע עם homeStudioId; שניהם מקובלים כאן
+    const rawStudio = requireStudio(ctx, body.studioId || body.homeStudioId || (body.studioIds || [])[0]);
     if (body.id && db.getTrainee(body.id)) requireTrainee(ctx, body.id);
     const id = body.id || `${slug(body.name)}_${Math.random().toString(36).slice(2, 6)}`;
     const stored = { ...body, id };
@@ -526,6 +527,32 @@ const routes = {
     if (!entries.length) throw new Error('אין מה לרשום');
     db.appendLog(t.id, entries);
     return { ok: true, added: entries.length, summary: historySummary(db.sessionLog(t.id), db.listSnapshots(t.id)) };
+  },
+
+  /**
+   * תכניות שיובאו מגיליון של הסטודיו.
+   * הבנייה עצמה נעשית בדפדפן — הגיליון לא עובר דרך השרת. כאן רק נשמר
+   * הארכיון, ורק אחרי אימות שהמתאמן באמת שייך לחשבון ששולח.
+   */
+  'POST /api/import/snapshots': async (body, _url, ctx) => {
+    const list = Array.isArray(body.snapshots) ? body.snapshots : [];
+    if (!list.length) throw new Error('אין תכניות לייבוא');
+    if (list.length > 500) throw new Error('יותר מדי תכניות בבקשה אחת');
+    let saved = 0;
+    for (const raw of list) {
+      const trainee = requireTrainee(ctx, raw.traineeId);
+      // המזהים נקבעים כאן ולא בגוף הבקשה: לקוח לא כותב לארכיון של מישהו אחר
+      const snap = {
+        ...raw,
+        traineeId: trainee.id,
+        studioId: db.ownsStudio(ctx.account.id, raw.studioId) ? raw.studioId : trainee.studioId,
+        reason: 'imported',
+        at: raw.at || new Date().toISOString(),
+      };
+      db.putSnapshot(snap);
+      saved++;
+    }
+    return { ok: true, saved };
   },
 
   /** היסטוריית הסטודיו כולו — מי התאמן השבוע ומי נעלם. */
