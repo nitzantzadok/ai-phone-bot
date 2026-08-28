@@ -72,6 +72,7 @@ const VALUE_TESTS = {
   neckSize: (v) => between(shNum(v), 25, 60),
   price: (v) => between(shNum(v), 0, 100000),
   idNumber: (v) => /^\d{7,9}$/.test(v.trim()),
+  code: (v) => /^\d{1,6}$/.test(v.trim()),
   address: (v) => /\p{L}/u.test(v) && v.length > 5,
 };
 
@@ -83,7 +84,7 @@ const NEEDS_HEADER = new Set([
   'price', 'idNumber', 'week', 'rest', 'rpe', 'pain', 'count', 'externalSessions',
   'restingHR', 'waist', 'chest', 'hips', 'arm', 'thigh', 'calf', 'neckSize',
   'bodyFatPct', 'notes', 'coach', 'studio', 'address', 'status', 'medications',
-  'firstName', 'lastName', 'medicalClearance', 'day', 'targetDate', 'birthDate',
+  'firstName', 'lastName', 'medicalClearance', 'day', 'targetDate', 'birthDate', 'code',
   'goalDetail', 'pastInjuries', 'trainingAgeMonths', 'preferredTime', 'tempo',
 ]);
 

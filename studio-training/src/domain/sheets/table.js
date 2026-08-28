@@ -8,6 +8,33 @@
 
 import { shEmpty, shNorm, shNum } from './text.js';
 
+/**
+ * פענוח קובץ לטקסט.
+ *
+ * Excel בעברית שומר CSV בקידוד windows-1255 ולא ב-UTF-8. קריאה של קובץ
+ * כזה כ-UTF-8 מחזירה ג'יבריש גמור — וזה נראה למאמן כמו מערכת שבורה, לא
+ * כמו בעיית קידוד. לכן מזהים את הקידוד לפי סימן הסדר בתחילת הקובץ, ואם
+ * אין כזה — בודקים אם הפענוח כ-UTF-8 בכלל חוקי, ורק אז נופלים לעברית של
+ * חלונות.
+ */
+export function shDecodeBytes(buffer) {
+  const b = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(b.subarray(3));
+  }
+  if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder('utf-16le').decode(b.subarray(2));
+  if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder('utf-16be').decode(b.subarray(2));
+
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(b);
+    return text;
+  } catch {
+    // לא UTF-8 תקין: כמעט תמיד זה ייצוא CSV מ-Excel בעברית
+    try { return new TextDecoder('windows-1255').decode(b); } catch { /* אין תמיכה */ }
+    return new TextDecoder('utf-8').decode(b);
+  }
+}
+
 /** תווי הפרדה אפשריים, לפי סבירות. Excel בעברית מייצא לרוב עם נקודה-פסיק. */
 const DELIMS = ['\t', ',', ';', '|'];
 
@@ -71,7 +98,38 @@ export function shParseDelimited(text, delim) {
   }
   row.push(cur.trim());
   rows.push(row);
-  return rows.filter((r) => r.some((cell) => cell !== ''));
+  // שורות ריקות נשמרות בכוונה: הן מה שמפריד בין שתי טבלאות באותה לשונית.
+  // הסרתן נעשית בשלב בניית הטבלה, אחרי שהחלוקה לגושים כבר נעשתה.
+  while (rows.length && rows.at(-1).every((c) => c === '')) rows.pop();
+  return rows;
+}
+
+/**
+ * חלוקת לשונית לגושים.
+ *
+ * בגיליון אמיתי יושבות לפעמים שתי טבלאות באותה לשונית — רשימת מתאמנים
+ * למעלה ורשימת ציוד מתחתיה, מופרדות בשורות ריקות. בלי החלוקה הזאת השנייה
+ * נבלעת בראשונה ונקראת כשורות פגומות.
+ */
+export function shSplitBlocks(rows, { minGap = 2, minRows = 2 } = {}) {
+  const blocks = [];
+  let current = [];
+  let gap = 0;
+  const isEmpty = (r) => !r || r.every((c) => shEmpty(c));
+
+  for (const row of rows) {
+    if (isEmpty(row)) {
+      gap++;
+      if (gap >= minGap && current.length) { blocks.push(current); current = []; }
+      continue;
+    }
+    gap = 0;
+    current.push(row);
+  }
+  if (current.length) blocks.push(current);
+
+  const real = blocks.filter((b) => b.length >= minRows);
+  return real.length ? real : [rows.filter((r) => !isEmpty(r))];
 }
 
 /** כמה "כותרתית" נראית שורה: טקסט קצר, ייחודי, לא מספרים. */
@@ -98,7 +156,14 @@ function headerScore(row, below) {
  * מחפש את שורת הכותרת בעשר השורות הראשונות, ומתעלם ממה שמעליה.
  */
 export function shToTable(matrix, { name = '' } = {}) {
-  const grid = (matrix || []).map((r) => r.map((c) => String(c ?? '').trim()));
+  // תווי כיווניות ורווחים קשיחים מגיעים מגיליונות בעברית ואינם נראים לעין,
+  // אבל הם נשארים בתוך השם ומונעים התאמה בין לשוניות
+  const clean = (c) => String(c ?? '')
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\u061c]/g, '')
+    .replace(/[\u00a0\u2007\u202f]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  const grid = (matrix || []).map((r) => r.map(clean));
   if (!grid.length) return { name, headers: [], rows: [], headerRow: -1, title: '', empty: true };
 
   let bestIdx = 0; let bestScore = -Infinity;
@@ -128,6 +193,12 @@ export function shToTable(matrix, { name = '' } = {}) {
     headerRow: bestIdx,
     headers: keep.map((c) => headers[c]),
     rows: body.map((r) => keep.map((c) => r[c])),
+    /**
+     * הרשת המלאה כפי שהיא, לפני ההפרדה לכותרת ולגוף. גיליון בפריסה אנכית
+     * אינו מחולק כך, ובלי המקור היו נעלמות ממנו כל השורות שמעל השורה
+     * שנבחרה בטעות ככותרת.
+     */
+    raw: grid,
     empty: body.length === 0,
   };
 }
@@ -141,10 +212,35 @@ export function shTableFromText(text, { name = '', delim = null } = {}) {
  * גיליון בפריסת "תווית: ערך" (שתי עמודות, שורה לכל פרט).
  * כך נראים לרוב פרטי הסטודיו עצמו, ולא רשימת מתאמנים.
  */
+/**
+ * גיליון אנכי -> טבלה רגילה בת שורה אחת.
+ *
+ * "שם | רון כהן" בשורה, "גיל | 34" בשורה הבאה — כך נראה כרטיס אישי של
+ * מתאמן, וגם דף פרטי הסטודיו. ההיפוך מאפשר לזהות אותו עם אותו קוד בדיוק
+ * שמזהה טבלה רגילה, בלי ענף נפרד לכל שדה.
+ */
+export function shKeyValueTable(table) {
+  const rows = table.raw || (table.headers.some((h) => !shEmpty(h))
+    ? [table.headers, ...table.rows]
+    : table.rows);
+  const labels = [];
+  const values = [];
+  for (const row of rows) {
+    const label = String(row[0] || '').trim();
+    const value = String(row[1] || '').trim();
+    if (!label || shEmpty(value)) continue;
+    labels.push(label);
+    values.push(value);
+  }
+  return { name: table.name, headers: labels, rows: [values], empty: !labels.length };
+}
+
 export function shLooksLikeKeyValue(table) {
-  if (table.headers.length > 3 || table.rows.length < 2) return false;
-  const twoCols = table.rows.filter((r) => !shEmpty(r[0]) && !shEmpty(r[1]));
-  if (twoCols.length < Math.max(2, table.rows.length * 0.7)) return false;
-  const distinctLabels = new Set(twoCols.map((r) => shNorm(r[0]))).size;
-  return distinctLabels === twoCols.length;
+  const rows = table.raw || table.rows;
+  if (rows.length < 2) return false;
+  const width = Math.max(...rows.map((r) => r.filter((c) => !shEmpty(c)).length));
+  if (width > 3) return false;
+  const pairs = rows.filter((r) => !shEmpty(r[0]) && !shEmpty(r[1]));
+  if (pairs.length < Math.max(2, rows.length * 0.7)) return false;
+  return new Set(pairs.map((r) => shNorm(r[0]))).size === pairs.length;
 }

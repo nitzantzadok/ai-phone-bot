@@ -84,11 +84,13 @@ export const HEADER_TERMS = {
   // --- מה שמזוהה כדי *להתעלם* ממנו בכוונה
   price: ['מחיר', 'תשלום', 'עלות', 'חוב', 'יתרה', 'כרטיסייה', 'מנוי', 'סכום', 'חשבונית', 'price', 'payment', 'balance', 'subscription', 'invoice'],
   idNumber: ['תז', 'תעודת זהות', 'ת.ז', 'id', 'id number'],
+  // עמודת מספר רץ. מזוהה רק כדי שלא תיקרא כמשקל או כגיל.
+  code: ['קוד', 'מספר', 'מס', 'מזהה', 'מספר מתאמן', 'מספר לקוח', 'code', 'number', 'no'],
   address: ['כתובת', 'עיר', 'ישוב', 'address', 'city'],
 };
 
 /** שדות שמזוהים רק כדי לא לבלבל אותם עם שדות אמיתיים. לא מיובאים. */
-export const IGNORED_FIELDS = new Set(['price', 'idNumber', 'address']);
+export const IGNORED_FIELDS = new Set(['price', 'idNumber', 'address', 'code']);
 
 /* ------------------------------------------------------------------ ערכים */
 
@@ -335,4 +337,5 @@ export const SH_FIELD_LABELS = {
   waist: 'היקף מותן', chest: 'היקף חזה', hips: 'היקף ירכיים', arm: 'היקף זרוע',
   thigh: 'היקף ירך', calf: 'היקף שוק', neckSize: 'היקף צוואר',
   price: 'תשלום (לא מיובא)', idNumber: 'תעודת זהות (לא מיובאת)', address: 'כתובת (לא מיובאת)',
+  code: 'מספר רץ (לא מיובא)',
 };

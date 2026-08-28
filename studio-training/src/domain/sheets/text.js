@@ -90,7 +90,9 @@ export function shSimilarity(a, b) {
    */
   const short = na.length <= nb.length ? na : nb;
   const long = na.length <= nb.length ? nb : na;
-  const contains = short.length >= 3 && short.length / long.length >= 0.4 && long.includes(short) ? 0.85 : 0;
+  // "רון" יושב בתוך "מזרון" ואינו קשור אליו. מילה קצרה או חלק זעיר
+  // מהמחרוזת אינם עדות להכלה אמיתית.
+  const contains = short.length >= 4 && short.length / long.length >= 0.5 && long.includes(short) ? 0.85 : 0;
 
   // הצירוף הוא הכלל, אבל אף מדידה לא אמורה להוריד ציון של אחותה:
   // "סקוואט" מול "סקווט" הן מילה אחת בלי חפיפת מילים, וצמדי התווים לבדם
@@ -150,7 +152,9 @@ export function shMatchPhrase(value, candidates, opts = {}) {
   let best = direct;
   for (let size = Math.min(3, tokens.length); size >= 1; size--) {
     for (let i = 0; i + size <= tokens.length; i++) {
-      const window = tokens.slice(i, i + size);
+      const window = tokens.slice(i, i + size)
+        // "ויציבה" היא "יציבה" עם ו' החיבור. בלי זה מטרה שנייה במשפט נעלמת.
+        .map((t) => (t.length > 3 && t.startsWith('ו') ? t.slice(1) : t));
       // "מכונת" לבדה אינה מזהה כלום: היא מופיעה בעשרה פריטים שונים.
       // חלון שכולו מילים כלליות לא נבדק, אחרת "מכונת אספרסו" הייתה מתאימה למשהו.
       if (window.every((t) => GENERIC.has(t))) continue;
@@ -165,7 +169,7 @@ export function shMatchPhrase(value, candidates, opts = {}) {
 export function shMatchAll(value, candidates, opts = {}) {
   const out = new Map();
   for (const part of shSplitList(value)) {
-    const hit = shMatch(part, candidates, opts);
+    const hit = shMatch(part, candidates, opts) || shMatchPhrase(part, candidates, opts);
     if (hit && (!out.has(hit.key) || out.get(hit.key).score < hit.score)) out.set(hit.key, { ...hit, source: part });
   }
   return [...out.values()];
@@ -222,10 +226,17 @@ export function shBool(value) {
   return null;
 }
 
-/** טלפון ישראלי בכל צורת כתיבה. מחזיר מחרוזת מנוקה או null. */
+/**
+ * טלפון ישראלי בכל צורת כתיבה.
+ *
+ * כולל את המקרה שבו האפס המוביל נעלם: עמודת טלפון שהוגדרה בגיליון
+ * כמספר מאבדת אותו, ו-0541234567 נשמר כ-541234567. מספר בן תשע ספרות
+ * שמתחיל ב-5 הוא נייד ישראלי בלי האפס, ואין לו פירוש סביר אחר.
+ */
 export function shPhone(value) {
   const digits = String(value ?? '').replace(/[^\d+]/g, '');
-  const local = digits.replace(/^\+?972/, '0');
+  let local = digits.replace(/^\+?972/, '0');
+  if (/^5\d{8}$/.test(local)) local = `0${local}`;
   if (!/^0\d{8,9}$/.test(local)) return null;
   return local;
 }

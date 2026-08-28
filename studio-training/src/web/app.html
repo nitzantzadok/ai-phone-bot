@@ -2537,10 +2537,10 @@ function importSourceHtml() {
     <div class="card">
       <fieldset>
         <legend>2 · קובץ מהמחשב</legend>
-        <p class="hint">בגיליון: קובץ ← הורדה ← ערכים מופרדים בפסיקים (CSV). אפשר לבחור כמה קבצים יחד,
-           קובץ לכל לשונית.</p>
+        <p class="hint">בגיליון: קובץ ← הורדה ← <b>Microsoft Excel (.xlsx)</b>, וכל הלשוניות נכנסות בקובץ אחד.
+           גם CSV עובד — שם כל קובץ הוא לשונית אחת, ואפשר לבחור כמה קבצים יחד.</p>
         <label class="filebtn">
-          <input type="file" id="impFile" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/plain" multiple hidden>
+          <input type="file" id="impFile" accept=".csv,.tsv,.txt,.xlsx,.xlsm" multiple hidden>
           <span>בחירת קבצים</span>
         </label>
       </fieldset>
@@ -2599,6 +2599,10 @@ function importReviewHtml() {
     </div>
 
     ${impState.error ? `<div class="banner warn">${esc(impState.error)}</div>` : ''}
+    ${preview.counts.trainees ? '' : `<div class="banner warn">
+      <b>לא זוהו מתאמנים בקובץ.</b> אפשר לבחור ידנית את סוג הלשונית בכל כרטיס למטה —
+      למשל "מתאמנים" ללשונית שבה כל שורה היא אדם, או "כרטיס מתאמן אחד" ללשונית של מתאמן בודד.
+      אם עדיין לא עולה — כדאי להדביק את הטבלה ישירות במסך הקודם.</div>`}
 
     <div class="card">
       <fieldset>
@@ -2744,7 +2748,7 @@ function impAnalyze() {
   if (!impState.sheets.length) return;
   impState.previewKey = null;
   impState.analysis = shAnalyzeWorkbook(
-    impState.sheets.map((s) => ({ name: s.name, table: shToTable(s.rows, { name: s.name }) })),
+    impState.sheets.map((s) => ({ name: s.name, rows: s.rows })),
     { overrides: impState.roleOverrides, columnOverrides: impState.columnOverrides },
   );
   impState.stage = 'review';
@@ -2801,20 +2805,35 @@ function wireImport() {
 
   on('#impFile', 'change', async (e) => {
     const files = [...e.target.files];
+    status('קורא את הקובץ…');
     for (const file of files) {
       try {
-        const text = await file.text();
-        // קובץ Excel הוא ארכיון דחוס ולא טקסט. עדיף לומר את זה מיד מאשר
-        // להראות שורות של ג'יבריש ולתת למאמן לנחש מה השתבש.
-        if (text.startsWith('PK') || /\.xlsx?$/i.test(file.name)) {
-          impState.error = `${file.name} הוא קובץ Excel. בגיליון: קובץ ← הורדה ← CSV, או פשוט להדביק את התוכן למעלה.`;
+        const buffer = await file.arrayBuffer();
+        const base = file.name.replace(/\.[^.]+$/, '');
+
+        /*
+         * קובץ Excel הוא ארכיון ZIP של קובצי XML, והוא הפורמט שמתקבל
+         * כשמורידים גיליון מ-Google Sheets בלחיצה אחת. הוא נקרא כאן
+         * במלואו — כל הלשוניות — ולא נשלח לשום מקום.
+         */
+        if (shIsZip(buffer)) {
+          const sheets = await shReadXlsx(buffer);
+          for (const sh of sheets) impAddSheet(sheets.length > 1 ? sh.name : base, sh.rows);
           continue;
         }
-        impAddSheet(file.name.replace(/\.[^.]+$/, ''), shParseDelimited(text));
+        // .xls הישן הוא פורמט בינארי אחר לגמרי. עדיף לומר את זה מיד מאשר
+        // להראות שורות של ג'יבריש ולתת למאמן לנחש מה השתבש.
+        const head = new Uint8Array(buffer.slice(0, 8));
+        if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0) {
+          impState.error = `${file.name} הוא קובץ Excel בפורמט הישן (xls). בגיליון: קובץ ← שמירה בשם ← xlsx, או הורדה כ-CSV.`;
+          continue;
+        }
+        impAddSheet(base, shParseDelimited(shDecodeBytes(buffer)));
       } catch (err) {
         impState.error = `לא הצלחנו לקרוא את ${file.name}: ${err.message}`;
       }
     }
+    status('');
     renderImportView();
   });
 
@@ -2828,8 +2847,16 @@ function wireImport() {
       const sheets = await shLoadGoogleSheet(url, { onProgress: (msg) => { impState.busy = msg; } });
       for (const s of sheets) impAddSheet(s.name, s.rows);
       impState.busy = '';
+      /*
+       * נשארים במסך המקורות ולא עוברים ישר לניתוח: בגיליון שאינו מפורסם
+       * הדפדפן אינו מורשה לקרוא את רשימת הלשוניות, ולכן נטענת רק זו
+       * שבקישור. מי שיש לו עוד לשוניות צריך לראות את זה ולהוסיף אותן.
+       */
+      $('#impUrl').value = '';
+      log('נטען מהגיליון', sheets.length === 1
+        ? 'נטענה לשונית אחת — זו שבקישור. אם יש עוד לשוניות: פותחים כל אחת בגיליון, מעתיקים את הכתובת שלה ומדביקים כאן שוב.'
+        : `נטענו ${sheets.length} לשוניות.`);
       renderImportView();
-      impAnalyze();
     } catch (err) {
       impState.busy = '';
       impState.error = err.message;

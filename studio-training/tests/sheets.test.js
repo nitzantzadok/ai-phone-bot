@@ -13,7 +13,10 @@ import {
   shBool, shDate, shEmail, shMatch, shMatchAll, shNorm, shNum, shPhone, shRange, shSimilarity,
   shSplitList,
 } from '../src/domain/sheets/text.js';
-import { shParseDelimited, shSniffDelimiter, shTableFromText, shToTable } from '../src/domain/sheets/table.js';
+import {
+  shDecodeBytes, shParseDelimited, shSniffDelimiter, shSplitBlocks, shTableFromText, shToTable,
+} from '../src/domain/sheets/table.js';
+import { shIsZip, shReadXlsx } from '../src/domain/sheets/xlsx.js';
 import { shFixHeaderless, shMapColumns } from '../src/domain/sheets/columns.js';
 import { shClassifyTable } from '../src/domain/sheets/classify.js';
 import { shAnalyzeWorkbook, shBuildImport } from '../src/domain/sheets/build.js';
@@ -640,4 +643,247 @@ test('שם קובץ להורדה הוא ASCII — אחרת הדפדפן משמי
     assert.ok(file.endsWith('.csv'));
     assert.ok(!/[\\/:*?"<>|]/.test(file), `בלי תווים אסורים במערכת קבצים: ${file}`);
   }
+});
+
+
+/* =================================================================== קובץ Excel */
+
+/** בונה קובץ xlsx אמיתי — ZIP עם CRC נכון, דחוס או שמור. */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+const crc32 = (bytes) => {
+  let c = 0xFFFFFFFF;
+  for (const x of bytes) c = CRC_TABLE[(c ^ x) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+};
+
+async function makeZip(files, { compress = true } = {}) {
+  const enc = new TextEncoder();
+  const parts = []; const central = []; let offset = 0;
+  const num = (n, size) => {
+    const b = new Uint8Array(size);
+    for (let i = 0; i < size; i++) b[i] = (n >> (8 * i)) & 0xff;
+    return b;
+  };
+  const put = (arr) => { parts.push(arr); offset += arr.length; };
+
+  for (const [name, text] of Object.entries(files)) {
+    const raw = enc.encode(text);
+    const data = compress
+      ? new Uint8Array(await new Response(new Blob([raw]).stream()
+        .pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer())
+      : raw;
+    const method = compress ? 8 : 0;
+    const crc = crc32(raw);
+    const nameBytes = enc.encode(name);
+    const local = offset;
+    put(new Uint8Array([0x50, 0x4b, 0x03, 0x04])); put(num(20, 2)); put(num(0, 2)); put(num(method, 2));
+    put(num(0, 2)); put(num(0, 2)); put(num(crc, 4)); put(num(data.length, 4)); put(num(raw.length, 4));
+    put(num(nameBytes.length, 2)); put(num(0, 2)); put(nameBytes); put(data);
+    central.push([new Uint8Array([0x50, 0x4b, 0x01, 0x02]), num(20, 2), num(20, 2), num(0, 2),
+      num(method, 2), num(0, 2), num(0, 2), num(crc, 4), num(data.length, 4), num(raw.length, 4),
+      num(nameBytes.length, 2), num(0, 2), num(0, 2), num(0, 2), num(0, 2), num(0, 4),
+      num(local, 4), nameBytes]);
+  }
+  const cdStart = offset;
+  for (const c of central) for (const arr of c) put(arr);
+  const cdSize = offset - cdStart;
+  put(new Uint8Array([0x50, 0x4b, 0x05, 0x06])); put(num(0, 2)); put(num(0, 2));
+  put(num(central.length, 2)); put(num(central.length, 2));
+  put(num(cdSize, 4)); put(num(cdStart, 4)); put(num(0, 2));
+
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+
+const xlsxFixture = (compress = true) => {
+  const shared = ['שם', 'גיל', 'מטרה', 'תאריך הצטרפות', 'רון כהן', 'מסה', 'דנה לוי', 'פריט', 'כמות', 'משקולות יד'];
+  return makeZip({
+    'xl/workbook.xml': '<?xml version="1.0"?><workbook><sheets>'
+      + '<sheet name="מתאמנים" sheetId="1" r:id="rId1"/><sheet name="ציוד" sheetId="2" r:id="rId2"/>'
+      + '</sheets></workbook>',
+    'xl/_rels/workbook.xml.rels': '<?xml version="1.0"?><Relationships>'
+      + '<Relationship Id="rId1" Target="worksheets/sheet1.xml"/>'
+      + '<Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>',
+    'xl/sharedStrings.xml': `<?xml version="1.0"?><sst>${shared.map((x) => `<si><t>${x}</t></si>`).join('')}</sst>`,
+    'xl/styles.xml': '<?xml version="1.0"?><styleSheet><numFmts>'
+      + '<numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts>'
+      + '<cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="164"/></cellXfs></styleSheet>',
+    'xl/worksheets/sheet1.xml': '<?xml version="1.0"?><worksheet><sheetData>'
+      + '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c>'
+      + '<c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c></row>'
+      + '<row r="2"><c r="A2" t="s"><v>4</v></c><c r="B2"><v>34</v></c>'
+      + '<c r="C2" t="s"><v>5</v></c><c r="D2" s="1"><v>45000</v></c></row>'
+      // דנה בלי גיל: התא פשוט אינו קיים בקובץ, והעמודות שאחריו חייבות להישאר במקומן
+      + '<row r="3"><c r="A3" t="s"><v>6</v></c><c r="C3" t="inlineStr"><is><t>כושר כללי</t></is></c></row>'
+      + '</sheetData></worksheet>',
+    'xl/worksheets/sheet2.xml': '<?xml version="1.0"?><worksheet><sheetData>'
+      + '<row r="1"><c r="A1" t="s"><v>7</v></c><c r="B1" t="s"><v>8</v></c></row>'
+      + '<row r="2"><c r="A2" t="s"><v>9</v></c><c r="B2"><v>12</v></c></row>'
+      + '</sheetData></worksheet>',
+  }, { compress });
+};
+
+test('קובץ xlsx נקרא במלואו — דחוס ולא דחוס', async () => {
+  for (const compress of [true, false]) {
+    const bytes = await xlsxFixture(compress);
+    assert.ok(shIsZip(bytes));
+    const sheets = await shReadXlsx(bytes);
+    assert.deepEqual(sheets.map((s) => s.name), ['מתאמנים', 'ציוד'], `דחיסה=${compress}`);
+    assert.deepEqual(sheets[0].rows[0], ['שם', 'גיל', 'מטרה', 'תאריך הצטרפות']);
+    assert.deepEqual(sheets[0].rows[1], ['רון כהן', '34', 'מסה', '2023-03-15'], 'מספר סידורי הפך לתאריך');
+    assert.deepEqual(sheets[0].rows[2], ['דנה לוי', '', 'כושר כללי'], 'תא חסר אינו מזיז עמודות');
+    assert.deepEqual(sheets[1].rows[1], ['משקולות יד', '12']);
+  }
+});
+
+test('קובץ xlsx עובר את כל מסלול הייבוא', async () => {
+  const sheets = await shReadXlsx(await xlsxFixture());
+  const analysis = shAnalyzeWorkbook(sheets.map((s) => ({ name: s.name, rows: s.rows })));
+  assert.deepEqual(analysis.sheets.map((s) => s.role), ['trainees', 'equipment']);
+
+  const out = shBuildImport(analysis, { studioName: 'סטודיו' });
+  assert.deepEqual(out.trainees.map((t) => t.name), ['רון כהן', 'דנה לוי']);
+  assert.equal(out.trainees[0].age, 34);
+  assert.equal(out.trainees[0].startDate, '2023-03-15');
+  assert.equal(out.trainees[1].primaryGoal, 'general_fitness');
+  assert.ok(out.studios[0].equipment.some((e) => e.item === 'dumbbell' && e.count === 12));
+});
+
+test('קובץ שאינו Excel אינו מתחזה לכזה', async () => {
+  assert.ok(!shIsZip(new TextEncoder().encode('שם,גיל\nרון,34')));
+  await assert.rejects(() => shReadXlsx(new TextEncoder().encode('לא ארכיון')));
+  await assert.rejects(() => shReadXlsx(makeZip({ 'hello.txt': 'שלום' })));
+});
+
+/* ------------------------------------------------------------- קידוד וגושים */
+
+test('CSV שנשמר בעברית של Excel נקרא נכון ולא כג׳יבריש', () => {
+  const utf8 = new TextEncoder().encode('שם,גיל\nרון,34');
+  assert.equal(shDecodeBytes(utf8), 'שם,גיל\nרון,34');
+
+  const withBom = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8]);
+  assert.equal(shDecodeBytes(withBom), 'שם,גיל\nרון,34');
+
+  // windows-1255: אלף=0xE0 ... כמו שExcel בעברית שומר
+  const cp1255 = new Uint8Array([0xf9, 0xed, 0x2c, 0xe2, 0xe9, 0xec]);
+  assert.equal(shDecodeBytes(cp1255), 'שם,גיל');
+
+  const utf16 = new Uint8Array([0xff, 0xfe, 0xe9, 0x05, 0xdd, 0x05]);
+  assert.equal(shDecodeBytes(utf16), 'שם');
+});
+
+test('שתי טבלאות באותה לשונית נקראות בנפרד', () => {
+  const rows = shParseDelimited([
+    'שם,גיל,מטרה', 'רון כהן,34,מסה', 'דנה לוי,28,כושר',
+    '', '',
+    'פריט,כמות', 'משקולות יד,12', 'מוט מתח,1',
+  ].join('\n'));
+  assert.equal(shSplitBlocks(rows).length, 2);
+
+  const analysis = shAnalyzeWorkbook([{ name: 'גיליון1', rows }]);
+  assert.deepEqual(analysis.sheets.map((s) => s.role), ['trainees', 'equipment']);
+  const out = shBuildImport(analysis, { studioName: 'ס' });
+  assert.equal(out.trainees.length, 2);
+  assert.ok(out.studios[0].equipment.some((e) => e.item === 'dumbbell'));
+});
+
+/* ------------------------------------------------- פריסות אמיתיות של גיליונות */
+
+test('שם מפוצל לשתי עמודות מזוהה כרשימת מתאמנים', () => {
+  const analysis = shAnalyzeWorkbook([{
+    name: 'גיליון1',
+    rows: shParseDelimited([
+      'שם פרטי,שם משפחה,טלפון,גיל,מין,מצב רפואי,מטרה',
+      'רון,כהן,541234567,34,ז,כאבי ברך שמאל,מסה',
+      'דנה,לוי,0521112222,28,נ,,ירידה במשקל',
+      'סה"כ,2,,,,,',
+    ].join('\n')),
+  }]);
+  assert.equal(analysis.sheets[0].role, 'trainees');
+
+  const out = shBuildImport(analysis, { studioName: 'ס' });
+  assert.deepEqual(out.trainees.map((t) => t.name), ['רון כהן', 'דנה לוי']);
+  assert.equal(out.trainees[0].phone, '0541234567', 'אפס מוביל שנמחק בגיליון מוחזר');
+  assert.equal(out.trainees[0].constraints[0].side, 'left');
+});
+
+test('כרטיס אישי אנכי הופך למתאמן אחד', () => {
+  const analysis = shAnalyzeWorkbook([{
+    name: 'רון',
+    rows: shParseDelimited([
+      'שם,רון כהן', 'גיל,34', 'משקל,82', 'גובה,178', 'מטרה,מסה',
+      'רמה,מתקדם', 'פציעות,כאב ברך שמאל', 'ימים בשבוע,3', 'טלפון,054-1234567',
+    ].join('\n')),
+  }]);
+  assert.equal(analysis.sheets[0].role, 'trainee_card');
+
+  const out = shBuildImport(analysis, { studioName: 'ס' });
+  assert.equal(out.trainees.length, 1);
+  const t = out.trainees[0];
+  assert.equal(t.name, 'רון כהן');
+  assert.equal(t.age, 34);
+  assert.equal(t.weightKg, 82);
+  assert.equal(t.heightCm, 178);
+  assert.equal(t.level, 'advanced');
+  assert.equal(t.daysPerWeek, 3);
+  assert.equal(t.constraints[0].id, 'knee_pain_patellofemoral');
+});
+
+test('רשימת מתאמנים קצרה אינה נקראת כטבלה אנכית', () => {
+  const analysis = shAnalyzeWorkbook([{
+    name: 'מתאמנים',
+    rows: shParseDelimited('שם,מספר,הערות\nרון כהן,3,אוהב בוקר\nדנה לוי,2,ערב בלבד'),
+  }]);
+  assert.equal(analysis.sheets[0].role, 'trainees');
+  assert.equal(shBuildImport(analysis, { studioName: 'ס' }).trainees.length, 2);
+});
+
+test('צ׳קליסט ציוד: מה שמסומן כלא קיים אינו מיובא', () => {
+  const mixed = shBuildImport(shAnalyzeWorkbook([{
+    name: 'ציוד',
+    rows: shParseDelimited('פריט,קיים\nמשקולות יד,V\nמוט מתח,כן\nהליכון,X\nריפורמר,לא'),
+  }]), { studioName: 'ס' });
+  assert.deepEqual(mixed.studios[0].equipment.map((e) => e.item).sort(), ['dumbbell', 'pullup_bar']);
+
+  // טבלה שכולה X — הסימון פירושו "יש", ואין ממה להסיק אחרת
+  const allX = shBuildImport(shAnalyzeWorkbook([{
+    name: 'ציוד',
+    rows: shParseDelimited('פריט,סימון\nמשקולות יד,X\nהליכון,X'),
+  }]), { studioName: 'ס' });
+  assert.equal(allX.studios[0].equipment.length, 2);
+});
+
+test('רעש בלתי נראה בתאים אינו נדבק לשמות', () => {
+  const out = shBuildImport(shAnalyzeWorkbook([{
+    name: 'מתאמנים',
+    rows: shParseDelimited('שם\u200f,גיל,טלפון\n\u200eרון  כהן\u00a0,34,054-1234567'),
+  }]), { studioName: 'ס' });
+  assert.equal(out.trainees[0].name, 'רון כהן');
+});
+
+test('עמודת מספר רץ אינה נקראת כמשקל', () => {
+  const out = shBuildImport(shAnalyzeWorkbook([{
+    name: 'מתאמנים',
+    rows: shParseDelimited('קוד,סניף,שם מלא,גיל,מטרה\n101,מרכז,רון כהן,34,מסה\n102,מרכז,דנה לוי,28,כושר'),
+  }]), { studioName: 'ס' });
+  assert.equal(out.trainees[0].name, 'רון כהן');
+  assert.equal(out.trainees[0].weightKg, undefined, 'מספר רץ אינו משקל גוף');
+});
+
+test('שתי מטרות בתא אחד, מחוברות בו׳', () => {
+  const out = shBuildImport(shAnalyzeWorkbook([{
+    name: 'מתאמנים',
+    rows: shParseDelimited('שם,גיל,מטרה\nרון,34,חיזוק ויציבה'),
+  }]), { studioName: 'ס' });
+  assert.deepEqual(out.trainees[0].goals, ['strength', 'posture']);
 });

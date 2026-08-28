@@ -7,8 +7,9 @@
  * ולפי צורת הנתונים — ולא לפי הנחה על סדר הלשוניות.
  */
 
-import { shDate, shEmpty, shMatch, shNorm } from './text.js';
-import { shLooksLikeKeyValue } from './table.js';
+import { shDate, shEmpty, shMatch, shNorm, shTokens } from './text.js';
+import { HEADER_TERMS, shCandidates } from './vocab.js';
+import { shKeyValueTable, shLooksLikeKeyValue } from './table.js';
 import { shMapColumns } from './columns.js';
 import { equipmentCandidates, exerciseCandidates } from './vocab.js';
 
@@ -24,6 +25,13 @@ const SHEET_NAME_TERMS = {
 };
 
 const NAME_CANDIDATES = Object.entries(SHEET_NAME_TERMS).map(([key, terms]) => ({ key, terms }));
+
+const HEADER_CANDS = shCandidates(HEADER_TERMS);
+
+/** שדות שמופיעים בכרטיס אישי של מתאמן. */
+const PERSON_FIELDS = new Set(['name', 'firstName', 'lastName', 'age', 'birthDate', 'sex',
+  'weightKg', 'heightCm', 'goal', 'level', 'constraints', 'daysPerWeek', 'sessionMinutes',
+  'phone', 'email', 'trainingAgeMonths', 'sport', 'coach']);
 
 /** תוויות שמופיעות בגיליון פרטי סטודיו ולא ברשימת אנשים. */
 const STUDIO_LABELS = ['סטודיו', 'כתובת', 'שעות', 'אורכ אימונ', 'משכ אימונ', 'מתאמנימ במקביל',
@@ -47,7 +55,11 @@ function columnLooksLike(table, candidates, { index = null, min = 0.66 } = {}) {
     : table.rows.map((r) => r.find((c) => !shEmpty(c))))
     .filter((v) => !shEmpty(v)).slice(0, 30);
   if (!values.length) return 0;
-  return values.filter((v) => shMatch(v, candidates, { min })).length / values.length;
+  const hits = values.filter((v) => shMatch(v, candidates, { min })).length;
+  // התאמה בודדת אינה "רוב השורות". בטבלה בת שורה אחת כל מילה שמזכירה
+  // פריט ציוד הייתה מכריעה את הסיווג של הלשונית כולה.
+  if (hits < 2 && values.length < 3) return 0;
+  return hits / values.length;
 }
 
 /**
@@ -90,13 +102,20 @@ export function shClassifyTable(table) {
   const byName = shMatch(table.name, NAME_CANDIDATES, { min: 0.7 });
   if (byName) add(byName.key, 1.2 * byName.score, `שם הלשונית "${table.name}"`);
 
-  const repeat = nameRepeatRatio(table, neutral.byField.name);
-  if (dateHeaders < 0.5 && has('name') && !fields.has('exercise')
-      && any('phone', 'age', 'goal', 'level', 'constraints', 'weightKg', 'sex', 'birthDate')) {
+  /*
+   * שם יכול להגיע כעמודה אחת או כשתיים — "שם פרטי" ו"שם משפחה" הן פריסה
+   * נפוצה ברשימות חברים, ובלי לזהות אותה כשם הלשונית כולה לא נקראת.
+   */
+  const hasName = has('name') || (has('firstName') && has('lastName')) || has('firstName');
+  const nameColumn = neutral.byField.name ?? neutral.byField.firstName;
+  const repeat = nameRepeatRatio(table, nameColumn);
+  if (dateHeaders < 0.5 && hasName && !fields.has('exercise')
+      && any('phone', 'age', 'goal', 'level', 'constraints', 'weightKg', 'sex', 'birthDate',
+        'email', 'startDate', 'daysPerWeek', 'sessionMinutes', 'coach', 'heightCm')) {
     add('trainees', 2.2 - 2.4 * repeat, repeat > 0.15
       ? 'עמודת שם עם פרטים, אבל שמות חוזרים'
       : 'עמודת שם יחד עם פרטים אישיים');
-  } else if (has('name') && fields.size >= 3 && !fields.has('exercise')) {
+  } else if (hasName && fields.size >= 3 && !fields.has('exercise')) {
     add('trainees', 1.1 - repeat, 'עמודת שם ועוד פרטים');
   }
 
@@ -126,9 +145,21 @@ export function shClassifyTable(table) {
    * ידברו על המקום ולא על אנשים.
    */
   if (shLooksLikeKeyValue(table)) {
-    const labels = table.rows.map((r) => shNorm(r[0]));
+    const flat = shKeyValueTable(table);
+    const labels = flat.headers.map((l) => shNorm(l));
     const hits = labels.filter((l) => STUDIO_LABELS.some((t) => l.includes(t))).length;
     if (hits >= 2) add('studio', 1.4 + hits * 0.2, 'רשימה של פרטי המקום');
+
+    /*
+     * אותה צורה משמשת גם לכרטיס אישי של מתאמן — "שם / גיל / משקל / מטרה"
+     * בשורות. ההכרעה נעשית לפי התוויות עצמן ולא לפי הערכים: ברשימת
+     * מתאמנים רגילה העמודה הראשונה מכילה שמות של אנשים, לא שמות של שדות.
+     */
+    const person = flat.headers.filter((label) => {
+      const hit = shMatch(label, HEADER_CANDS, { min: 0.78 });
+      return hit && PERSON_FIELDS.has(hit.key);
+    }).length;
+    if (person >= 3) add('trainee_card', 1.6 + person * 0.2, 'כרטיס אישי: פרט בכל שורה');
   }
 
   if (!scores.length) add('unknown', 0.2, 'לא זוהה מבנה מוכר');
@@ -148,6 +179,7 @@ export function shClassifyTable(table) {
 /** תפקידים שאפשר לבחור מהם ידנית כשהזיהוי טעה. */
 export const SHEET_ROLES = [
   { key: 'trainees', label: 'מתאמנים' },
+  { key: 'trainee_card', label: 'כרטיס מתאמן אחד' },
   { key: 'equipment', label: 'ציוד' },
   { key: 'programs', label: 'תכניות אימון' },
   { key: 'log', label: 'יומן ביצועים' },
@@ -161,13 +193,30 @@ export const ROLE_LABEL = Object.fromEntries(SHEET_ROLES.map((r) => [r.key, r.la
 
 /** האם שם הלשונית הוא שם של אדם — לשונית תכנית אישית. */
 export function shSheetPersonName(name, traineeNames = []) {
-  const n = shNorm(name);
+  /*
+   * "תכנית של רון" ו"אימון — דנה" הן דרכים נפוצות לקרוא ללשונית אישית.
+   * מסירים את המילים שמתארות את הלשונית, ומה שנשאר הוא השם.
+   */
+  const stripped = String(name || '')
+    .replace(/^\s*(תכנית|תוכנית|מערך|אימון|אימונים|תכנית אימון|תוכנית אימון|program|workout|plan)\s*/i, '')
+    .replace(/^\s*(של|עבור|ל|for|of)\s+/i, '')
+    .trim();
+  const candidate = stripped || String(name || '');
+  const n = shNorm(candidate);
   if (!n) return null;
-  if (shMatch(name, NAME_CANDIDATES, { min: 0.75 })) return null;
+  if (shMatch(candidate, NAME_CANDIDATES, { min: 0.75 })) return null;
   const hit = traineeNames.find((t) => shNorm(t) === n);
   if (hit) return hit;
-  const near = traineeNames.find((t) => shMatch(name, [{ key: t, terms: [t] }], { min: 0.85 }));
+  const near = traineeNames.find((t) => shMatch(candidate, [{ key: t, terms: [t] }], { min: 0.85 }));
   if (near) return near;
+
+  /*
+   * לשונית בשם פרטי בלבד — "רון" — שייכת ל"רון כהן" כשהוא היחיד בשם הזה.
+   * כששני מתאמנים חולקים שם פרטי אין דרך לדעת למי היא שייכת, ואז עדיף
+   * ליצור רשומה נפרדת מאשר לצרף תכנית לאדם הלא נכון.
+   */
+  const byFirstName = traineeNames.filter((t) => shTokens(t)[0] === n);
+  if (byFirstName.length === 1) return byFirstName[0];
   // שתי מילים בעברית בלי מספרים — נראה כמו שם פרטי ומשפחה
-  return /^[\p{L}]+( [\p{L}]+){0,2}$/u.test(name.trim()) && !/\d/.test(name) ? name.trim() : null;
+  return /^[\p{L}]+( [\p{L}]+){0,2}$/u.test(candidate) && !/\d/.test(candidate) ? candidate : null;
 }

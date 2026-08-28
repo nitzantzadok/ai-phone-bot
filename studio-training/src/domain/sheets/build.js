@@ -14,6 +14,7 @@ import { CONSTRAINTS } from '../constraints.js';
 import { EQUIPMENT_LABELS } from '../labels.js';
 import { GOALS, LEVELS } from '../taxonomy.js';
 import { shClassifyTable, shSheetPersonName } from './classify.js';
+import { shKeyValueTable, shSplitBlocks, shToTable } from './table.js';
 import { shCell, shFixHeaderless, shMapColumns } from './columns.js';
 import {
   shBool, shDate, shEmpty, shMatch, shMatchAll, shMatchPhrase, shNorm, shNum, shPhone, shEmail,
@@ -45,8 +46,23 @@ const SUMMARY_ROW = /^(סה"?כ|סהכ|סיכום|ממוצע|total|sum|average|a
  * @param {{overrides?:Record<string,string>}} opts תפקיד שהמאמן כפה ללשונית
  */
 export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {} } = {}) {
-  const analyzed = [];
+  /*
+   * לשונית אחת יכולה להחזיק יותר מטבלה אחת — רשימת מתאמנים למעלה ורשימת
+   * ציוד מתחתיה, מופרדות בשורות ריקות. כל גוש נבדק בנפרד, אחרת השני נבלע
+   * בראשון ונקרא כשורות פגומות.
+   */
+  const expanded = [];
   for (const sheet of sheets) {
+    if (sheet.table || !sheet.rows) { expanded.push(sheet); continue; }
+    const blocks = shSplitBlocks(sheet.rows);
+    blocks.forEach((rows, i) => {
+      const name = i === 0 ? sheet.name : `${sheet.name} · טבלה ${i + 1}`;
+      expanded.push({ name, table: shToTable(rows, { name }) });
+    });
+  }
+
+  const analyzed = [];
+  for (const sheet of expanded) {
     const table = shFixHeaderless(sheet.table || sheet);
     const auto = shClassifyTable(table);
     const role = overrides[sheet.name] || auto.role;
@@ -94,9 +110,20 @@ export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {}
 
 /* ------------------------------------------------------------------ ערכים */
 
+/**
+ * כל המטרות שבתא.
+ * "חיזוק ויציבה" הן שתי מטרות בתא אחד בלי מפריד, ולכן אחרי הפיצול הרגיל
+ * נבדקת גם כל מילה בנפרד — כולל הסרת ו' החיבור.
+ */
 const pickGoals = (raw) => {
-  const hits = shMatchAll(raw, GOAL_CANDS, { min: 0.62 });
-  return hits.map((h) => h.key).filter((g) => GOALS.includes(g));
+  const found = new Set();
+  for (const hit of shMatchAll(raw, GOAL_CANDS, { min: 0.62 })) found.add(hit.key);
+  for (const token of shTokens(raw)) {
+    const word = token.length > 3 && token.startsWith('ו') ? token.slice(1) : token;
+    const hit = shMatch(word, GOAL_CANDS, { min: 0.8 });
+    if (hit) found.add(hit.key);
+  }
+  return [...found].filter((g) => GOALS.includes(g));
 };
 
 const pickLevel = (raw) => {
@@ -109,6 +136,9 @@ function pickTrainingMonths(raw) {
   const s = shNorm(raw);
   if (!s) return null;
   if (/שנתיים|שנתים/.test(s)) return 24;
+  if (/חצי שנה/.test(s)) return 6;
+  if (/^שנה$|^כשנה$|שנה בערכ/.test(s)) return 12;
+  if (/^חודש$/.test(s)) return 1;
   const n = shNum(raw);
   if (n === null) return null;
   if (/שנה|שנים|year/.test(s)) return Math.round(n * 12);
@@ -279,6 +309,15 @@ function equipmentFromTable(sheet, ctx) {
   const found = new Map();
   const weights = {};
   const eqCands = equipmentCandidates();
+
+  /*
+   * ברשימת ציוד שנכתבה כצ'קליסט, X הוא "אין" — אבל רק כשיש בעמודה גם
+   * סימון חיובי להשוות אליו. בטבלה שבה כל השורות מסומנות ב-X, הסימון
+   * פירושו "יש", וזה בדיוק ההבדל שקובע אם מכשיר ייכנס לתכניות.
+   */
+  const marksNo = new Set(['x', 'לא', 'אין', 'ללא', '✗', '✘', '-']);
+  const marksYes = new Set(['v', 'כן', 'יש', '✓', '✔', 'קיים']);
+  const columnHasYes = sheet.table.rows.some((r) => r.some((c) => marksYes.has(shNorm(c))));
   for (const row of sheet.table.rows) {
     const raw = shCell(row, sheet.byField, 'equipmentItem')
       || row.find((c) => !shEmpty(c) && shNum(c) === null) || '';
@@ -286,6 +325,15 @@ function equipmentFromTable(sheet, ctx) {
 
     const hit = shMatchPhrase(raw, eqCands, { min: 0.7 });
     if (!hit) { ctx.unmatched.equipment.add(String(raw).trim()); continue; }
+
+    /*
+     * רשימת ציוד נכתבת לעתים כצ'קליסט: "יש/אין", "V/X". פריט שסומן כלא
+     * קיים חייב להישאר בחוץ — אחרת המנוע יבנה תכניות סביב מכשיר שאין בחדר.
+     */
+    const cells = row.map((c) => shNorm(c));
+    const no = cells.some((c) => marksNo.has(c) && (c !== 'x' || columnHasYes));
+    const yes = cells.some((c) => marksYes.has(c));
+    if (no && !yes) continue;
 
     // הכמות יכולה להיות בעמודה משלה, ויכולה להיות כתובה בתוך השורה עצמה:
     // "12 זוגות משקולות יד". טווח משקלים אינו כמות, ולכן נבדק בנפרד.
@@ -568,6 +616,22 @@ export function shBuildImport(analysis, {
 
   // --- מתאמנים תחילה: שמותיהם נחוצים לזיהוי לשוניות אישיות
   const traineesByKey = new Map();
+
+  /* כרטיס אישי: לשונית שכולה מתאמן אחד, פרט בכל שורה. */
+  for (const sheet of analysis.sheets.filter((s) => s.role === 'trainee_card')) {
+    const flat = shKeyValueTable(sheet.table);
+    const mapped = shMapColumns(flat, { role: 'trainees' });
+    const t = traineeFromRow(flat.rows[0] || [], mapped.byField, {
+      sheetName: sheet.name, columns: mapped.columns, unmatched: ctx.unmatched,
+    }) || (shSheetPersonName(sheet.name) ? { name: shSheetPersonName(sheet.name) } : null);
+    if (!t) { perSheet.push({ name: sheet.name, role: sheet.role, rows: sheet.rowCount, built: 0, what: 'מתאמנים' }); continue; }
+    // בכרטיס אישי השם לא תמיד כתוב בפנים — אז שם הלשונית הוא השם
+    if (!t.name || t.name === 'מתאמן') t.name = shSheetPersonName(sheet.name) || sheet.name;
+    const key = shNorm(t.name);
+    traineesByKey.set(key, traineesByKey.has(key) ? mergeTrainee(traineesByKey.get(key), t) : t);
+    perSheet.push({ name: sheet.name, role: sheet.role, rows: sheet.rowCount, built: 1, what: 'מתאמנים' });
+  }
+
   for (const sheet of analysis.sheets.filter((s) => s.role === 'trainees')) {
     let added = 0;
     for (const row of sheet.table.rows) {
