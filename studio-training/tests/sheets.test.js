@@ -19,6 +19,9 @@ import { shClassifyTable } from '../src/domain/sheets/classify.js';
 import { shAnalyzeWorkbook, shBuildImport } from '../src/domain/sheets/build.js';
 import { constraintCandidates, equipmentCandidates, exerciseCandidates } from '../src/domain/sheets/vocab.js';
 import { shGvizToMatrix, shGvizUrl, shParseSheetUrl } from '../src/domain/sheets/google.js';
+import {
+  SH_PROGRAM_COLUMNS, shProgramFileName, shProgramRows, shProgramsRows, shToCsv, shToTsv,
+} from '../src/domain/sheets/export.js';
 import { normalizeStudio, normalizeTrainee, validateInput } from '../src/domain/models.js';
 import { generateWeeklyProgram } from '../src/engine/generate.js';
 import { CONSTRAINTS } from '../src/domain/constraints.js';
@@ -550,4 +553,91 @@ test('לשונית פרטי סטודיו מזוהה לפי התוכן גם כש�
   // רשימת שמות וטלפונים היא אותה צורה בדיוק — ואסור שתיקרא כפרטי מקום
   const people = sheet('גיליון3', 'רון כהן,0541234567\nדנה לוי,0521112222\nיוסי מור,0509998888');
   assert.equal(shClassifyTable(people.table).role, 'trainees');
+});
+
+/* ------------------------------------------------------- ייצוא לגיליון */
+
+const demoProgram = () => {
+  const studio = normalizeStudio({
+    id: 's1', name: 'סטודיו', dumbbellMaxKg: 40,
+    equipment: ['dumbbell', 'barbell', 'bench_flat', 'squat_rack', 'pullup_bar', 'cable_crossover'],
+  });
+  const trainee = normalizeTrainee({
+    id: 't1', name: 'רון כהן', studioId: 's1', level: 'intermediate', primaryGoal: 'hypertrophy',
+    daysPerWeek: 3, age: 34, weightKg: 82, trainingAgeMonths: 24,
+  });
+  return { program: generateWeeklyProgram(trainee, studio), trainee, studio };
+};
+
+test('תכנית מיוצאת לטבלה שאפשר להדביק בגיליון', () => {
+  const { program } = demoProgram();
+  const rows = shProgramRows(program);
+
+  assert.deepEqual(rows[0], SH_PROGRAM_COLUMNS);
+  const totalBlocks = program.days.reduce((n, d) => n + d.blocks.length, 0);
+  assert.equal(rows.length, totalBlocks + 1);
+  assert.ok(rows.every((r) => r.length === SH_PROGRAM_COLUMNS.length), 'כל השורות באותו רוחב');
+  assert.ok(rows.slice(1).every((r) => r[0] === 'רון כהן'));
+
+  // תא שמכיל טאב או ירידת שורה היה שובר את ההדבקה לתאים
+  const tsv = shToTsv(rows);
+  assert.equal(tsv.split('\n').length, rows.length);
+  assert.ok(tsv.split('\n').every((line) => line.split('\t').length === SH_PROGRAM_COLUMNS.length));
+});
+
+test('טבלה מיוצאת חוזרת פנימה בייבוא בלי אובדן', () => {
+  const { program } = demoProgram();
+  const tsv = shToTsv(shProgramRows(program));
+
+  const analysis = shAnalyzeWorkbook([{ name: 'תכנית', table: shTableFromText(tsv, { name: 'תכנית' }) }]);
+  assert.equal(analysis.sheets[0].role, 'programs');
+  const map = analysis.sheets[0].byField;
+  for (const field of ['name', 'exercise', 'sets', 'reps', 'load']) {
+    assert.ok(map[field] !== undefined, `העמודה ${field} זוהתה בחזרה`);
+  }
+
+  const back = shBuildImport(analysis, { studioName: 'סטודיו' });
+  assert.equal(back.trainees.length, 1);
+  assert.equal(back.trainees[0].name, 'רון כהן');
+  assert.equal(back.snapshots.length, 1);
+  assert.equal(back.snapshots[0].daysPerWeek, program.days.length, 'אותו מספר ימים');
+  assert.equal(back.snapshots[0].totalExercises,
+    program.days.reduce((n, d) => n + d.blocks.length, 0), 'אותו מספר תרגילים');
+  assert.equal(back.report.unmatched.exercises.length, 0, 'כל התרגילים זוהו בחזרה');
+
+  // הסטים והחזרות של התרגיל הראשון שרדו את הסיבוב המלא
+  const first = program.days[0].blocks[0];
+  const returned = back.snapshots[0].program.days[0].blocks[0];
+  assert.equal(returned.exercise.name, first.exercise.name);
+  assert.equal(returned.prescription.sets, first.prescription.sets);
+  assert.equal(String(returned.prescription.reps), String(first.prescription.reps));
+});
+
+test('כמה תכניות יוצאות בטבלה אחת עם כותרת אחת', () => {
+  const { program } = demoProgram();
+  const second = { ...structuredClone(program), traineeName: 'דנה לוי', traineeId: 't2' };
+  const rows = shProgramsRows([program, second]);
+  const header = rows.filter((r) => r[0] === 'מתאמן');
+  assert.equal(header.length, 1);
+  assert.deepEqual([...new Set(rows.slice(1).map((r) => r[0]))], ['רון כהן', 'דנה לוי']);
+});
+
+test('CSV מצטט נכון תא שמכיל פסיק או מרכאות', () => {
+  const csv = shToCsv([['שם', 'הערה'], ['רון', 'כבד, אבל נקי'], ['דנה', 'אמרה "מספיק"']]);
+  assert.equal(csv.split('\n')[1], 'רון,"כבד, אבל נקי"');
+  assert.equal(csv.split('\n')[2], 'דנה,"אמרה ""מספיק"""');
+});
+
+test('שם קובץ להורדה הוא ASCII — אחרת הדפדפן משמיט אותו', () => {
+  // שם עברי בלבד: הדפדפן היה מוריד "download" בלי סיומת
+  assert.equal(shProgramFileName({ traineeName: 'רון כהן', generatedAt: '2026-02-03T10:00:00.000Z' }),
+    'studio-program-2026-02-03.csv');
+  assert.equal(shProgramFileName({ traineeName: 'Ron Cohen', generatedAt: '2026-02-03T10:00:00.000Z' }),
+    'studio-program-ron-cohen-2026-02-03.csv');
+  for (const name of ['רון/כהן', 'A*B?C', '']) {
+    const file = shProgramFileName({ traineeName: name, generatedAt: '2026-02-03T10:00:00.000Z' });
+    assert.ok(/^[\x20-\x7e]+$/.test(file), `ASCII בלבד: ${file}`);
+    assert.ok(file.endsWith('.csv'));
+    assert.ok(!/[\\/:*?"<>|]/.test(file), `בלי תווים אסורים במערכת קבצים: ${file}`);
+  }
 });

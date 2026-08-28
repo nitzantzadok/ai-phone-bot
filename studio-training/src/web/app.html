@@ -703,7 +703,7 @@
       --accent-soft:#eef4ff; --shadow:none; --shadow-lift:none}
     body::before,body::after{display:none}
     header.bar,.steps,.tabs,.log,.acts,details.more,.swap,#programSteps,
-    #viewStudio,#viewTrainees,.tiles,#print,#gen,#genAll,#next,.bar{display:none !important}
+    #viewStudio,#viewTrainees,.tiles,#print,#gen,#genAll,#next,.bar,#exportCard{display:none !important}
     body{background:#fff; padding-bottom:0}
     main.wrap{max-width:none; padding:0}
     .cols{display:block}
@@ -3173,6 +3173,110 @@ async function onTraineeSubmit(e) {
 /* ==================================================================
    שלב 3 — התכנית
    ================================================================== */
+
+/* ==================================================================
+   העתקה לגיליון
+
+   מאמן שרוצה לשלוח תכנית, לצרף אותה לקובץ המעקב של הסטודיו או לשמור
+   עותק — מעתיק טבלה ומדביק. Google Sheets מפרק טקסט מופרד בטאבים לתאים,
+   וזה בדיוק מה שנוצר כאן. אותה טבלה גם חוזרת פנימה דרך מסך הייבוא.
+   ================================================================== */
+
+function exportCardHtml() {
+  if (!state.program) return '';
+  return `
+    <div class="card" id="exportCard">
+      <fieldset>
+        <legend>העתקה לגיליון</legend>
+        <p class="hint">בגיליון: לוחצים על תא ומדביקים (Ctrl+V) — כל עמודה נכנסת לתא שלה.
+           זו אותה טבלה שמסך הייבוא יודע לקרוא, כך שאפשר לערוך בגיליון ולהחזיר.${
+             state.archivedView ? ' התכנית הזאת היא מהארכיון.' : ''}</p>
+        <div class="acts">
+          <button class="primary" type="button" id="copyProgram">העתק את התכנית</button>
+          ${state.archivedView ? '' : '<button type="button" id="copyStudio">העתק את כל הסטודיו</button>'}
+          <button type="button" id="downloadCsv">הורדה כקובץ</button>
+        </div>
+        <details class="more">
+          <summary>הצגת הטבלה</summary>
+          <textarea class="imp-paste" id="exportPreview" rows="8" readonly
+                    aria-label="הטבלה להעתקה"></textarea>
+        </details>
+      </fieldset>
+    </div>`;
+}
+
+/** הטקסט של התכנית הנוכחית, בפורמט שגיליון מפרק לתאים. */
+const programTsv = () => shToTsv(shProgramRows(state.program));
+
+function wireExport() {
+  const preview = $('#exportPreview');
+  if (preview) preview.value = programTsv();
+
+  const copy = $('#copyProgram');
+  if (copy) copy.onclick = () => copyForSheet(programTsv(), 'התכנית של ' + state.program.traineeName);
+
+  const all = $('#copyStudio');
+  if (all) {
+    all.onclick = () => {
+      const studio = studioById($('#studio').value);
+      const list = traineesOf(studio.id);
+      if (!list.length) { status('אין מתאמנים בסניף הזה', 'warn'); return; }
+      status('בונה תכניות…');
+      // בנייה של כל הסטודיו לוקחת רגע; בלי ההשהיה הכפתור נראה תקוע
+      setTimeout(() => {
+        const batch = buildStudioPrograms(list, studio);
+        const programs = batch.results.filter((r) => r.ok).map((r) => r.program);
+        if (!programs.length) { status('לא נבנתה אף תכנית', 'warn'); return; }
+        copyForSheet(shToTsv(shProgramsRows(programs)), `${programs.length} תכניות`);
+      }, 30);
+    };
+  }
+
+  const csv = $('#downloadCsv');
+  if (csv) csv.onclick = () => downloadCsv();
+}
+
+/**
+ * העתקה ללוח.
+ * לוח המערכת חסום בחלק מההקשרים (עמוד מקומי, דפדפן מגביל), ולכן יש מסלול
+ * שני ומסלול שלישי: פקודת ההעתקה הישנה, ולבסוף סימון הטקסט כדי שהמאמן
+ * יעתיק בעצמו. כפתור שלא עושה כלום הוא הדבר הגרוע ביותר כאן.
+ */
+async function copyForSheet(text, what) {
+  try {
+    await navigator.clipboard.writeText(text);
+    status(`הועתק: ${what}`, 'ok');
+    log('הועתק לגיליון', `${esc(what)} — ${text.split('\n').length - 1} שורות. אפשר להדביק בגיליון.`);
+    return;
+  } catch { /* ממשיכים למסלול הבא */ }
+
+  const box = $('#exportPreview');
+  if (box) {
+    box.value = text;
+    box.closest('details').open = true;
+    box.focus();
+    box.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch { copied = false; }
+    status(copied ? `הועתק: ${what}` : 'הטקסט מסומן — לחצו Ctrl+C', copied ? 'ok' : 'warn');
+  }
+}
+
+function downloadCsv() {
+  const csv = shToCsv(shProgramRows(state.program));
+  // BOM כדי ש-Excel יזהה עברית; Sheets מזהה בלעדיו גם כן
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = shProgramFileName(state.program);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  status('הקובץ ירד', 'ok');
+}
+
 function generate() {
   if (state.view !== 'program') return;
   const t = traineeById($('#trainee').value);
@@ -3203,8 +3307,7 @@ function generate() {
 
 function generateAll() {
   const studio = studioById($('#studio').value);
-  const list = state.trainees.filter((t) => t.studioId === studio.id);
-  const batch = buildStudioPrograms(list, studio);
+  const batch = buildStudioPrograms(traineesOf(studio.id), studio);
   log(`${esc(studio.name)} — ${batch.total} תכניות`, batch.results.map((r) => (r.ok
     ? `${esc(r.name)}: ציון ${r.program.qa.score}${r.program.qa.passed ? '' : ' — נדרשת בדיקה'}`
     : `${esc(r.name)}: ${esc(r.errors[0])}`)));
@@ -3241,8 +3344,9 @@ function render() {
         נשמרה ב-${fmtDate(state.archivedView.at)}. לקריאה בלבד.</div>`);
   }
   countUp($('#rail'));
-  $('#days').innerHTML = `<div class="days">${p.days.map(dayCard).join('')}</div>`;
+  $('#days').innerHTML = `<div class="days">${p.days.map(dayCard).join('')}</div>${exportCardHtml()}`;
   animateIn($('#days').firstElementChild);
+  wireExport();
   document.querySelectorAll('[data-act]').forEach((el) => { el.onclick = () => onAction(el.dataset); });
   document.querySelectorAll('[data-swap]').forEach((el) => { el.onclick = () => onSwap(el.dataset); });
   document.querySelectorAll('[data-unlock]').forEach((el) => {

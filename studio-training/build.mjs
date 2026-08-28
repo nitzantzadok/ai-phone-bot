@@ -34,6 +34,7 @@ const MODULES = [
   'src/domain/sheets/classify.js',
   'src/domain/sheets/build.js',
   'src/domain/sheets/google.js',
+  'src/domain/sheets/export.js',
   'src/domain/models.js',
   'src/engine/prescription.js',
   'src/engine/split.js',
