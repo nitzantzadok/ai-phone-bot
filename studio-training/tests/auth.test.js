@@ -398,3 +398,60 @@ test('ייבוא בלי התחברות נדחה', async () => {
   const r = await anon.post('/api/import/snapshots', { snapshots: [{ traineeId: traineeA, program: { days: [] } }] });
   assert.equal(r.status, 401);
 });
+
+/* ------------------------------------------------ עריכה ומחיקה של מתאמן */
+
+test('עדכון מתאמן אינו מוחק את ההיסטוריה שנצברה בשטח', async () => {
+  const created = await gymA.post('/api/trainees', {
+    name: 'עדי שחר', studioId: studioA, primaryGoal: 'strength', level: 'novice',
+    daysPerWeek: 3, age: 33, weightKg: 70,
+  });
+  const id = created.body.id;
+
+  await gymA.post('/api/history/log', {
+    traineeId: id,
+    entries: [{ type: 'log_set', exerciseId: 'bb_back_squat', loadKg: 60, reps: 8, date: '2026-03-01' }],
+  });
+
+  // הטופס שולח את מה שהוא מכיר בלבד — בלי יומן, בלי מדידות
+  const updated = await gymA.post('/api/trainees', {
+    id, name: 'עדי שחר-לוי', studioId: studioA, primaryGoal: 'hypertrophy', level: 'intermediate',
+    daysPerWeek: 4, age: 33, weightKg: 72,
+  });
+  assert.equal(updated.body.ok, true);
+  assert.equal(updated.body.id, id, 'אותו מתאמן, לא רשומה חדשה');
+
+  const list = await gymA.get('/api/trainees');
+  const adi = list.body.find((t) => t.id === id);
+  assert.equal(adi.name, 'עדי שחר-לוי');
+  assert.equal(adi.level, 'intermediate');
+  assert.equal(adi.weightKg, 72);
+  assert.equal(adi.sessionLog.length, 1, 'יומן האימונים שרד את העריכה');
+
+  const history = await gymA.get(`/api/history?traineeId=${id}`);
+  assert.equal(history.body.summary.sets, 1);
+
+  // ערך שנשלח במפורש כן גובר
+  await gymA.post('/api/trainees', { id, name: 'עדי שחר-לוי', studioId: studioA, sessionLog: [] });
+  const cleared = (await gymA.get('/api/trainees')).body.find((t) => t.id === id);
+  assert.equal(cleared.sessionLog.length, 0);
+});
+
+test('מחיקת מתאמן מוחקת גם את הארכיון שלו ולא של אחרים', async () => {
+  const a = await gymA.post('/api/trainees', {
+    name: 'נמחק', studioId: studioA, primaryGoal: 'general_fitness', daysPerWeek: 2, age: 40, weightKg: 75,
+  });
+  const b = await gymA.post('/api/trainees', {
+    name: 'נשאר', studioId: studioA, primaryGoal: 'general_fitness', daysPerWeek: 2, age: 40, weightKg: 75,
+  });
+  assert.ok((await gymA.get(`/api/history?traineeId=${a.body.id}`)).body.programs.length >= 1);
+
+  const del = await gymA.post('/api/trainees/delete', { id: a.body.id });
+  assert.equal(del.body.ok, true);
+
+  const list = (await gymA.get('/api/trainees')).body.map((t) => t.id);
+  assert.ok(!list.includes(a.body.id));
+  assert.ok(list.includes(b.body.id));
+  assert.equal((await gymA.get(`/api/history?traineeId=${a.body.id}`)).status, 404, 'אין יותר היסטוריה למי שנמחק');
+  assert.ok((await gymA.get(`/api/history?traineeId=${b.body.id}`)).body.programs.length >= 1, 'הארכיון של האחר נשאר');
+});

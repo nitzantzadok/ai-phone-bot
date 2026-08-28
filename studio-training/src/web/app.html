@@ -260,6 +260,8 @@
     border-top:1px solid var(--line-soft); flex-wrap:wrap}
   .listrow:first-of-type{border-top:0}
   .listrow strong{font-weight:700}
+  .listrow button.danger{color:var(--crit); border-color:color-mix(in srgb, var(--crit) 32%, transparent)}
+  .listrow button.danger:hover{background:var(--crit-soft); border-color:var(--crit)}
 
   .banner{border-inline-start:3px solid var(--accent); background:var(--accent-soft);
     padding:.7rem .85rem; border-radius:var(--radius-sm); font-size:var(--step--1);
@@ -1039,6 +1041,22 @@ const store = {
     this.persistLocal();
     return { ok: true, id, warnings: v.warnings };
   },
+  /**
+   * מחיקת מתאמן.
+   * ההיסטוריה נמחקת יחד איתו — ארכיון תכניות של אדם שכבר לא רשום הוא
+   * מידע אישי בלי בעלים, ואין מסך שמציג אותו.
+   */
+  async deleteTrainee(id) {
+    if (state.server) {
+      await api('/api/trainees/delete', { id });
+      await this.load();
+      return;
+    }
+    state.trainees = state.trainees.filter((t) => t.id !== id);
+    state.snapshots = (state.snapshots || []).filter((s) => s.traineeId !== id);
+    this.persistLocal();
+  },
+
   async updateTrainee(raw) {
     state.trainees = [...state.trainees.filter((x) => x.id !== raw.id), raw];
     if (state.server) { try { await api('/api/trainees', raw); } catch { /* נשמר מקומית בכל מקרה */ } }
@@ -2865,15 +2883,19 @@ function wireImport() {
 
 function renderTraineesView() {
   const studioOptions = state.studios.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  const editing = state.editingTraineeId ? traineeById(state.editingTraineeId) : null;
+  if (state.editingTraineeId && !editing) state.editingTraineeId = null;
 
   $('#viewTrainees').innerHTML = `
     ${stepsBar('trainees')}
     ${flashHtml()}
     <div class="hero">
       <div>
-        <h2>רישום מתאמן</h2>
-        <p>ארבעה שדות מספיקים כדי להתחיל. כל פרט נוסף מדייק את התכנית —
-           ומה שלא ידוע נשאר ריק, עם ברירות מחדל שמרניות והערה למאמן.</p>
+        <h2>${editing ? `עריכת ${esc(editing.name)}` : 'רישום מתאמן'}</h2>
+        <p>${editing
+          ? 'כל שדה בטופס ניתן לשינוי. ההיסטוריה, המדידות והערות המאמן נשמרות כפי שהן — משתנים רק הפרטים שמופיעים כאן.'
+          : `ארבעה שדות מספיקים כדי להתחיל. כל פרט נוסף מדייק את התכנית —
+             ומה שלא ידוע נשאר ריק, עם ברירות מחדל שמרניות והערה למאמן.`}</p>
       </div>
       <div class="tiles">
         <div class="tile"><b>${state.trainees.length}</b><span>מתאמנים רשומים</span></div>
@@ -2974,6 +2996,8 @@ function renderTraineesView() {
                 <option value="low">שגרה קבועה</option><option value="balanced" selected>מאוזן</option><option value="high">מגוון גבוה</option>
               </select></label>
             <label class="f"><span>אורך מחזור אימון (שבועות)</span><input name="mesocycleLength" type="number" min="2" max="8" value="4"></label>
+            <label class="f"><span>השבוע הנוכחי במחזור</span><input name="mesocycleWeek" type="number" min="1" max="12" value="1">
+              <small class="hint">מתקדם לבד בכל «שבוע הבא». כאן אפשר להחזיר מתאמן לתחילת המחזור.</small></label>
             <label class="f"><span>יחידות</span>
               <select name="units"><option value="kg">ק״ג</option><option value="lb">ליברות</option></select></label>
           </div>
@@ -3044,7 +3068,8 @@ function renderTraineesView() {
         </fieldset>
 
         <div class="row">
-          <button class="primary" type="submit">שמור וצור תכנית</button>
+          <button class="primary" type="submit">${editing ? 'שמור שינויים' : 'שמור וצור תכנית'}</button>
+          ${editing ? '<button type="button" id="cancelEdit">ביטול</button>' : ''}
           <span id="traineeMsg" class="hint"></span>
         </div>
       </div>
@@ -3052,14 +3077,23 @@ function renderTraineesView() {
 
     <div class="card">
       <p class="eyebrow">מתאמנים רשומים</p>
-      ${state.trainees.length ? state.trainees.map((t) => `<div class="listrow">
+      ${state.trainees.length ? state.trainees.map((t) => (state.confirmDeleteId === t.id ? `
+      <div class="listrow">
         <strong>${esc(t.name)}</strong>
-        <span class="chip">${esc(studioById(t.studioId)?.name || t.studioId)}</span>
+        <span class="hint">למחוק? ההיסטוריה, התכניות והמדידות שלו יימחקו יחד איתו ואי אפשר לשחזר.</span>
+        <span class="grow"></span>
+        <button class="danger" data-del-confirm="${esc(t.id)}">כן, מחק</button>
+        <button data-del-cancel>ביטול</button>
+      </div>` : `<div class="listrow">
+        <strong>${esc(t.name)}</strong>
+        <span class="chip">${esc(studioById(t.homeStudioId || t.studioId)?.name || t.studioId)}</span>
         <span class="chip">${esc(GOAL_PROFILES[t.primaryGoal]?.label || t.primaryGoal || '')}</span>
         ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
         <span class="grow"></span>
         <button data-open-trainee="${esc(t.id)}">פתח תכנית</button>
-      </div>`).join('') : `<p class="empty">עדיין לא נרשם מתאמן.
+        <button data-edit-trainee="${esc(t.id)}">ערוך</button>
+        <button class="danger" data-del-trainee="${esc(t.id)}" aria-label="מחיקת ${esc(t.name)}">מחק</button>
+      </div>`)).join('') : `<p class="empty">עדיין לא נרשם מתאמן.
         אם הרשימה שלך כבר קיימת בגיליון Google —
         <a href="#" data-goto="import">אפשר לייבא ממנו את כולם בבת אחת</a>.</p>`}
     </div>`;
@@ -3069,6 +3103,23 @@ function renderTraineesView() {
   if (form.studioId) form.studioId.value = $('#studio').value || state.studios[0]?.id || '';
   $('#addConstraint').onclick = () => addConstraintRow();
   form.onsubmit = onTraineeSubmit;
+
+  document.querySelectorAll('[data-edit-trainee]').forEach((b) => {
+    b.onclick = () => startEditTrainee(b.dataset.editTrainee);
+  });
+  // מחיקה בשני שלבים: הלחיצה הראשונה שואלת, השנייה מוחקת
+  document.querySelectorAll('[data-del-trainee]').forEach((b) => {
+    b.onclick = () => { state.confirmDeleteId = b.dataset.delTrainee; renderTraineesView(); };
+  });
+  document.querySelectorAll('[data-del-confirm]').forEach((b) => {
+    b.onclick = () => deleteTraineeNow(b.dataset.delConfirm);
+  });
+  document.querySelectorAll('[data-del-cancel]').forEach((b) => {
+    b.onclick = () => { state.confirmDeleteId = null; renderTraineesView(); };
+  });
+  const cancel = $('#cancelEdit');
+  if (cancel) cancel.onclick = cancelEditTrainee;
+  if (editing) fillTraineeForm(editing);
   document.querySelectorAll('[data-open-trainee]').forEach((b) => {
     b.onclick = () => {
       const t = traineeById(b.dataset.openTrainee);
@@ -3094,7 +3145,7 @@ function constraintOptionsHtml() {
     </optgroup>`).join('');
 }
 
-function addConstraintRow() {
+function addConstraintRow(c = null) {
   $('#constraintRows').insertAdjacentHTML('beforeend', `
     <div class="listrow" data-crow>
       <select data-cid style="max-width:270px">${constraintOptionsHtml()}</select>
@@ -3111,6 +3162,109 @@ function addConstraintRow() {
     </div>`);
   const row = $('#constraintRows').lastElementChild;
   row.querySelector('[data-cdel]').onclick = () => row.remove();
+  if (c) {
+    row.querySelector('[data-cid]').value = c.id;
+    row.querySelector('[data-csev]').value = c.severity || 'subacute';
+    row.querySelector('[data-cside]').value = c.side || '';
+    row.querySelector('[data-cnote]').value = c.notes || '';
+  }
+  return row;
+}
+
+/* ------------------------------------------------ עריכה ומחיקה של מתאמן */
+
+/** שדות שהם רשימה: בחירה מרובה או קבוצת תיבות סימון. */
+const TRAINEE_LIST_FIELDS = {
+  focusMuscles: (t) => t.focusMuscles,
+  likes: (t) => t.likes,
+  dislikes: (t) => t.dislikes,
+  knownMovements: (t) => t.knownMovements,
+  preferredDays: (t) => t.preferredDays,
+  alsoStudio: (t) => t.studioIds,
+};
+
+/**
+ * מילוי הטופס מנתוני מתאמן קיים.
+ *
+ * המעבר עובר דרך normalizeTrainee ולא דרך הרשומה הגולמית: כך המאמן רואה
+ * בדיוק את הערכים שהמנוע עובד לפיהם — כולל משקל שמגיע מהמדידה האחרונה
+ * ולא מהשדה הישן שהוזן פעם.
+ */
+function fillTraineeForm(raw) {
+  const form = $('#traineeForm');
+  if (!form || !raw) return;
+  const t = normalizeTrainee(raw);
+
+  const scalars = {
+    name: t.name, studioId: t.homeStudioId || t.studioId, primaryGoal: t.primaryGoal,
+    daysPerWeek: t.daysPerWeek, sessionMinutes: t.sessionMinutes, level: t.level,
+    age: t.age, sex: t.sex, heightCm: t.heightCm, weightKg: t.weightKg,
+    trainingAgeMonths: t.trainingAgeMonths, phone: t.phone, email: t.email,
+    units: t.units, varietyPreference: t.varietyPreference, mesocycleLength: t.mesocycleLength,
+    mesocycleWeek: t.mesocycleWeek,
+    medicalClearance: String(t.medicalClearance), travelWeek: String(t.travelWeek),
+    sport: t.sport, externalSessions: t.externalSessions, lifestyle: t.lifestyle,
+    cyclePhase: t.cyclePhase, medications: (t.medications || []).join(', '),
+    sleepQuality: t.sleepQuality, stressLevel: t.stressLevel, nutritionAdherence: t.nutritionAdherence,
+    coach: t.coach, startDate: t.startDate, targetDate: t.targetDate, goalDetail: t.goalDetail,
+    preferredTime: t.preferredTime, bodyFatPct: t.bodyFatPct, restingHR: t.restingHR,
+    bloodPressure: t.bloodPressure, pastInjuries: t.pastInjuries, notes: t.notes,
+  };
+  for (const [name, value] of Object.entries(scalars)) {
+    const el = form.elements[name];
+    if (!el || el instanceof RadioNodeList) continue;
+    el.value = value === null || value === undefined ? '' : String(value);
+  }
+
+  for (const [name, pick] of Object.entries(TRAINEE_LIST_FIELDS)) {
+    const wanted = new Set(pick(t) || []);
+    form.querySelectorAll(`[name="${name}"]`).forEach((el) => {
+      if (el.tagName === 'SELECT') {
+        [...el.options].forEach((o) => { o.selected = wanted.has(o.value); });
+      } else {
+        el.checked = wanted.has(el.value);
+      }
+    });
+  }
+
+  $('#constraintRows').innerHTML = '';
+  for (const c of t.constraints) addConstraintRow(c);
+
+  // פרטים שנמצאים בקטעים מקופלים — נפתחים, אחרת נראה כאילו הם ריקים
+  form.querySelectorAll('details.optional').forEach((d) => { d.open = true; });
+}
+
+/** מעבר למצב עריכה: הטופס מתמלא, והשמירה תעדכן ולא תיצור מתאמן נוסף. */
+function startEditTrainee(id) {
+  state.editingTraineeId = id;
+  state.confirmDeleteId = null;
+  renderTraineesView();
+  $('#viewTrainees').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+}
+
+function cancelEditTrainee() {
+  state.editingTraineeId = null;
+  renderTraineesView();
+}
+
+async function deleteTraineeNow(id) {
+  const t = traineeById(id);
+  if (!t) return;
+  try {
+    await store.deleteTrainee(id);
+    if (state.editingTraineeId === id) state.editingTraineeId = null;
+    state.confirmDeleteId = null;
+    // המתאמן שנמחק אולי היה זה שנבחר במסך האימון
+    if (state.program?.traineeId === id) state.program = null;
+    fillStudios();
+    flash(`<b>${esc(t.name)} נמחק${t.sex === 'female' ? 'ה' : ''}</b> יחד עם ההיסטוריה והתכניות.`, 'warn');
+    log('מתאמן נמחק', `${esc(t.name)} הוסר מהמערכת.`);
+    renderTraineesView();
+  } catch (err) {
+    log('המחיקה נכשלה', esc(err.message));
+    state.confirmDeleteId = null;
+    renderTraineesView();
+  }
 }
 
 async function onTraineeSubmit(e) {
@@ -3137,12 +3291,13 @@ async function onTraineeSubmit(e) {
     preferredDays: f.getAll('preferredDays'),
     focusMuscles: f.getAll('focusMuscles'), dislikes: f.getAll('dislikes'), likes: f.getAll('likes'),
     varietyPreference: f.get('varietyPreference'), mesocycleLength: +f.get('mesocycleLength') || 4,
+    mesocycleWeek: +f.get('mesocycleWeek') || 1,
     units: f.get('units'),
     constraints, medicalClearance: f.get('medicalClearance') === 'true',
     sport: f.get('sport'), externalSessions: +f.get('externalSessions') || 0,
     lifestyle: f.get('lifestyle'), cyclePhase: f.get('cyclePhase'),
     travelWeek: f.get('travelWeek') === 'true',
-    medications: f.get('medications') ? [f.get('medications')] : [],
+    medications: String(f.get('medications') || '').split(',').map((x) => x.trim()).filter(Boolean),
     sleepQuality: +f.get('sleepQuality'), stressLevel: +f.get('stressLevel'),
     nutritionAdherence: +f.get('nutritionAdherence'),
     coach: f.get('coach') || '', startDate: f.get('startDate') || null,
@@ -3155,12 +3310,35 @@ async function onTraineeSubmit(e) {
     notes: f.get('notes'), phone: f.get('phone') || '', email: f.get('email') || '',
   };
 
+  /*
+   * עריכה מעדכנת את אותה רשומה. המיזוג עם הרשומה הקיימת הוא העיקר כאן:
+   * הטופס אינו מכיל היסטוריה, מדידות, יומן הערות ותרגילים שאושרו בשטח,
+   * ובלי המיזוג עריכת שם הייתה מוחקת את כל אלה.
+   */
+  const existing = state.editingTraineeId ? traineeById(state.editingTraineeId) : null;
+  if (existing) {
+    trainee.id = existing.id;
+    // מטרות משנה (למשל כאלה שהגיעו מייבוא) נשמרות לצד המטרה הראשית
+    const extra = (existing.goals || [])
+      .map((g) => (typeof g === 'string' ? g : g.goal))
+      .filter((g) => g && g !== trainee.primaryGoal);
+    trainee.goals = [trainee.primaryGoal, ...new Set(extra)];
+  }
+  const payload = existing ? { ...existing, ...trainee } : trainee;
+
   try {
-    const r = await store.saveTrainee(trainee);
-    if (!r.ok) { log('לא ניתן לרשום את המתאמן', r.errors.map(esc)); return; }
-    flash(`<b>${esc(trainee.name)} נרשם${trainee.sex === 'female' ? 'ה' : ''}.</b> התכנית השבועית מוכנה למטה.
-      ${r.warnings?.length ? `<br>${r.warnings.map(esc).join('<br>')}` : ''}`,
-      r.warnings?.length ? 'warn' : '');
+    const r = await store.saveTrainee(payload);
+    if (!r.ok) { log('לא ניתן לשמור את המתאמן', r.errors.map(esc)); return; }
+    if (existing) {
+      state.editingTraineeId = null;
+      flash(`<b>הפרטים של ${esc(trainee.name)} עודכנו.</b> התכנית נבנתה מחדש לפי הנתונים החדשים.
+        ${r.warnings?.length ? `<br>${r.warnings.map(esc).join('<br>')}` : ''}`,
+        r.warnings?.length ? 'warn' : 'ok');
+    } else {
+      flash(`<b>${esc(trainee.name)} נרשם${trainee.sex === 'female' ? 'ה' : ''}.</b> התכנית השבועית מוכנה למטה.
+        ${r.warnings?.length ? `<br>${r.warnings.map(esc).join('<br>')}` : ''}`,
+        r.warnings?.length ? 'warn' : '');
+    }
     $('#studio').value = trainee.studioId;
     fillTrainees();
     $('#trainee').value = r.id;

@@ -308,7 +308,19 @@ const routes = {
     const rawStudio = requireStudio(ctx, body.studioId || body.homeStudioId || (body.studioIds || [])[0]);
     if (body.id && db.getTrainee(body.id)) requireTrainee(ctx, body.id);
     const id = body.id || `${slug(body.name)}_${Math.random().toString(36).slice(2, 6)}`;
-    const stored = { ...body, id };
+
+    /*
+     * עדכון מתאמן קיים אינו רשאי למחוק את מה שנצבר בשטח.
+     * טופס עריכה שולח את הפרטים שהוא מכיר, ולא את יומן האימונים, המדידות
+     * וההערות — ובלי השמירה הזאת עריכת שם הייתה מוחקת חודשים של מעקב.
+     * ערך שנשלח במפורש עדיין גובר; מה שלא נשלח נשמר כפי שהוא.
+     */
+    const prev = db.getTrainee(id);
+    const KEEP = ['sessionLog', 'history', 'measurements', 'notesLog', 'sessions',
+      'approvedExercises', 'blockedExercises', 'customExercises', 'accountId', 'createdAt'];
+    const preserved = {};
+    if (prev) for (const k of KEEP) if (body[k] === undefined && prev[k] !== undefined) preserved[k] = prev[k];
+    const stored = { ...body, ...preserved, id };
     const trainee = normalizeTrainee(stored);
     const studio = normalizeStudio(rawStudio);
     const v = validateInput(trainee, studio);
