@@ -38,6 +38,9 @@ const WEEKDAY_CANDS = shCandidates(WEEKDAY_TERMS);
 /** שורות סיכום בתחתית גיליון — נתון שנראה כמו מתאמן ואינו מתאמן. */
 // בלי \b: בעברית אין גבול-מילה במובן של ביטוי רגולרי, ולכן "סה\"כ" בסוף שורה
 // לא היה נתפס והשורה הייתה הופכת למתאמן בשם "סה\"כ".
+/** גבול תרגילים ליום אימון אחד. מעבר לזה זה כבר לא יום אימון. */
+const MAX_BLOCKS_PER_DAY = 40;
+
 const SUMMARY_ROW = /^(סה"?כ|סהכ|סיכום|ממוצע|total|sum|average|avg)(\s|:|$)/i;
 
 /**
@@ -753,11 +756,23 @@ export function shBuildImport(analysis, {
         sessionMinutes: null,
         segments: [],
         estimatedMinutes: 0,
-        blocks,
+        blocks: blocks.slice(0, MAX_BLOCKS_PER_DAY),
         unfilledSlots: [],
         droppedForTime: [],
         status: 'planned',
       }));
+      /*
+       * יום אימון אחד אינו מכיל מאות תרגילים. לשונית כזאת היא כמעט תמיד
+       * יומן ביצועים של חודשים שנשמר בלי עמודת יום או תאריך, ובלי גבול
+       * היא הופכת ל"תכנית" שאי אפשר לקרוא — ותופסת את כל האחסון של
+       * הדפדפן. חותכים, ואומרים למאמן בדיוק מה קרה ואיך לתקן.
+       */
+      const trimmed = [...entry.days.values()].reduce((n, b) => n + Math.max(0, b.length - MAX_BLOCKS_PER_DAY), 0);
+      if (trimmed) {
+        warnings.push(`בלשונית "${sheet.name}" יש יום עם יותר מ-${MAX_BLOCKS_PER_DAY} תרגילים — `
+          + `${trimmed} שורות לא נכנסו לתכנית. אם אלה אימונים מתאריכים שונים, הוספת עמודת `
+          + '"תאריך" או "יום" בגיליון תפצל אותם לאימונים נפרדים.');
+      }
       programs.push({ traineeKey: key, traineeName: entry.name, days, sheetName: sheet.name });
       built += days.length;
     }

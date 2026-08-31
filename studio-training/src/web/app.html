@@ -993,12 +993,26 @@ const store = {
     state.snapshots = local?.snapshots || [];
     if (fresh && state.demoSeed) this.persistLocal();
   },
+  /*
+   * שמירה מקומית שנכשלת בשקט היא הדבר הגרוע ביותר שיכול לקרות כאן: המסך
+   * מראה "נשמר", והמאמן מגלה את האמת רק אחרי רענון, כשהכול נעלם. אחסון
+   * הדפדפן מוגבל בכמה מגה-בייט, וייבוא של גיליון גדול יכול למלא אותו.
+   */
   persistLocal() {
-    if (state.server || !state.account) return;
-    lsSet(dataKeyFor(state.account.id), {
+    if (state.server || !state.account) return true;
+    const ok = lsSet(dataKeyFor(state.account.id), {
       studios: state.studios, trainees: state.trainees, snapshots: state.snapshots,
       savedAt: new Date().toISOString(),
     });
+    if (!ok && !state.storageWarned) {
+      state.storageWarned = true;
+      const msg = 'האחסון של הדפדפן מלא והשמירה נכשלה. אפשר למחוק ארכיון תכניות ישן במסך '
+        + 'ההיסטוריה, או להפעיל את המערכת עם שרת (npm start) שבו אין את המגבלה הזאת.';
+      flash(msg, 'crit');
+      log('שמירה נכשלה', msg);
+    }
+    if (ok) state.storageWarned = false;
+    return ok;
   },
 
   /* ---- היסטוריה: ארכיון תכניות ויומן אימונים */
@@ -2758,11 +2772,15 @@ function importUnmatchedHtml(unmatched) {
 
 function importDoneHtml() {
   const r = impState.result.report;
+  const failed = !!impState.error;
   return `
+    ${failed ? `<div class="banner crit">${esc(impState.error)}</div>` : ''}
     <div class="hero">
       <div>
-        <h2>הייבוא הושלם</h2>
-        <p>הכול נשמר. אפשר לעבור למסך המתאמנים ולבנות תכנית לכל אחד מהם.</p>
+        <h2>${failed ? 'הייבוא לא הושלם' : 'הייבוא הושלם'}</h2>
+        <p>${failed
+          ? 'חלק מהנתונים לא נשמרו. המספרים למטה הם מה שהייבוא בנה — לא בהכרח מה שנשמר.'
+          : 'הכול נשמר. אפשר לעבור למסך המתאמנים ולבנות תכנית לכל אחד מהם.'}</p>
       </div>
       <div class="tiles">
         <div class="tile accent"><b data-count>${r.counts.trainees}</b><span>מתאמנים</span></div>
@@ -2884,7 +2902,13 @@ async function impApply() {
     await store.load();
     impState.result = built;
     impState.stage = 'done';
-    flash(`יובאו ${built.report.counts.trainees} מתאמנים ו-${built.report.counts.equipment} פריטי ציוד.`, 'ok');
+    // אם האחסון נגמר באמצע, אסור להציג "הייבוא הושלם" כאילו הכול נשמר
+    if (state.storageWarned) {
+      impState.error = 'חלק מהנתונים לא נשמרו — האחסון של הדפדפן מלא. '
+        + 'כדאי למחוק ארכיון ישן במסך ההיסטוריה ולייבא שוב, או להפעיל את המערכת עם שרת.';
+    } else {
+      flash(`יובאו ${built.report.counts.trainees} מתאמנים ו-${built.report.counts.equipment} פריטי ציוד.`, 'ok');
+    }
   } catch (err) {
     impState.error = err.message;
   } finally {

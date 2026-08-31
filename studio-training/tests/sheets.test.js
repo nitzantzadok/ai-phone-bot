@@ -1096,3 +1096,25 @@ test('אותה השוואה חוזרת מחזירה את אותה תשובה ג�
   assert.ok(!strict || strict.score >= 0.999);
   assert.equal(shCandidates(HEADER_TERMS), shCandidates(HEADER_TERMS), 'רשימת מועמדים נבנית פעם אחת');
 });
+
+test('יום עם מאות תרגילים נחתך, והמאמן מקבל הסבר איך לפצל אותו', () => {
+  const ex = ['לחיצת חזה', 'סקוואט', 'מתח', 'חתירה'];
+  const rows = [['תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ...Array.from({ length: 400 }, (_, i) => [ex[i % 4], '3', '10', '40'])];
+  const built = shBuildImport(shAnalyzeWorkbook([{ name: 'מיקה מנדל', rows }]), { studioName: 'ס' });
+  const day = built.snapshots[0].program.days[0];
+  assert.equal(day.blocks.length, 40);
+  const warning = built.report.warnings.find((w) => w.includes('תרגילים'));
+  assert.match(warning, /360 שורות/);
+  assert.match(warning, /תאריך/);
+  // הצילום נשאר בגודל שאפשר לשמור בדפדפן
+  assert.ok(JSON.stringify(built.snapshots[0]).length < 60000);
+});
+
+test('תכנית בגודל רגיל אינה נחתכת ואינה מייצרת אזהרה', () => {
+  const rows = [['תרגיל', 'סטים', 'חזרות'],
+    ['לחיצת חזה', '3', '10'], ['סקוואט', '4', '8'], ['חתירה', '3', '12']];
+  const built = shBuildImport(shAnalyzeWorkbook([{ name: 'שי דמתי', rows }]), { studioName: 'ס' });
+  assert.equal(built.snapshots[0].program.days[0].blocks.length, 3);
+  assert.ok(!built.report.warnings.some((w) => w.includes('לא נכנסו לתכנית')));
+});
