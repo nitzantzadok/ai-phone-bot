@@ -45,12 +45,12 @@ const SUMMARY_ROW = /^(סה"?כ|סהכ|סיכום|ממוצע|total|sum|average|a
  * @param {Array<{name:string, rows:string[][]}>} sheets לשוניות גולמיות
  * @param {{overrides?:Record<string,string>}} opts תפקיד שהמאמן כפה ללשונית
  */
-export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {} } = {}) {
-  /*
-   * לשונית אחת יכולה להחזיק יותר מטבלה אחת — רשימת מתאמנים למעלה ורשימת
-   * ציוד מתחתיה, מופרדות בשורות ריקות. כל גוש נבדק בנפרד, אחרת השני נבלע
-   * בראשון ונקרא כשורות פגומות.
-   */
+/*
+ * לשונית אחת יכולה להחזיק יותר מטבלה אחת — רשימת מתאמנים למעלה ורשימת
+ * ציוד מתחתיה, מופרדות בשורות ריקות. כל גוש נבדק בנפרד, אחרת השני נבלע
+ * בראשון ונקרא כשורות פגומות.
+ */
+function expandBlocks(sheets) {
   const expanded = [];
   for (const sheet of sheets) {
     if (sheet.table || !sheet.rows) { expanded.push(sheet); continue; }
@@ -60,9 +60,12 @@ export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {}
       expanded.push({ name, table: shToTable(rows, { name }) });
     });
   }
+  return expanded;
+}
 
-  const analyzed = [];
-  for (const sheet of expanded) {
+/** ניתוח של לשונית אחת. מופרד כדי שאפשר יהיה לנתח גיליון גדול בהפוגות. */
+function analyzeSheet(sheet, overrides, columnOverrides) {
+  {
     const table = shFixHeaderless(sheet.table || sheet);
     const auto = shClassifyTable(table);
     const role = overrides[sheet.name] || auto.role;
@@ -78,7 +81,7 @@ export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {}
       col.why = 'נבחר ידנית';
       if (col.field) mapped.byField[col.field] = col.index;
     }
-    analyzed.push({
+    return {
       name: sheet.name || '',
       table,
       role,
@@ -100,12 +103,39 @@ export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {}
         candidates: c.candidates.map((s) => ({ field: s.field, label: SH_FIELD_LABELS[s.field] || s.field })),
       })),
       headerless: !!table.headerless,
-    });
+    };
   }
+}
 
+const withCounts = (analyzed) => {
   const counts = {};
   for (const s of analyzed) counts[s.role] = (counts[s.role] || 0) + s.rowCount;
   return { sheets: analyzed, counts };
+};
+
+export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {} } = {}) {
+  return withCounts(expandBlocks(sheets).map((sheet) => analyzeSheet(sheet, overrides, columnOverrides)));
+}
+
+/**
+ * אותו ניתוח, בהפוגות.
+ *
+ * גיליון של סטודיו אמיתי הוא לפעמים לשונית לכל מתאמן — מאה לשוניות ויותר.
+ * ניתוח רצוף שלהן תופס את החוט היחיד של הדפדפן, המסך קופא, וכרום מציע
+ * לסגור את הדף. כאן נעצרים בין לשונית ללשונית, כך שהמסך ממשיך להגיב
+ * ואפשר להראות התקדמות אמיתית.
+ */
+export async function shAnalyzeWorkbookAsync(sheets, {
+  overrides = {}, columnOverrides = {}, onProgress = null, breathe = null,
+} = {}) {
+  const expanded = expandBlocks(sheets);
+  const analyzed = [];
+  for (let i = 0; i < expanded.length; i++) {
+    analyzed.push(analyzeSheet(expanded[i], overrides, columnOverrides));
+    if (onProgress) onProgress(i + 1, expanded.length, expanded[i].name || '');
+    if (breathe) await breathe();
+  }
+  return withCounts(analyzed);
 }
 
 /* ------------------------------------------------------------------ ערכים */

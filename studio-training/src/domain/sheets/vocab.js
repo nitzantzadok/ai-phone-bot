@@ -12,8 +12,19 @@ import { EQUIPMENT_LABELS } from '../labels.js';
 import { EQUIPMENT } from '../taxonomy.js';
 
 /** בונה רשימת מועמדים להתאמה: לכל מפתח, כל הצורות שבהן כותבים אותו. */
+/*
+ * הרשימה נבנית פעם אחת לכל מילון. מעבר לחיסכון בהקצאות, זהות הרשימה היא
+ * מה שמאפשר למטמון ההתאמות לזהות שמדובר באותם מועמדים — רשימה חדשה בכל
+ * קריאה הייתה מבטלת את המטמון וכל תא היה נבדק מחדש מול כל המונחים.
+ */
+const candidateCache = new WeakMap();
+
 export function shCandidates(map) {
-  return Object.entries(map).map(([key, terms]) => ({ key, terms }));
+  const hit = candidateCache.get(map);
+  if (hit) return hit;
+  const built = Object.entries(map).map(([key, terms]) => ({ key, terms }));
+  candidateCache.set(map, built);
+  return built;
 }
 
 /* ------------------------------------------------------------------ שדות */

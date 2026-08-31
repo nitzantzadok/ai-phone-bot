@@ -16,7 +16,30 @@ const FINALS = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' };
  * נרמול מחרוזת להשוואה: בלי ניקוד, בלי גרשיים, בלי סימני פיסוק,
  * בלי אותיות סופיות, ובאותיות קטנות.
  */
+/*
+ * נרמול הוא הפעולה הכי נפוצה בייבוא: כל תא מושווה למאות מונחים, וכל
+ * השוואה מנרמלת מחדש את שני הצדדים. בגיליון של סטודיו אמיתי — עשרות
+ * לשוניות, אלפי שורות — זה ההבדל בין ניתוח של שנייה לבין דף שנתקע.
+ * הזיכרון מוגבל בגודלו כדי שלא יגדל בלי סוף.
+ */
+const normCache = new Map();
+const NORM_CACHE_MAX = 20000;
+
 export function shNorm(value) {
+  const key = typeof value === 'string' ? value : null;
+  if (key !== null) {
+    const hit = normCache.get(key);
+    if (hit !== undefined) return hit;
+  }
+  const out = shNormRaw(value);
+  if (key !== null) {
+    if (normCache.size >= NORM_CACHE_MAX) normCache.clear();
+    normCache.set(key, out);
+  }
+  return out;
+}
+
+function shNormRaw(value) {
   return String(value ?? '')
     .replace(/[֑-ׇ]/g, '')            // ניקוד וטעמים
     .replace(/[‎‏‪-‮]/g, '') // סימני כיווניות שמגיעים מגיליונות
@@ -121,19 +144,33 @@ export function shSimilarity(a, b) {
  * כל מועמד הוא { key, terms } — terms הן כל הצורות שבהן מקובל לכתוב אותו.
  * מחזיר null כשאף מועמד אינו קרוב מספיק; ניחוש גרוע גרוע מלא לנחש.
  */
+const matchCache = new WeakMap();
+
 export function shMatch(value, candidates, { min = 0.62 } = {}) {
   const raw = shNorm(value);
   if (!raw) return null;
+
+  // אותו ערך מול אותה רשימת מועמדים מחזיר תמיד אותה תשובה. בגיליון חוזר
+  // אותו תרגיל בכל שורה, ובלי הזיכרון הזה הוא נבדק מחדש בכל פעם.
+  let byList = matchCache.get(candidates);
+  if (!byList) { byList = new Map(); matchCache.set(candidates, byList); }
+  const key = `${min}\u0000${raw}`;
+  const cached = byList.get(key);
+  if (cached !== undefined) return cached;
+
   let best = null;
   for (const cand of candidates) {
     for (const term of cand.terms) {
       const score = shSimilarity(raw, term);
       if (score >= min && (!best || score > best.score)) {
         best = { key: cand.key, score: +score.toFixed(3), matched: term, value: cand.value };
-        if (score === 1) return best;
+        if (score === 1) break;
       }
     }
+    if (best && best.score === 1) break;
   }
+  if (byList.size >= NORM_CACHE_MAX) byList.clear();
+  byList.set(key, best);
   return best;
 }
 

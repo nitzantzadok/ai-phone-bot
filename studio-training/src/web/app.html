@@ -513,6 +513,7 @@
   .imp-paste:focus{border-color:var(--accent-line); outline:none}
   .imp-tab{gap:.35rem}
   .imp-tab button{padding:0 .2rem; line-height:1; font-size:var(--step--1)}
+  .imp-tabs{max-height:14rem; overflow-y:auto; padding:.2rem}
   .imp-scroll{display:block; overflow-x:auto; margin-top:.6rem;
     border:1px solid var(--line); border-radius:var(--radius-sm)}
   .imp-map{width:100%; border-collapse:collapse; font-size:var(--step--1)}
@@ -2486,12 +2487,19 @@ const impState = {
   roleOverrides: {},
   columnOverrides: {},
   target: 'new',        // מזהה סטודיו קיים או 'new'
+  cardLimit: 12,        // כמה כרטיסי לשונית מוצגים בבת אחת
   busy: '',
   error: '',
   result: null,
 };
 
 const IMPORT_FIELDS = Object.entries(SH_FIELD_LABELS);
+
+/*
+ * גיליון עם לשונית לכל מתאמן מגיע עם מאה שמות ויותר. הצגה של כולם ממלאת
+ * מסך שלם ומסתירה את הכפתור שצריך ללחוץ עליו; מה שמעבר לזה נספר במשפט.
+ */
+const IMP_TAB_LIMIT = 24;
 
 function renderImportView() {
   const el = $('#viewImport');
@@ -2522,7 +2530,7 @@ function importSourceHtml() {
     </div>
 
     ${impState.error ? `<div class="banner warn">${esc(impState.error)}</div>` : ''}
-    ${impState.busy ? `<div class="banner">${esc(impState.busy)}</div>` : ''}
+    ${impState.busy ? `<div class="banner" id="impBusy">${esc(impState.busy)}</div>` : ''}
 
     <div class="card">
       <fieldset>
@@ -2570,9 +2578,12 @@ function importSourceHtml() {
       <div class="card">
         <fieldset>
           <legend>לשוניות שנטענו</legend>
-          <div class="chips">
-            ${impState.sheets.map((s, i) => `<span class="chip imp-tab">${esc(s.name)} · ${s.rows.length} שורות
+          <p class="hint">${impState.sheets.length} לשוניות · ${impState.sheets.reduce((n, s) => n + s.rows.length, 0).toLocaleString('he-IL')} שורות בסך הכול.</p>
+          <div class="chips imp-tabs">
+            ${impState.sheets.slice(0, IMP_TAB_LIMIT).map((s, i) => `<span class="chip imp-tab">${esc(s.name)} · ${s.rows.length} שורות
               <button class="ghost" data-imp-drop="${i}" aria-label="הסר">✕</button></span>`).join('')}
+            ${impState.sheets.length > IMP_TAB_LIMIT
+              ? `<span class="chip">ועוד ${impState.sheets.length - IMP_TAB_LIMIT} לשוניות — כולן ינותחו</span>` : ''}
           </div>
           <div class="acts">
             <button class="primary" id="impAnalyze" type="button">נתח את הגיליון</button>
@@ -2627,7 +2638,11 @@ function importReviewHtml() {
       </fieldset>
     </div>
 
-    ${a.sheets.map((s, si) => importSheetCard(s, si)).join('')}
+    ${a.sheets.map((s, si) => importSheetCard(s, si)).slice(0, impState.cardLimit).join('')}
+    ${a.sheets.length > impState.cardLimit ? `<div class="card"><div class="acts">
+      <button id="impMoreCards" type="button">הצג עוד לשוניות (${a.sheets.length - impState.cardLimit} נותרו)</button>
+      </div><p class="hint">כל הלשוניות ייובאו — כאן מוצגות ${impState.cardLimit} הראשונות לבדיקה.
+      גיליון עם מאה לשוניות היה בונה מסך שאי אפשר לגלול בו.</p></div>` : ''}
 
     ${preview.warnings.length ? `<div class="card"><fieldset><legend>לתשומת לבך</legend>
       <ul class="notecard">${preview.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></fieldset></div>` : ''}
@@ -2752,16 +2767,50 @@ function impPreview() {
   }
 }
 
-function impAnalyze() {
-  if (!impState.sheets.length) return;
+/** הפוגה קצרה שמאפשרת לדפדפן לצייר מחדש בין לשונית ללשונית. */
+const impBreathe = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+let impAnalyzing = false;
+
+/*
+ * ניתוח של גיליון גדול — לשונית לכל מתאמן, אלף שורות בכל אחת — נמשך זמן.
+ * הוא רץ כאן בהפוגות ועם התקדמות גלויה, כי דף שקופא נראה למאמן כמו מערכת
+ * שהתרסקה, וכרום מציע לו לסגור אותה.
+ */
+async function impAnalyze() {
+  if (!impState.sheets.length || impAnalyzing) return;
+  impAnalyzing = true;
   impState.previewKey = null;
-  impState.analysis = shAnalyzeWorkbook(
-    impState.sheets.map((s) => ({ name: s.name, rows: s.rows })),
-    { overrides: impState.roleOverrides, columnOverrides: impState.columnOverrides },
-  );
-  impState.stage = 'review';
   impState.error = '';
-  renderImportView();
+  const total = impState.sheets.length;
+  const heavy = total > 3;
+  if (heavy) {
+    impState.busy = `מנתח את הגיליון… 0 מתוך ${total}`;
+    renderImportView();
+    await impBreathe();
+  }
+  try {
+    impState.analysis = await shAnalyzeWorkbookAsync(
+      impState.sheets.map((s) => ({ name: s.name, rows: s.rows })),
+      {
+        overrides: impState.roleOverrides,
+        columnOverrides: impState.columnOverrides,
+        onProgress: heavy ? (done, all, name) => {
+          impState.busy = `מנתח את הגיליון… ${done} מתוך ${all}${name ? ` · ${name}` : ''}`;
+          const banner = $('#impBusy');
+          if (banner) banner.textContent = impState.busy;
+        } : null,
+        breathe: heavy ? impBreathe : null,
+      },
+    );
+    impState.stage = 'review';
+  } catch (err) {
+    impState.error = `הניתוח נכשל: ${err.message}`;
+  } finally {
+    impAnalyzing = false;
+    impState.busy = '';
+    renderImportView();
+  }
 }
 
 async function impApply() {
@@ -2773,9 +2822,16 @@ async function impApply() {
   try {
     status('שומר את הנתונים…');
     for (const studio of built.studios) await store.saveStudio(studio);
+    let saved = 0;
     for (const trainee of built.trainees) {
       const res = await store.saveTrainee(trainee);
       if (res && res.ok === false) log('ייבוא', `${esc(trainee.name)}: ${(res.errors || []).join(', ')}`);
+      saved++;
+      // שמירה של מאה מתאמנים אורכת זמן; בלי סימן חיים המסך נראה תקוע
+      if (built.trainees.length > 10 && saved % 5 === 0) {
+        status(`שומר… ${saved} מתוך ${built.trainees.length}`);
+        await impBreathe();
+      }
     }
     if (built.snapshots.length) await store.importSnapshots(built.snapshots);
     await store.load();
@@ -2926,13 +2982,14 @@ function wireImport() {
   });
 
   on('#impAnalyze', 'click', impAnalyze);
+  on('#impMoreCards', 'click', () => { impState.cardLimit += 24; renderImportView(); });
   on('#impBack', 'click', () => { impState.stage = 'source'; renderImportView(); });
   on('#impApply', 'click', impApply);
   on('#impGoTrainees', 'click', () => setView('trainees'));
   on('#impClear', 'click', () => {
     Object.assign(impState, {
       stage: 'source', sheets: [], analysis: null, roleOverrides: {}, columnOverrides: {},
-      result: null, preview: null, previewKey: null, error: '',
+      result: null, preview: null, previewKey: null, error: '', cardLimit: 12,
     });
     renderImportView();
   });

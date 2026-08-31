@@ -18,11 +18,14 @@ import {
 } from '../src/domain/sheets/table.js';
 import { shIsZip, shReadXlsx } from '../src/domain/sheets/xlsx.js';
 import { shReadFile } from '../src/domain/sheets/read.js';
+import { shAnalyzeWorkbookAsync } from '../src/domain/sheets/build.js';
 import { shParseAny, shParseHtmlTables, shParseJsonRows } from '../src/domain/sheets/table.js';
 import { shFixHeaderless, shMapColumns } from '../src/domain/sheets/columns.js';
 import { shClassifyTable } from '../src/domain/sheets/classify.js';
 import { shAnalyzeWorkbook, shBuildImport } from '../src/domain/sheets/build.js';
-import { constraintCandidates, equipmentCandidates, exerciseCandidates } from '../src/domain/sheets/vocab.js';
+import {
+  constraintCandidates, equipmentCandidates, exerciseCandidates, HEADER_TERMS, shCandidates,
+} from '../src/domain/sheets/vocab.js';
 import { shGvizToMatrix, shGvizUrl, shParseSheetUrl } from '../src/domain/sheets/google.js';
 import {
   SH_PROGRAM_COLUMNS, shProgramFileName, shProgramRows, shProgramsRows, shToCsv, shToTsv,
@@ -1029,4 +1032,67 @@ test('כל הדרכים מגיעות לאותו סטודיו: הדבקה, HTML �
   assert.deepEqual(csv, [['רון כהן', 34], ['דנה לוי', 28]]);
   assert.deepEqual(html, csv);
   assert.deepEqual(json, csv);
+});
+
+/* ==================================================================
+   גיליון גדול: לשונית לכל מתאמן
+
+   סטודיו שמנהל לכל מתאמן לשונית משלו מגיע עם מאה לשוניות ואלף שורות בכל
+   אחת. הבדיקות כאן שומרות על שני דברים: שהניתוח נשאר בסדר גודל של שניות
+   ולא של דקות, ושאפשר לנתח אותו בהפוגות בלי להקפיא את המסך.
+   ================================================================== */
+
+const bigWorkbook = (tabs, rowsPer) => {
+  const ex = ['לחיצת חזה', 'סקוואט', 'מתח', 'חתירה', 'לחיצת כתפיים', 'דדליפט'];
+  const first = ['מיקה', 'שי', 'יהוא', 'אילן', 'נועה', 'לודה', 'אריאל', 'יהב', 'נבו', 'אורי'];
+  const last = ['מנדל', 'דמתי', 'כהן', 'אפרים', 'קרן', 'שפירא', 'בוגרוב', 'סימנה', 'שלוש', 'לוי'];
+  const names = [];
+  for (const f of first) for (const l of last) names.push(`${f} ${l}`);
+  return names.slice(0, tabs).map((name) => ({
+    name,
+    rows: [['תרגיל', 'סטים', 'חזרות', 'משקל'],
+      ...Array.from({ length: rowsPer }, (_, i) => [ex[i % ex.length], '3', '10', '40'])],
+  }));
+};
+
+test('גיליון של 60 לשוניות ואלף שורות מנותח בזמן סביר', () => {
+  const started = Date.now();
+  const analysis = shAnalyzeWorkbook(bigWorkbook(60, 1000));
+  const elapsed = Date.now() - started;
+  assert.equal(analysis.sheets.length, 60);
+  assert.ok(analysis.sheets.every((s) => s.role === 'programs'), 'כל לשונית היא תכנית של מתאמן');
+  // לפני המטמון זה לקח דקות, והדפדפן הציע לסגור את הדף
+  assert.ok(elapsed < 20000, `הניתוח לקח ${elapsed}ms`);
+});
+
+test('כל לשונית הופכת למתאמן עם התכנית שלו, בלי לאבד אף אחד', () => {
+  const built = shBuildImport(shAnalyzeWorkbook(bigWorkbook(40, 50)), { studioName: 'ס' });
+  assert.equal(built.trainees.length, 40);
+  assert.equal(built.snapshots.length, 40);
+  assert.equal(new Set(built.trainees.map((t) => t.id)).size, 40, 'מזהים ייחודיים');
+});
+
+test('הניתוח בהפוגות מחזיר בדיוק את אותה תוצאה, ומדווח התקדמות', async () => {
+  const sheets = bigWorkbook(6, 20);
+  const sync = shAnalyzeWorkbook(sheets);
+  const steps = [];
+  let breathed = 0;
+  const async = await shAnalyzeWorkbookAsync(sheets, {
+    onProgress: (done, total) => steps.push([done, total]),
+    breathe: () => { breathed++; return Promise.resolve(); },
+  });
+  assert.deepEqual(async.counts, sync.counts);
+  assert.deepEqual(async.sheets.map((s) => [s.name, s.role]), sync.sheets.map((s) => [s.name, s.role]));
+  assert.deepEqual(steps.at(-1), [6, 6]);
+  assert.equal(breathed, 6);
+});
+
+test('אותה השוואה חוזרת מחזירה את אותה תשובה גם דרך המטמון', () => {
+  const a = shMatch('לחיצת חזה במוט', exerciseCandidates(), { min: 0.66 });
+  const b = shMatch('לחיצת חזה במוט', exerciseCandidates(), { min: 0.66 });
+  assert.deepEqual(a, b);
+  // סף אחר הוא שאלה אחרת, ואסור שהמטמון יחזיר עליה את התשובה הקודמת
+  const strict = shMatch('לחיצת חזה במוט', exerciseCandidates(), { min: 0.999 });
+  assert.ok(!strict || strict.score >= 0.999);
+  assert.equal(shCandidates(HEADER_TERMS), shCandidates(HEADER_TERMS), 'רשימת מועמדים נבנית פעם אחת');
 });

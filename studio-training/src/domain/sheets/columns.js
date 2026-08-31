@@ -100,13 +100,24 @@ const ROLE_BIAS = {
 
 const HEADER_CANDIDATES = shCandidates(HEADER_TERMS);
 
-/** כמה מהערכים בעמודה עומדים במבחן של שדה מסוים. */
-function valueFit(values, field) {
+/**
+ * כמה מהערכים בעמודה עומדים במבחן של שדה מסוים.
+ * כשידוע מראש שרק חצייה של סף מעניינת, אפשר להפסיק ברגע שהסף כבר אינו
+ * בר-השגה: מבחן של תרגיל או ציוד סורק מאות מונחים לכל ערך, ובגיליון גדול
+ * זה ההבדל בין ניתוח מהיר לבין דף שנתקע.
+ */
+function valueFit(values, field, floor = 0) {
   const test = VALUE_TESTS[field];
   if (!test || !values.length) return 0;
+  const total = values.length;
+  const allowedMisses = floor > 0 ? Math.floor(total * (1 - floor)) : Infinity;
   let hit = 0;
-  for (const v of values) { try { if (test(v)) hit++; } catch { /* ערך משונה — לא נחשב */ } }
-  return hit / values.length;
+  let miss = 0;
+  for (const v of values) {
+    try { if (test(v)) hit++; else miss++; } catch { miss++; }
+    if (miss > allowedMisses) return hit / total;
+  }
+  return hit / total;
 }
 
 /**
@@ -123,8 +134,9 @@ export function shMapColumns(table, { role = null, sample = 40 } = {}) {
 
     for (const field of Object.keys(VALUE_TESTS)) {
       const byHeader = headerHit && headerHit.key === field ? headerHit.score : 0;
-      const byValue = valueFit(values, field);
       if (!byHeader && NEEDS_HEADER.has(field)) continue;
+      // בלי כותרת תומכת נדרשת חצייה של 0.6, ולכן אין טעם למדוד מתחתיה
+      const byValue = valueFit(values, field, byHeader ? 0 : 0.6);
       if (!byHeader && byValue < 0.6) continue;
       const score = byHeader * 3 + byValue * 2 + (bias[field] || 0);
       if (score > 0.9) scores.push({ field, score: +score.toFixed(3), byHeader: +byHeader.toFixed(2), byValue: +byValue.toFixed(2) });
@@ -195,7 +207,7 @@ export function shFixHeaderless(table) {
     if (!values.length) return;
     for (const field of Object.keys(VALUE_TESTS)) {
       if (NEEDS_HEADER.has(field)) continue;
-      if (valueFit(values, field) >= 0.7 && valueFit([cell], field) === 1) { dataLike++; return; }
+      if (valueFit(values, field, 0.7) >= 0.7 && valueFit([cell], field) === 1) { dataLike++; return; }
     }
   });
 
