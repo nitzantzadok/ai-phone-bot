@@ -244,8 +244,17 @@ const routes = {
    */
   'POST /api/studios': async (body, _url, ctx) => {
     if (!body.name) throw new Error('חובה למלא שם סטודיו');
-    const id = body.id || slug(body.name);
-    // עדכון סטודיו קיים מותר רק לבעליו; מזהה שתפוס בחשבון אחר נחסם
+    let id = body.id || slug(body.name);
+    /*
+     * שני סטודיואים שונים יכולים להיקרא אותו דבר — "סטודיו הכוח" אינו שם
+     * ייחודי בעולם. כשהשם תפוס בחשבון אחר נגזר מזהה חדש במקום לחסום את
+     * ההרשמה: השם הוא של המאמן, המזהה הוא של המערכת. מזהה שנשלח במפורש
+     * ושייך לחשבון אחר עדיין נחסם — זו כבר בקשה לגעת בנתונים של מישהו אחר.
+     */
+    if (!body.id) {
+      const taken = () => db.getStudio(id) && !db.ownsStudio(ctx.account.id, id);
+      for (let n = 0; taken() && n < 50; n++) id = `${slug(body.name)}_${Math.random().toString(36).slice(2, 6)}`;
+    }
     if (db.getStudio(id) && !db.ownsStudio(ctx.account.id, id)) {
       throw new Error('המזהה הזה כבר בשימוש. בחר שם אחר לסטודיו.');
     }

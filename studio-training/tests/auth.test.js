@@ -455,3 +455,34 @@ test('מחיקת מתאמן מוחקת גם את הארכיון שלו ולא ש
   assert.equal((await gymA.get(`/api/history?traineeId=${a.body.id}`)).status, 404, 'אין יותר היסטוריה למי שנמחק');
   assert.ok((await gymA.get(`/api/history?traineeId=${b.body.id}`)).body.programs.length >= 1, 'הארכיון של האחר נשאר');
 });
+
+test('שני חשבונות יכולים לקרוא לסטודיו שלהם באותו שם', async () => {
+  const a = client();
+  const b = client();
+  await a.call('POST', '/api/auth/register', { username: 'same-name-a', password: 'sod123456', studioName: 'א' });
+  await b.call('POST', '/api/auth/register', { username: 'same-name-b', password: 'sod123456', studioName: 'ב' });
+
+  const first = await a.call('POST', '/api/studios', { name: 'סטודיו הכוח', equipment: ['dumbbell'] });
+  const second = await b.call('POST', '/api/studios', { name: 'סטודיו הכוח', equipment: ['dumbbell'] });
+  assert.equal(first.body.ok, true);
+  assert.equal(second.body.ok, true, `נחסם: ${second.body.error}`);
+  assert.notEqual(first.body.id, second.body.id, 'שני החשבונות קיבלו את אותו מזהה');
+
+  // וכל אחד רואה רק את שלו
+  const listA = await a.get('/api/studios');
+  const listB = await b.get('/api/studios');
+  assert.ok(listA.body.some((s) => s.id === first.body.id));
+  assert.ok(!listA.body.some((s) => s.id === second.body.id));
+  assert.ok(listB.body.some((s) => s.id === second.body.id));
+  assert.ok(!listB.body.some((s) => s.id === first.body.id));
+});
+
+test('מזהה של סטודיו אחר שנשלח במפורש עדיין נחסם', async () => {
+  const a = client();
+  const b = client();
+  await a.call('POST', '/api/auth/register', { username: 'idsteal-a', password: 'sod123456', studioName: 'א' });
+  await b.call('POST', '/api/auth/register', { username: 'idsteal-b', password: 'sod123456', studioName: 'ב' });
+  const mine = await a.call('POST', '/api/studios', { name: 'סטודיו פרטי', equipment: ['dumbbell'] });
+  const attempt = await b.call('POST', '/api/studios', { id: mine.body.id, name: 'גניבה', equipment: [] });
+  assert.notEqual(attempt.body.ok, true);
+});
