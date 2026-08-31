@@ -16,6 +16,7 @@ import { GOALS, LEVELS } from '../taxonomy.js';
 import { shClassifyTable, shSheetPersonName } from './classify.js';
 import { shKeyValueTable, shSplitBlocks, shToTable } from './table.js';
 import { shPersonCheck } from './person.js';
+import { inferTraineeProfile } from '../inference.js';
 import { shCell, shFixHeaderless, shMapColumns } from './columns.js';
 import {
   shBool, shDate, shEmpty, shMatch, shMatchAll, shMatchPhrase, shNorm, shNum, shPhone, shEmail,
@@ -954,6 +955,68 @@ export function shBuildImport(analysis, {
   });
 
   /*
+   * מה שהתכניות הקודמות מספרות על המתאמן.
+   *
+   * זה הרווח האמיתי מייבוא: לא רק להעביר שמות, אלא לקרוא את מה שהמתאמן
+   * כבר עשה. תרגילים, משקלים וסטים מלמדים על הרמה, על הוותק, על התרגילים
+   * הטכניים שהוא כבר מבצע ועל משקלי העבודה שלו — וכל אלה נכנסים לכרטיס
+   * במקום להישאר כטבלה שאיש לא קורא.
+   */
+  const learned = [];
+  for (const t of trainees) {
+    const own = snapshots.filter((s) => s.traineeId === t.id).map((s) => s.program);
+    const ownLogs = t.sessionLog || [];
+    if (!own.length && !ownLogs.length && !Object.keys(t.history || {}).length) continue;
+
+    const profile = inferTraineeProfile(t, { programs: own, logs: ownLogs });
+    if (profile.level.confidence === 'none') continue;
+
+    t.level = profile.level.label;
+    t.levelSource = 'inferred';
+    t.levelConfidence = profile.level.confidence;
+    t.levelReasons = profile.level.reasons;
+    if (profile.trainingAgeMonths) t.trainingAgeMonths = profile.trainingAgeMonths;
+    if (profile.knownMovements.length) t.knownMovements = profile.knownMovements;
+    if (Object.keys(profile.history).length) t.history = { ...profile.history, ...(t.history || {}) };
+    if (profile.daysPerWeek && t.daysPerWeek === undefined) t.daysPerWeek = profile.daysPerWeek;
+    learned.push({ name: t.name, level: t.level, confidence: profile.level.confidence, reasons: profile.level.reasons });
+  }
+  if (learned.length) {
+    warnings.push(`ל-${learned.length} מתאמנים נלמדה הרמה מהתכניות והמשקלים שבגיליון `
+      + '— הפירוט מופיע ברשימה למטה, ואפשר לשנות כל רמה ידנית בכרטיס המתאמן.');
+    /*
+     * כוח יחסי הוא הראיה החזקה ביותר, והוא דורש משקל גוף. כשהוא חסר
+     * ההערכה נשענת על משקלים מוחלטים — וזה בדיוק המקום לומר למאמן שהשלמה
+     * של נתון אחד תשפר את כל התכניות של האנשים האלה.
+     */
+    const noWeight = learned.filter((l) => !trainees.find((t) => t.name === l.name)?.weightKg);
+    if (noWeight.length) {
+      warnings.push(`ל-${noWeight.length} מתאמנים אין משקל גוף בגיליון, ולכן הרמה שלהם הוערכה `
+        + 'לפי משקלי עבודה מוחלטים בלבד. השלמת משקל הגוף (בכרטיס המתאמן או בעמודה בגיליון) '
+        + 'הופכת את ההערכה למדויקת.');
+    }
+  }
+
+  /*
+   * ציוד שנלמד מהתרגילים: סטודיו שאין לו לשונית ציוד עדיין מגלה את עצמו
+   * דרך התכניות. מי שרשם ללקוחות לחיצת רגליים — יש לו מכונת לחיצת רגליים.
+   */
+  if (!studios[0].equipment.length) {
+    const seen = new Map();
+    for (const t of trainees) {
+      const own = snapshots.filter((s) => s.traineeId === t.id).map((s) => s.program);
+      for (const item of inferTraineeProfile(t, { programs: own }).equipmentSeen) {
+        seen.set(item, (seen.get(item) || 0) + 1);
+      }
+    }
+    if (seen.size) {
+      studios[0].equipment = [...seen.keys()].map((item) => ({ item, count: 1 }));
+      warnings.push(`לא נמצאה לשונית ציוד, ולכן ${seen.size} פריטי ציוד זוהו מתוך התרגילים שבתכניות. `
+        + 'כדאי לעבור על הרשימה במסך הסטודיו ולהשלים כמויות ומשקלים.');
+    }
+  }
+
+  /*
    * סניף בלי לשונית ציוד משלו מקבל את הציוד של הסטודיו הראשי.
    * זו ההתנהגות הנכונה כמעט תמיד: רשת כותבת רשימת ציוד אחת. סניף שבאמת
    * שונה נערך אחר כך במסך הסטודיו, וההודעה בדוח אומרת זאת במפורש.
@@ -1006,6 +1069,7 @@ export function shBuildImport(analysis, {
         customExercises: ctx.customExercises.size,
       },
       rejectedNames: ctx.rejected.slice(0, 40),
+      learned,
       unmatched: {
         equipment: [...ctx.unmatched.equipment].slice(0, 40),
         exercises: [...ctx.unmatched.exercises].slice(0, 40),

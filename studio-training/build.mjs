@@ -26,6 +26,7 @@ const MODULES = [
   'src/domain/descriptions.js',
   'src/domain/exercises.js',
   'src/domain/constraints.js',
+  'src/domain/inference.js',
   // ייבוא מגיליון: תלוי בטקסונומיה, בתוויות, בתרגילים ובמגבלות — ולכן אחריהם
   'src/domain/sheets/text.js',
   'src/domain/sheets/vocab.js',
@@ -54,11 +55,34 @@ const MODULES = [
   'src/seed.js',
 ];
 
+/**
+ * שמות שמוגדרים ברמה העליונה של כל מודול.
+ *
+ * הבנייה מדביקה את כל המודולים לקובץ אחד, ולכן שני מודולים שהגדירו
+ * `const label` שוברים את הדף כולו — ולא בבנייה אלא בדפדפן, בשקט, אחרי
+ * שהכול כבר עלה. הבדיקה הזאת הופכת את זה לשגיאת בנייה.
+ */
+function topLevelNames(source) {
+  const names = [];
+  const re = /^(?:export\s+)?(?:async\s+)?(const|let|var|function\*?|class)\s+([A-Za-z_$][\w$]*)/gm;
+  let m;
+  while ((m = re.exec(source))) names.push(m[2]);
+  return names;
+}
+
 /** הופך מודול ES לקטע קוד שטוח: בלי import, בלי export, בלי בלוקי CLI. */
 function flatten(source, file) {
   let out = source;
 
-  // 1. ייבוא — בכל צורותיו
+  /*
+   * 1. ייבוא — בכל צורותיו.
+   *
+   * שינוי שם בייבוא (`import { X as Y }`) נשבר כאן בשקט: ההצהרה נמחקת,
+   * והשם החדש פשוט אינו קיים בקובץ המאוחד. השגיאה מתגלה רק בדפדפן, בזמן
+   * ריצה, בתוך try שבולע אותה. לכן היא נעצרת כאן.
+   */
+  const aliased = source.match(/^import\s*\{[^}]*\bas\b[^}]*\}\s*from/m);
+  if (aliased) throw new Error(`ייבוא עם שינוי שם אינו נתמך בבנייה לקובץ אחד (${file}): ${aliased[0]}`);
   out = out.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?[ \t]*$/gm, '');
   out = out.replace(/^import\s+['"][^'"]+['"];?[ \t]*$/gm, '');
 
@@ -81,9 +105,22 @@ function flatten(source, file) {
   return `\n/* ===== ${file} ===== */\n${out.trim()}\n`;
 }
 
-const engine = MODULES
-  .map((f) => flatten(fs.readFileSync(path.join(HERE, f), 'utf8'), f))
-  .join('\n');
+const pieces = MODULES.map((f) => ({ file: f, code: flatten(fs.readFileSync(path.join(HERE, f), 'utf8'), f) }));
+
+// שם שמוגדר פעמיים ברמה העליונה שובר את הדף כולו בזמן ריצה — נעצר כאן
+const seen = new Map();
+const clashes = [];
+for (const { file, code } of pieces) {
+  for (const name of topLevelNames(code)) {
+    if (seen.has(name) && seen.get(name) !== file) clashes.push(`${name} — ${seen.get(name)} וגם ${file}`);
+    else seen.set(name, file);
+  }
+}
+if (clashes.length) {
+  throw new Error(`שמות שמוגדרים פעמיים אחרי האיחוד:\n  ${clashes.join('\n  ')}`);
+}
+
+const engine = pieces.map((p) => p.code).join('\n');
 
 const template = fs.readFileSync(path.join(HERE, 'src/web/app.html'), 'utf8');
 if (!template.includes('/*ENGINE*/')) throw new Error('התבנית חסרה את הסמן /*ENGINE*/');

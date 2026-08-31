@@ -110,6 +110,71 @@ export function strengthByPattern(trainee, byId = {}) {
 }
 
 /**
+ * משקלי עבודה מוחלטים (ק"ג) שמעידים על רמה, כשמשקל הגוף אינו ידוע.
+ *
+ * כוח יחסי מדויק בהרבה, אבל בלי משקל גוף אי אפשר לחשב אותו — ובגיליון של
+ * סטודיו אמיתי העמודה הזאת חסרה לעתים קרובות. הספים כאן גסים בכוונה,
+ * והם משמשים רק כדי *להעלות* רמה: מי שמרים 100 ק"ג בסקוואט אינו מתחיל,
+ * גם אם איננו יודעים כמה הוא שוקל. הם לעולם אינם מורידים רמה.
+ */
+export const ABSOLUTE_LOAD_BANDS = {
+  squat: [20, 50, 90, 140],
+  hinge: [30, 60, 110, 170],
+  horizontal_push: [20, 40, 70, 100],
+  vertical_push: [10, 25, 45, 65],
+  horizontal_pull: [15, 35, 60, 90],
+  vertical_pull: [15, 30, 55, 80],
+  lunge: [8, 20, 35, 55],
+};
+
+/** הרמה שמשקל מוחלט מעיד עליה בדפוס מסוים, בלי משקל גוף. */
+export function levelFromAbsoluteLoad(pattern, loadKg) {
+  const band = ABSOLUTE_LOAD_BANDS[pattern];
+  if (!band || !loadKg) return null;
+  let i = -1;
+  for (let n = 0; n < band.length; n++) if (loadKg >= band[n]) i = n;
+  return i >= 0 ? i : null;
+}
+
+/** רמה מינימלית שמעידה עליה מיומנות התרגיל שבוצע. */
+export const SKILL_TO_LEVEL = { 1: 0, 2: 0, 3: 1, 4: 2, 5: 3 };
+
+/**
+ * הרמה שהתרגילים עצמם מעידים עליה.
+ *
+ * תרגיל טכני שהמתאמן מבצע הוא ראיה בפני עצמה: אף מאמן לא רושם דדליפט
+ * למי שלא מסוגל לבצע אותו, ואי אפשר לעשות מתח בלי שנים של בסיס. לרמה
+ * הגבוהה ביותר נדרשים שני תרגילים כאלה — אחד יכול להיות ניסיון חד-פעמי.
+ */
+export function levelFromMovements(exercises) {
+  const list = exercises.filter(Boolean);
+  if (!list.length) return null;
+  const skills = list.map((ex) => ex.skill ?? 1);
+  const top = Math.max(...skills);
+  const technical = skills.filter((s) => s >= 3).length;
+  const hard = skills.filter((s) => s >= 4).length;
+  const elite = skills.filter((s) => s >= 5).length;
+
+  /*
+   * תרגיל טכני בודד אינו רפרטואר.
+   *
+   * סקוואט מוט לבדו יכול להיות מה שהמאמן התחיל ללמד השבוע; שני תרגילים
+   * ברמת מיומנות 4 ומעלה הם כבר שגרה של מי שיודע לזוז. הסולם כאן מכוון
+   * להיות שמרני: הוא מרים רמה, ולכן טעות בו נותנת למישהו תרגיל שהוא לא
+   * מוכן אליו — וזה בדיוק מה שאסור.
+   */
+  let level = 0;
+  if (technical >= 1) level = 1;
+  if (hard >= 2) level = 2;
+  if (elite >= 2) level = 3;
+  if (level <= 0) return null;
+
+  const examples = [...new Set(list.filter((ex) => (ex.skill ?? 1) >= Math.min(top, 3))
+    .sort((a, b) => (b.skill ?? 1) - (a.skill ?? 1)).map((ex) => ex.name))].slice(0, 3);
+  return { level, skill: top, technical, examples };
+}
+
+/**
  * הרמה המיושבת: מה שהמתאמן הצהיר, מוגבל בוותק, ומורם לפי מה שהוכח.
  *
  * סדר ההכרעה מכוון: ראיה אובייקטיבית מנצחת הצהרה, והצהרה מנצחת ניחוש.
@@ -128,30 +193,87 @@ export function resolveLevel(trainee, byId = {}) {
     reasons.push(`הוצהר «${he(claimed)}» אך הוותק ${months} חודשים — נלקחה רמת «${he(capped)}».`);
   }
 
-  // 2. ראיה מהשטח: הכוח היחסי שנרשם בפועל
+  /*
+   * 2. הראיות מהשטח.
+   *
+   * שלוש ראיות בלתי תלויות, וכולן נאספות לפני שמחליטים משהו: הכוח היחסי
+   * שנרשם, התרגילים שהמתאמן מבצע בפועל, והמשקלים המוחלטים כשאין משקל גוף.
+   * ההכרעה נעשית פעם אחת, בסוף — אחרת ההסבר למאמן סותר את עצמו ("הורדנו"
+   * ומיד "העלינו"), וגם מי שקורא אותו לא יודע מה באמת נקבע.
+   */
   const byPattern = strengthByPattern(trainee, byId);
   const proven = Object.values(byPattern).map((x) => x.index);
-  let resolved = capped;
+  const sortedProven = proven.slice().sort((a, b) => a - b);
+  const strengthLevel = proven.length >= 2 ? sortedProven[Math.floor(sortedProven.length / 2)] : null;
 
-  if (proven.length >= 2) {
-    /*
-     * החציון, לא המקסימום, ורק משני דפוסים ומעלה: אדם עם סקוואט חזק
-     * ולחיצה חלשה אינו מתקדם — הוא אדם עם סקוואט חזק. העלאת רמה על סמך
-     * תרגיל בודד הייתה מכניסה לו תרגילים שהוא לא מוכן אליהם בשאר הגוף.
-     */
-    const sorted = proven.slice().sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
-    if (median > resolved) {
-      resolved = median;
-      reasons.push(`המשקלים שנרשמו מוכיחים רמת «${he(median)}» — הרמה הועלתה בהתאם.`);
-    } else if (median < resolved && proven.length >= 3) {
-      // ראיה רחבה שסותרת כלפי מטה מורידה רק דרגה אחת, ובזהירות
-      resolved = Math.max(median, resolved - 1);
-      reasons.push(`המשקלים שנרשמו נמוכים מהמצופה לרמה שהוצהרה — הרמה הותאמה כלפי מטה.`);
+  // תרגילים שהמתאמן מבצע: ההצהרה של המאמן בשטח על מה שהוא מסוגל לו
+  const performedIds = [...new Set([
+    ...(trainee.knownMovements || []),
+    ...Object.keys(trainee.history || {}),
+  ])];
+  const performed = performedIds.map((id) => byId[id]).filter(Boolean);
+  const byMovement = levelFromMovements(performed);
+
+  // משקלים מוחלטים — רק כשאין משקל גוף, ורק כדי להעלות
+  let absoluteLevel = null;
+  if (!trainee.weightKg) {
+    const abs = [];
+    for (const [exId, rec] of Object.entries(trainee.history || {})) {
+      const ex = byId[exId];
+      const load = rec?.load ?? rec?.loadKg ?? null;
+      if (!ex || !load) continue;
+      const lvl = levelFromAbsoluteLoad(ex.pattern, rec.perSide ? load * 2 : load);
+      if (lvl !== null) abs.push(lvl);
     }
+    if (abs.length >= 2) {
+      const sortedAbs = abs.slice().sort((a, b) => a - b);
+      absoluteLevel = sortedAbs[Math.floor(sortedAbs.length / 2)];
+    }
+  }
+
+  /*
+   * ההכרעה: הראיה הגבוהה ביותר קובעת.
+   *
+   * ראיות אינן סותרות זו את זו — הן חלקיות. מי שמבצע מתח וסקוואט מוט אך
+   * מרים משקל בינוני הוא מתאמן מנוסה שעדיין לא העמיס, ולא מתחיל. הורדת
+   * רמה נעשית רק כשהראיה רחבה (שלושה דפוסים) *ואין* ראיה אחרת שמושכת
+   * למעלה — אחרת היינו מורידים אדם בגלל מה שלא נרשם.
+   */
+  let resolved = capped;
+  const raisedBy = [];
+
+  if (strengthLevel !== null && strengthLevel > resolved) {
+    resolved = strengthLevel;
+    raisedBy.push('המשקלים היחסיים שנרשמו');
+  }
+  if (byMovement && byMovement.level > resolved) {
+    resolved = byMovement.level;
+    raisedBy.push(`ביצוע ${byMovement.examples.join(', ')}`);
+  }
+  if (absoluteLevel !== null && absoluteLevel > resolved) {
+    resolved = absoluteLevel;
+    raisedBy.push('משקלי העבודה שנרשמו (בלי משקל גוף — הערכה גסה)');
+  }
+
+  if (raisedBy.length) {
+    reasons.push(`הרמה הועלתה ל«${he(resolved)}» לפי ${raisedBy.join('; ')}.`);
+  } else if (strengthLevel !== null && strengthLevel < resolved && proven.length >= 3
+      && !(byMovement && byMovement.level >= resolved)) {
+    resolved = Math.max(strengthLevel, resolved - 1);
+    reasons.push(`המשקלים שנרשמו בשלושה דפוסים נמוכים מהמצופה מ«${he(capped)}» — הרמה הותאמה ל«${he(resolved)}».`);
   } else if (proven.length === 1) {
     reasons.push('נרשם משקל בדפוס אחד בלבד — נדרשת ראיה נוספת לפני שינוי רמה.');
-  } else if (months >= TRAINING_AGE_MIN_MONTHS[2] && claimed <= 1) {
+  } else if (byMovement || strengthLevel !== null) {
+    /*
+     * הראיות תואמות את הרמה שנקבעה. גם זה שווה משפט: מאמן שרואה רק שינויים
+     * לא יודע אם המערכת בכלל הסתכלה על הנתונים, ובלי זה הוא לא סומך עליה.
+     */
+    const support = [
+      byMovement ? `מבצע ${byMovement.examples.join(', ')}` : null,
+      strengthLevel !== null ? `כוח יחסי שנרשם ב-${proven.length} דפוסים` : null,
+    ].filter(Boolean);
+    reasons.push(`הרמה «${he(resolved)}» נתמכת במה שנרשם: ${support.join('; ')}.`);
+  } else if (!proven.length && !byMovement && months >= TRAINING_AGE_MIN_MONTHS[2] && claimed <= 1) {
     // ותק ארוך עם הצהרה נמוכה: כנראה צניעות, לא חוסר יכולת
     reasons.push('ותק ארוך עם הצהרה נמוכה — יש לאמת בשטח; בינתיים נשמרת ההצהרה.');
   }
@@ -162,7 +284,13 @@ export function resolveLevel(trainee, byId = {}) {
     claimed: LEVEL_ORDER[claimed],
     cappedByAge: capped < claimed,
     /** ביטחון נמוך = הרמה נשענת על הצהרה בלבד ולא על נתונים. */
-    confidence: proven.length >= 3 ? 'high' : (proven.length ? 'medium' : 'low'),
+    /*
+     * ביטחון: כוח יחסי בשלושה דפוסים הוא הראיה החזקה ביותר; היסטוריה
+     * רחבה או תרגילים טכניים שבוצעו הם ראיה טובה; הצהרה לבדה היא ניחוש.
+     */
+    confidence: proven.length >= 3 ? 'high'
+      : (proven.length >= 1 || byMovement || Object.keys(trainee.history || {}).length >= 3
+        ? 'medium' : 'low'),
     byPattern,
     reasons,
   };

@@ -2738,6 +2738,7 @@ function importReviewHtml() {
     ${preview.warnings.length ? `<div class="card"><fieldset><legend>לתשומת לבך</legend>
       <ul class="notecard">${preview.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></fieldset></div>` : ''}
 
+    ${importLearnedHtml(preview.learned)}
     ${importRejectedHtml(preview.rejectedNames)}
     ${importUnmatchedHtml(preview.unmatched)}
 
@@ -2786,6 +2787,29 @@ function importSheetCard(sheet, si) {
         </div>`}
       </fieldset>
     </div>`;
+}
+
+/**
+ * מה המערכת למדה מהתכניות שבגיליון.
+ *
+ * זה החלק שהמאמן הכי צריך לראות לפני שהוא מאשר: הרמה של כל מתאמן נקבעה
+ * לפי מה שכתוב אצלו בגיליון, והנימוק מוצג לצדה. אם משהו כאן נראה לא נכון,
+ * זה הרגע לתקן — ואחרי הייבוא אפשר לשנות כל רמה בכרטיס המתאמן.
+ */
+function importLearnedHtml(learned) {
+  if (!learned || !learned.length) return '';
+  const CONF = { high: 'ביטחון גבוה', medium: 'ביטחון בינוני', low: 'ביטחון נמוך' };
+  return `<div class="card"><fieldset><legend>מה למדנו על המתאמנים</legend>
+    <p class="hint">הרמה נקבעה לפי התרגילים והמשקלים שרשומים בגיליון — לא לפי מה שהוצהר.
+       כך התכנית הראשונה כבר מתאימה למי שהמתאמן באמת.</p>
+    <table class="imp-map"><tbody>
+      ${learned.map((l) => `<tr>
+        <td><b>${esc(l.name)}</b></td>
+        <td>${esc(levelLabel(l.level))}<br><span class="muted">${esc(CONF[l.confidence] || '')}</span></td>
+        <td>${(l.reasons || []).map((r) => esc(r)).join('<br>')}</td>
+      </tr>`).join('')}
+    </tbody></table>
+  </fieldset></div>`;
 }
 
 /**
@@ -3373,6 +3397,8 @@ function renderTraineesView() {
                 title="לחיצה משנה סטטוס">${isActive(t) ? 'פעיל' : 'לא פעיל'}</button>
         <span class="chip">${esc(studioById(t.homeStudioId || t.studioId)?.name || t.studioId)}</span>
         <span class="chip">${esc(GOAL_PROFILES[t.primaryGoal]?.label || t.primaryGoal || '')}</span>
+        <span class="chip${t.levelSource === 'inferred' ? ' key' : ''}"
+              title="${esc((t.levelReasons || []).join(' · ') || 'רמה שהוזנה ידנית')}">${esc(levelLabel(t.level || 'beginner'))}${t.levelSource === 'inferred' ? ' · נלמד' : ''}</span>
         ${(t.trainingStyles || []).map((k) => `<span class="chip">${esc(TRAINING_STYLE_LABELS[k] || k)}</span>`).join('')}
         ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
         <span class="chip${hasFreshProgram(t) ? ' ok' : ''}">${esc(agoLabel(lastProgramAt(t.id)))}</span>
@@ -3545,6 +3571,7 @@ function traineeListToolbarHtml() {
       <span class="hint">${pickedHere.length ? `${pickedHere.length} נבחרו` : 'בחירה מרובה'}</span>
       ${pickedHere.length ? `
         <span class="grow"></span>
+        <button data-bulk="learn">למד רמה מההיסטוריה</button>
         <button data-bulk="active">סמן כפעילים</button>
         <button data-bulk="inactive">סמן כלא פעילים</button>
         <button class="danger" data-bulk="delete">מחיקת ${pickedHere.length} מתאמנים</button>` : ''}
@@ -3607,11 +3634,56 @@ async function toggleTraineeActive(id) {
   renderTraineesView();
 }
 
+/**
+ * לימוד הפרופיל מההיסטוריה שכבר קיימת במערכת.
+ *
+ * ייבוא לומד את הרמה מהתכניות שבגיליון, אבל מתאמן צובר היסטוריה גם אחר
+ * כך — רישומי סטים, משקלים ותכניות שנבנו. הכפתור הזה מריץ את אותו לימוד
+ * על מה שיש עכשיו, כדי שהרמה לא תישאר תקועה על מה שהיה נכון פעם.
+ */
+async function learnProfiles(ids) {
+  const changed = [];
+  status(`לומד ${ids.length} מתאמנים…`);
+  for (const id of ids) {
+    const raw = traineeById(id);
+    if (!raw) continue;
+    const programs = (state.snapshots || []).filter((s) => s.traineeId === id).map((s) => s.program).filter(Boolean);
+    const logs = (raw.sessionLog || []).filter((e) => e && e.exerciseId);
+    const profile = inferTraineeProfile(normalizeTrainee(raw), { programs, logs });
+    if (profile.level.confidence === 'none') continue;
+
+    const before = raw.level;
+    const next = {
+      ...raw,
+      level: profile.level.label,
+      levelSource: 'inferred',
+      levelConfidence: profile.level.confidence,
+      levelReasons: profile.level.reasons,
+      knownMovements: profile.knownMovements.length ? profile.knownMovements : raw.knownMovements,
+      history: { ...profile.history, ...(raw.history || {}) },
+    };
+    if (profile.trainingAgeMonths) next.trainingAgeMonths = profile.trainingAgeMonths;
+    await store.saveTrainee(next);
+    changed.push({ name: raw.name, before, after: profile.level.label, reasons: profile.level.reasons });
+  }
+  status('');
+  await store.load();
+  const moved = changed.filter((c) => c.before !== c.after);
+  log('לימוד מההיסטוריה', changed.length
+    ? [`נבדקו ${ids.length} מתאמנים · ${moved.length} רמות עודכנו.`,
+      ...changed.slice(0, 20).map((c) => `${esc(c.name)}: ${esc(levelLabel(c.before))} → ${esc(levelLabel(c.after))}${
+        c.before === c.after ? ' (ללא שינוי)' : ''} — ${esc((c.reasons[1] || c.reasons[0] || '').slice(0, 120))}`)]
+    : 'אין עדיין מספיק היסטוריה כדי ללמוד ממנה. משקלים שנרשמים באימון או ייבוא של תכניות קודמות יאפשרו את זה.');
+  flash(moved.length ? `${moved.length} רמות עודכנו לפי ההיסטוריה.` : 'הרמות נבדקו — לא נדרש שינוי.', 'ok');
+  renderTraineesView();
+}
+
 /** פעולה קבוצתית על כל מי שנבחר. */
 async function bulkTrainees(action) {
   const ids = listedTrainees().filter((t) => state.picked.has(t.id)).map((t) => t.id);
   if (!ids.length) return;
   if (action === 'delete') { state.bulkConfirm = true; renderTraineesView(); return; }
+  if (action === 'learn') { await learnProfiles(ids); return; }
 
   const active = action === 'active';
   status(`מעדכן ${ids.length} מתאמנים…`);
