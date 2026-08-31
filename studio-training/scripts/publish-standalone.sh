@@ -133,6 +133,29 @@ jobs:
             exit 1
           fi
 
+      # שגיאת האימות של wrangler מגיעה רק בשלב מאוחר ובניסוח טכני. כאן היא
+      # נבדקת מראש, והתשובה אומרת בדיוק מה לא בסדר ומה לעשות.
+      - name: האסימון תקף?
+        run: |
+          RESP="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            https://api.cloudflare.com/client/v4/user/tokens/verify || true)"
+          if ! printf '%s' "$RESP" | grep -q '"success":true'; then
+            echo "::error::Cloudflare אינו מזהה את האסימון. כמעט תמיד הועתק ערך שגוי (מזהה האסימון במקום הערך עצמו) או שנכנס רווח/שורה נוספת. יוצרים אסימון חדש, מעתיקים מהתיבה שמופיעה מיד אחרי Create Token, ומעדכנים את הסוד."
+            echo "תשובת Cloudflare: $RESP"
+            exit 1
+          fi
+          echo "האסימון תקף."
+
+          if [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            ACC="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID" || true)"
+            if ! printf '%s' "$ACC" | grep -q '"success":true'; then
+              echo "::error::האסימון תקף אבל אין לו גישה לחשבון שהוגדר ב-CLOUDFLARE_ACCOUNT_ID. בעמוד יצירת האסימון, תחת Account Resources, צריך לכלול את החשבון הזה."
+              exit 1
+            fi
+            echo "הגישה לחשבון תקינה."
+          fi
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
