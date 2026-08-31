@@ -57,12 +57,17 @@ jobs:
         with:
           node-version: '22'
 
-      - name: בדיקות
-        run: node --test tests/*.test.js
-
+      # הבנייה קודמת לבדיקות: הפריסה לקצה מגישה את המסך הבנוי, ויש בדיקה
+      # שמוודאת בדיוק את זה
       - name: בנייה
         run: |
           node build.mjs
+
+      - name: בדיקות
+        run: node --test tests/*.test.js
+
+      - name: אריזה לאתר
+        run: |
           mkdir -p _site
           # app.html ולא artifact.html: הראשון הוא מסמך שלם עם doctype
           # ועם תגית viewport. artifact.html הוא תוכן בלבד — המארח של
@@ -93,7 +98,7 @@ YAML
 # ב-GitHub Actions הן ירוצו בכל מקרה לפני הפרסום.
 if command -v node >/dev/null 2>&1; then
   echo "→ מריץ את הבדיקות לפני שדוחפים"
-  if ( cd "$STAGE" && node --test tests/*.test.js >/dev/null 2>&1 ); then
+  if ( cd "$STAGE" && node build.mjs >/dev/null 2>&1 && node --test tests/*.test.js >/dev/null 2>&1 ); then
     echo "   הבדיקות עברו"
   else
     echo "   הבדיקות נכשלו — לא דוחפים" >&2

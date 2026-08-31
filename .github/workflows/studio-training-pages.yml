@@ -33,13 +33,14 @@ jobs:
         with:
           node-version: '22'
 
-      - name: בדיקות
-        working-directory: studio-training
-        run: node --test tests/*.test.js
-
+      # הבנייה קודמת: יש בדיקה שמוודאת שהמסך הבנוי באמת נטען לפונקציה שבקצה
       - name: בנייה
         working-directory: studio-training
         run: node build.mjs
+
+      - name: בדיקות
+        working-directory: studio-training
+        run: node --test tests/*.test.js
 
       - name: הקובץ הבנוי אינו ריק
         working-directory: studio-training
