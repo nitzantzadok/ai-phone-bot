@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
 import { platformById, GOOGLE_GUIDE, type PlatformGuide } from '@autopilot/insights/platforms.ts'
+import { unblockAdvice } from '@autopilot/insights/unblock.ts'
 import type { BusinessSession } from '@/lib/session'
 import { dashboardBudget } from '@/lib/spend'
 import { buildReportView } from '@/lib/report-view'
@@ -121,7 +122,7 @@ export const Dashboard = async ({
           ROBOTS_BLOCKED:
             'קובץ robots.txt באתר שלכם חוסם סורקים — וחוסם באותה מידה את הסורקים של ChatGPT ו-Gemini. זה תיקון של שורה אחת, והוא כמעט תמיד הסיבה היחידה שעסק לא מופיע באף תשובה.',
           BOT_PROTECTION:
-            'ההגנה של האתר (בדרך כלל Cloudflare) זיהתה אותנו כסורק וחסמה. הסורקים של מנועי ה-AI נחסמים בדיוק אותו דבר. בהגדרות ההגנה אפשרו סורקים מאומתים, או הוסיפו חריגה ל-GPTBot, ClaudeBot ו-Google-Extended.',
+            `ההגנה של האתר (בדרך כלל Cloudflare) זיהתה אותנו כסורק וחסמה. הסורקים של מנועי ה-AI נחסמים בדיוק אותו דבר. ${unblockAdvice('he').action}`,
           SITE_ERRORS: 'האתר החזיר שגיאה בכל עמוד שביקשנו. מה שלא נטען עבורנו לא נטען גם עבור מנוע AI.',
           UNREACHABLE: 'לא קיבלנו שום תשובה מהאתר. בדקו את הכתובת ונסו שוב.',
         }
@@ -129,7 +130,7 @@ export const Dashboard = async ({
           ROBOTS_BLOCKED:
             'Your robots.txt blocks crawlers — and blocks the crawlers behind ChatGPT and Gemini just as effectively. It is a one-line fix, and almost always the entire reason a business appears in no answer at all.',
           BOT_PROTECTION:
-            'The site’s protection (usually Cloudflare) recognised us as a crawler and refused. The AI engines’ crawlers are refused identically. Allow verified bots, or add an exception for GPTBot, ClaudeBot and Google-Extended.',
+            `The site’s protection (usually Cloudflare) recognised us as a crawler and refused. The AI engines’ crawlers are refused identically. ${unblockAdvice('en').action}`,
           SITE_ERRORS: 'The site returned an error for every page. What does not load for us does not load for an AI engine either.',
           UNREACHABLE: 'No response came back from the site. Check the address and try again.',
         }

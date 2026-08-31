@@ -358,3 +358,88 @@ describe('a measured item, once it carries its fix guide', () => {
     expect(playbook.items[0]!.reach).toEqual({ questions: 8, of: 24 })
   })
 })
+
+/**
+ * The most valuable finding in the report used to end without an instruction.
+ *
+ * An attribute gap has no `findingType`, so it matched no fix guide and fell to the
+ * fallback: "this needs a decision from you — we show you exactly what we propose before
+ * anything changes." That is a sentence about our process, printed where the instruction
+ * belongs, directly under a finding that had just said four of the twenty-two questions
+ * customers ask are about this exact service.
+ */
+describe('a service the site does not state clearly', () => {
+  const gapOpportunity = (attributeKey: string, ourStrength: number) =>
+    ({
+      dedupeKey: `gap:${attributeKey}`,
+      title: `Your site does not say clearly enough: ${attributeKey}`,
+      explanation: 'The information exists but is not stated clearly enough.',
+      category: 'CONTENT',
+      controllability: 'INFLUENCEABLE',
+      riskTier: 'LOW',
+      businessValue: 1,
+      promptReach: 4,
+      recommendationGap: 1,
+      expectedLift: 0.2,
+      confidence: 0.6,
+      controllabilityFactor: 0.6,
+      estimatedCost: 1,
+      score: 1,
+      evidence: { attributeKey, ourStrength },
+      attributeKey,
+      autoFixable: false,
+      suggestedActionType: null,
+    }) as never
+
+  const itemFor = (attributeKey: string, strength: number, language: 'he' | 'en' = 'he') =>
+    buildPlaybook({
+      vertical: 'dentist',
+      language,
+      opportunities: [gapOpportunity(attributeKey, strength)],
+      monitoredQuestions: 22,
+    }).items.find((i) => i.kind === 'MEASURED')!
+
+  it('tells the owner what to actually write', () => {
+    const item = itemFor('implants', 0.2)
+
+    expect(item.steps.length).toBeGreaterThan(2)
+    for (const step of item.steps) expect(step.length).toBeGreaterThan(30)
+    // The old placeholder, which said nothing about the site.
+    expect(item.steps.join(' ')).not.toContain('נציג לכם')
+  })
+
+  it('names the person who has to do it and how long it takes', () => {
+    const item = itemFor('implants', 0.2)
+
+    expect(item.who).toBe('YOU')
+    expect(item.minutes).toBeGreaterThan(0)
+    expect(item.impact).toBe('IMPORTANT')
+    expect(item.what).toBeTruthy()
+  })
+
+  it('gives different advice for absent and for scattered', () => {
+    // "Write about this" is wrong advice for a site that already mentions it on three
+    // pages; that site needs it said once, properly, in one place.
+    const absent = itemFor('implants', 0.1).steps[0]!
+    const scattered = itemFor('implants', 0.5).steps[0]!
+
+    expect(absent).not.toBe(scattered)
+  })
+
+  it('works in both languages, with no leftover placeholder', () => {
+    for (const language of ['he', 'en'] as const) {
+      const item = itemFor('implants', 0.2, language)
+      expect(item.steps.join(' ')).not.toContain('undefined')
+      expect(item.steps.join(' ')).not.toContain('${')
+      expect(item.what).not.toContain('undefined')
+    }
+  })
+
+  it('does not glue a Hebrew prefix onto the term with a hyphen', () => {
+    // `ש-שתלים` reads as a typo, and a term starting with the prefix letter makes it
+    // worse. The term is quoted instead.
+    const item = itemFor('implants', 0.2)
+    expect(item.what).not.toMatch(/ש-\S/)
+    for (const step of item.steps) expect(step).not.toMatch(/ש-[֐-׿]/)
+  })
+})

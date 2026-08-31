@@ -74,3 +74,42 @@ describe('contradictions', () => {
     expect(conflicts.some((c) => c.factKind === 'address')).toBe(true)
   })
 })
+
+/**
+ * A default is not a fact.
+ *
+ * `buildEntity` used to fill `primaryCategory` from the vertical's default schema.org type.
+ * Since `local_business` is what the vertical inference returns when it could *not* tell —
+ * it is the one vertical never matched positively — that meant a scan which read nothing at
+ * all still reported a category, 11% information completeness and a readiness score of 4:
+ * three numbers about a business nothing had been learned about. On a real site it meant a
+ * business that never says what it does was scored as though it had.
+ */
+describe('a category the site never stated', () => {
+  it('is not invented from the fallback vertical', () => {
+    const entity = buildEntity([], 'local_business')
+
+    expect(entity.primaryCategory).toBeNull()
+    expect(entity.missingFields).toContain('primaryCategory')
+    expect(entity.completeness).toBe(0)
+  })
+
+  it('still gives the generated markup a safe @type to write', () => {
+    // The type we *write* for a business and the claim that the site *states* a category
+    // are different things, and only the second one is a measurement.
+    expect(buildEntity([], 'local_business').entityType).toBe('LocalBusiness')
+  })
+
+  it('is kept when the vertical was genuinely recognised from the site', () => {
+    const entity = buildEntity([], 'restaurant')
+
+    expect(entity.primaryCategory).not.toBeNull()
+    expect(entity.missingFields).not.toContain('primaryCategory')
+  })
+
+  it('is kept when the site states it in structured data', () => {
+    const entity = buildEntity([fact('entity_type', 'Dentist')], 'local_business')
+
+    expect(entity.primaryCategory).toBe('Dentist')
+  })
+})

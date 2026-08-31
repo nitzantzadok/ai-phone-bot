@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getPlan, type PlanCode } from '@autopilot/billing/plans.ts'
-import { normalizeSiteUrl } from '@/lib/scan-limits'
+import { loadEnv } from '@autopilot/shared/env.ts'
+import { classifySiteUrl } from '@/lib/scan-limits'
 import { sessionCookie } from '@/lib/session'
 
 /**
@@ -30,7 +31,10 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
   const language = read('lang') === 'en' ? 'en' : 'he'
   const rawPlan = read('plan') || 'GROWTH'
   const plan = isPlanCode(rawPlan) ? rawPlan : 'GROWTH'
-  const url = normalizeSiteUrl(read('url'))
+  const typed = read('url')
+  const verdict = classifySiteUrl(typed, {
+    allowLocalTargets: loadEnv().CRAWLER_ALLOW_PRIVATE_HOSTS,
+  })
 
   // A relative Location, deliberately: both `nextUrl.origin` and `request.url` normalise
   // the host, so a browser on 127.0.0.1 would be sent to localhost — a different origin,
@@ -38,8 +42,15 @@ export const POST = async (request: NextRequest): Promise<NextResponse> => {
   const redirect = (path: string): NextResponse =>
     new NextResponse(null, { status: 303, headers: { location: path } })
 
-  // Without a site there is nothing for the app to be about.
-  if (!url) return redirect(`/join?lang=${language}`)
+  /* Without a site there is nothing for the app to be about — but bouncing back to an
+     unchanged form is a button that appears to do nothing. The reason travels with the
+     redirect so the form can say what was wrong with what they typed. */
+  if (!verdict.ok) {
+    const query = new URLSearchParams({ lang: language, problem: verdict.problem, url: typed })
+    if (verdict.subject) query.set('host', verdict.subject)
+    return redirect(`/join?${query.toString()}`)
+  }
+  const url = verdict.url
 
   const response = redirect(`/app?lang=${language}`)
 

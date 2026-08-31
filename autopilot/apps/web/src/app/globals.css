@@ -419,6 +419,76 @@ body {
   animation: draw 1.15s var(--ease-settle) 0.25s both;
 }
 
+/* ---------------------------------------------------------------------- print --- */
+
+/**
+ * The report is a document somebody hands to somebody else.
+ *
+ * That is not a guess about how it might be used — it is the product's own instruction.
+ * The report tells a business owner which items are theirs and which belong to whoever
+ * built the site, and it hands them a note to forward. The forwarding happens on paper or
+ * as a PDF, so print is a real output of this page and not an afterthought.
+ *
+ * Three things had to be true and were not. Sections held at `opacity: 0` waiting for a
+ * scroll that never happens in a print job would come out blank. The navigation, the
+ * background wash and the "choose a plan" block would take up the first page with things
+ * nobody reading a printout can use. And a task card could be split across a page break,
+ * so the fix appeared on one page and the instructions on the next.
+ */
+@media print {
+  /* Never let an entrance decide whether a fix is on the page. */
+  .reveal,
+  .reveal.revealed,
+  .rise {
+    opacity: 1 !important;
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  /* Chrome, the shell and anything that is an action rather than a finding. */
+  .field,
+  .gate,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* A finding and its instructions belong on the same page. */
+  section,
+  li,
+  .lift {
+    break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  /* Underlining every internal link wastes ink on navigation that cannot be clicked. */
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  /* Shadows and translucency print as grey smudges. */
+  * {
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
 /* -------------------------------------------------------------------- respect --- */
 
 /**

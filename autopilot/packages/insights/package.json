@@ -17,6 +17,7 @@
     "@autopilot/knowledge": "workspace:*",
     "@autopilot/prompts": "workspace:*",
     "@autopilot/optimization": "workspace:*",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@autopilot/crawler": "workspace:*"
   }
 }

@@ -100,42 +100,6 @@ export default async function Scan({
           )}
         </div>
 
-        {url.length > 0 ? (
-          <div className="mt-10 border-t border-line pt-6">
-            <p className="text-sm text-muted">
-              {he
-                ? 'רוצים שנעשה את התיקונים האלה עבורכם ונמדוד כל חודש אם זה עבד?'
-                : 'Want us to make these fixes for you and measure every month whether it worked?'}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <Link
-                href={`/pricing?lang=${language}`}
-                className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white"
-              >
-                {he ? 'לבחור תוכנית ולהיכנס' : 'Choose a plan and go in'}
-              </Link>
-              {/* A form, not a link: Next prefetches link targets, and a prefetched
-                  request to a route that signs you in would do so without a click. */}
-              <form action="/start" method="post">
-                <input type="hidden" name="lang" value={language} />
-                <input type="hidden" name="plan" value="FREE_SCAN" />
-                <input type="hidden" name="url" value={url} />
-                <button
-                  type="submit"
-                  className="rounded-lg border border-line px-5 py-2.5 text-sm font-medium"
-                >
-                  {he ? 'להיכנס לאפליקציה בחינם' : 'Enter the app free'}
-                </button>
-              </form>
-              <Link
-                href={`/join?lang=${language}`}
-                className="rounded-lg border border-line px-5 py-2.5 text-sm font-medium"
-              >
-                {he ? 'לסרוק אתר אחר' : 'Scan another site'}
-              </Link>
-            </div>
-          </div>
-        ) : null}
       </main>
     </Shell>
   )

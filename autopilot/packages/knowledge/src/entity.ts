@@ -135,7 +135,13 @@ export const buildEntity = (
   // name at all is better: that absence is itself the finding the customer needs to see.
   const titleFact = bestFact(usable, 'site_title')?.value
   const name = bestFact(usable, 'business_name')?.value ?? nameFromTitle(titleFact)
-  const entityType = bestFact(usable, 'entity_type')?.value ?? defaultEntityType(vertical)
+
+  /* `entityType` and `primaryCategory` look like the same thing and are not.
+     `entityType` is the schema.org type we will *write* for this business, so a safe
+     default is right there. `primaryCategory` is a claim that the site says what kind of
+     business this is, and a default is exactly the wrong thing to put in it. */
+  const statedType = bestFact(usable, 'entity_type')?.value ?? null
+  const entityType = statedType ?? defaultEntityType(vertical)
   const city = bestFact(usable, 'city')?.value ?? null
   const phone = bestFact(usable, 'phone')?.value ?? null
   const address = bestFact(usable, 'address')?.value ?? null
@@ -143,7 +149,14 @@ export const buildEntity = (
   const openingHours = hoursFact?.valueJson ?? hoursFact?.value ?? null
   const priceRange = bestFact(usable, 'price_range')?.value ?? null
   const shortDescription = bestFact(usable, 'site_description')?.value ?? null
-  const primaryCategory = bestFact(usable, 'cuisine')?.value ?? entityType
+  /* `local_business` is what the vertical inference returns when it could NOT tell — it is
+     the one vertical never matched positively — so its default type is not evidence of
+     anything. Crediting the site for it meant a scan that read zero pages still reported a
+     category, a completeness of 11% and a readiness score of 4: three numbers about a
+     business nothing had been learned about. It also let a real site that never says what
+     it does score for saying it. */
+  const inferredCategory = vertical === 'local_business' ? null : defaultEntityType(vertical)
+  const primaryCategory = bestFact(usable, 'cuisine')?.value ?? statedType ?? inferredCategory
 
   // Attributes are the exception: LOW-confidence attribute evidence still tells us what
   // the site talks about, which is what the gap analysis needs.

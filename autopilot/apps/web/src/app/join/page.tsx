@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { platformsForPicker } from '@autopilot/insights/platforms.ts'
+import { explainSiteUrl, isSiteUrlProblem } from '@autopilot/insights/site-url.ts'
 import { Shell, languageFrom } from '@/components/shell'
 
 /**
@@ -14,9 +15,19 @@ export default async function Join({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const language = languageFrom(await searchParams)
+  const params = await searchParams
+  const language = languageFrom(params)
   const he = language === 'he'
   const platforms = platformsForPicker()
+
+  /* Somewhere else refused the address and sent the customer back here. Before this it
+     sent them back silently, to a form that looked exactly as it had a moment earlier —
+     which reads as a button that does nothing. */
+  const raw = typeof params.problem === 'string' ? params.problem : ''
+  const problem = isSiteUrlProblem(raw) ? raw : null
+  const subject = typeof params.host === 'string' ? params.host : null
+  const typed = typeof params.url === 'string' ? params.url : ''
+  const rejected = problem ? explainSiteUrl(problem, subject, language) : null
 
   return (
     <Shell language={language}>
@@ -33,19 +44,41 @@ export default async function Join({
             : 'That is all we need. No password, no permission, no email, no credit card — the result appears here on screen.'}
         </p>
 
+        {rejected ? (
+          <div
+            className={`mt-8 rounded-xl border p-5 ${
+              rejected.isFinding ? 'border-accent/30 bg-accent/5' : 'border-caution/40 bg-caution/5'
+            }`}
+          >
+            <p className="font-semibold">{rejected.title}</p>
+            <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
+              {rejected.body.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <form action="/scan" method="get" className="mt-8 space-y-4">
           <input type="hidden" name="lang" value={language} />
           <div>
             <label htmlFor="url" className="block text-sm font-medium">
               {he ? 'כתובת האתר' : 'Website address'}
             </label>
+            {/* `type="url"` refuses anything without a scheme, so a customer who types
+                `your-business.co.il` — which is what everybody types — was stopped by the
+                browser with "please enter a URL" before a single character reached us.
+                The address is normalised on our side, where it can be done kindly. */}
             <input
               id="url"
               name="url"
-              type="url"
+              type="text"
+              inputMode="url"
+              autoComplete="url"
               required
               dir="ltr"
-              placeholder="https://your-business.co.il"
+              defaultValue={typed}
+              placeholder="your-business.co.il"
               className="mt-1.5 w-full rounded-lg border border-line px-4 py-3 outline-none focus:border-accent"
             />
           </div>

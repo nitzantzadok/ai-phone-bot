@@ -19,6 +19,7 @@
  * developer who pastes `"telephone": "TODO"` into production has been failed by us.
  */
 import { fixGuide, IMPACT_RANK, type FixGuide, type Impact, type Language } from './explain.ts'
+import { answerCrawlerAgents } from './unblock.ts'
 
 
 export interface HandoffInput {
@@ -119,8 +120,8 @@ const DEV_INSTRUCTION: Readonly<Record<string, { he: string; en: string }>> = {
     en: 'Generate sitemap.xml and declare it in robots.txt.',
   },
   NO_ROBOTS_TXT: {
-    he: 'להוסיף robots.txt בשורש, שלא חוסם את GPTBot, ClaudeBot, PerplexityBot ו-Google-Extended.',
-    en: 'Add robots.txt at the root that does not block GPTBot, ClaudeBot, PerplexityBot or Google-Extended.',
+    he: `להוסיף robots.txt בשורש שלא חוסם את הסורקים האלה: ${answerCrawlerAgents()}.`,
+    en: `Add robots.txt at the root that does not block these crawlers: ${answerCrawlerAgents()}.`,
   },
   MISSING_LANG_ATTRIBUTE: {
     he: 'להוסיף lang ל-<html>. בעמודים בעברית: lang="he" dir="rtl".',

@@ -5,6 +5,7 @@
  * report a customer sees — a report format that only one caller exercises is a report
  * format nobody has read.
  */
+import { unblockAdvice } from '@autopilot/insights/unblock.ts'
 import type { ScanReport } from './scan.ts'
 import { whyNothingWasRead } from './scan.ts'
 
@@ -65,15 +66,9 @@ export const renderReport = (report: ScanReport): string => {
         ),
       )
       say()
-      say(
-        L(
-          lang,
-          'מה לעשות: בהגדרות ההגנה אפשרו סורקים מאומתים, או הוסיפו חריגה ל-GPTBot, ' +
-            'ClaudeBot, PerplexityBot ו-Google-Extended.',
-          'What to do: in your protection settings allow verified bots, or add an exception ' +
-            'for GPTBot, ClaudeBot, PerplexityBot and Google-Extended.',
-        ),
-      )
+      say(L(lang, 'מה לעשות: ', 'What to do: ') + unblockAdvice(lang).action)
+      say()
+      say(unblockAdvice(lang).training)
     } else if (why === 'ROBOTS_BLOCKED') {
       say(
         L(

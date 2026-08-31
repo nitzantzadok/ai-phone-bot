@@ -19,60 +19,99 @@ export interface RateLimitVerdict {
 }
 
 const WINDOW_MS = 10 * 60 * 1000
-const MAX_PER_WINDOW = 5
 
-const hits = new Map<string, number[]>()
+/**
+ * Two ceilings, because there are two different things to protect and only one of them was
+ * being protected.
+ *
+ * The per-caller limit is about our own bill: one person cannot spend our crawl budget all
+ * afternoon. That is the limit that existed.
+ *
+ * The per-target limit is about somebody else's website — which is what the page has always
+ * told the customer the limit was for. It was not true. A per-caller counter does nothing
+ * against the case that actually matters: many callers, from many addresses, all pointed at
+ * one small business's shared hosting. That is a distributed load on a stranger's site with
+ * our return address on it, and it is the shape abuse actually takes on a public scanner.
+ *
+ * The per-caller ceiling is the more generous of the two: somebody scanning their own site,
+ * then a competitor's, then their own again after a fix is a good afternoon for this
+ * product, not abuse.
+ */
+const MAX_PER_CALLER = 8
+const MAX_PER_TARGET = 4
 
-/** Keeps the map from growing without bound on a long-lived instance. */
-const prune = (now: number): void => {
-  if (hits.size < 1000) return
-  for (const [key, times] of hits) {
+const callers = new Map<string, number[]>()
+const targets = new Map<string, number[]>()
+
+/** Keeps a map from growing without bound on a long-lived instance. */
+const prune = (map: Map<string, number[]>, now: number): void => {
+  if (map.size < 1000) return
+  for (const [key, times] of map) {
     const live = times.filter((t) => now - t < WINDOW_MS)
-    if (live.length === 0) hits.delete(key)
-    else hits.set(key, live)
+    if (live.length === 0) map.delete(key)
+    else map.set(key, live)
   }
 }
 
-export const checkRateLimit = (key: string, now = Date.now()): RateLimitVerdict => {
-  prune(now)
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS)
-
-  if (recent.length >= MAX_PER_WINDOW) {
+const check = (
+  map: Map<string, number[]>,
+  key: string,
+  ceiling: number,
+  now: number,
+): RateLimitVerdict => {
+  prune(map, now)
+  const recent = (map.get(key) ?? []).filter((t) => now - t < WINDOW_MS)
+  if (recent.length >= ceiling) {
     const oldest = recent[0]!
     return {
       allowed: false,
       retryAfterSeconds: Math.max(1, Math.ceil((WINDOW_MS - (now - oldest)) / 1000)),
     }
   }
-
   recent.push(now)
-  hits.set(key, recent)
+  map.set(key, recent)
   return { allowed: true, retryAfterSeconds: 0 }
+}
+
+/** The host a scan is pointed at, which is the thing a per-target ceiling protects. */
+const targetKey = (url: string): string => {
+  try {
+    return new URL(url).hostname.toLowerCase()
+  } catch {
+    return url.toLowerCase()
+  }
+}
+
+/**
+ * Whether this scan may run.
+ *
+ * Charged against the caller first. A caller who is already over their own ceiling must not
+ * also consume the target's allowance on the way to being refused — otherwise one person
+ * hammering refresh locks a business's own site out of being scanned by anybody.
+ */
+export const checkRateLimit = (
+  key: string,
+  targetUrl = '',
+  now = Date.now(),
+): RateLimitVerdict => {
+  const caller = check(callers, key, MAX_PER_CALLER, now)
+  if (!caller.allowed) return caller
+  if (targetUrl === '') return caller
+  return check(targets, targetKey(targetUrl), MAX_PER_TARGET, now)
 }
 
 /** Test seam. */
 export const resetRateLimits = (): void => {
-  hits.clear()
+  callers.clear()
+  targets.clear()
 }
 
 /**
- * Normalises whatever a person typed into a URL we can attempt.
+ * Whatever a person typed, classified.
  *
- * People type "example.co.il", "www.example.co.il/", and "Example.CO.IL " — none of which
- * parse as a URL, and all of which mean the same site. Refusing them would lose real
- * customers at the first field of the funnel.
+ * Lives in `@autopilot/insights` rather than here: it carries the customer-facing sentence
+ * for every way an address can fail, which is the same job the rest of that package does,
+ * and it has to be identical in the web app and on the command line.
  */
-export const normalizeSiteUrl = (raw: string): string | null => {
-  const trimmed = raw.trim()
-  if (trimmed.length === 0 || trimmed.length > 2000) return null
-
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  try {
-    const url = new URL(withScheme)
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
-    if (!url.hostname.includes('.')) return null
-    return url.toString()
-  } catch {
-    return null
-  }
-}
+export { classifySiteUrl, explainSiteUrl, normalizeSiteUrl } from '@autopilot/insights/site-url.ts'
+export type { SiteUrlProblem, SiteUrlVerdict } from '@autopilot/insights/site-url.ts'

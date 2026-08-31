@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
-import { checkRateLimit, normalizeSiteUrl } from '@/lib/scan-limits'
+import { loadEnv } from '@autopilot/shared/env.ts'
+import { unblockAdvice } from '@autopilot/insights/unblock.ts'
+import { checkRateLimit, classifySiteUrl, explainSiteUrl } from '@/lib/scan-limits'
 import { freeScanBudget } from '@/lib/spend'
 import { buildReportView } from '@/lib/report-view'
 import {
@@ -59,6 +61,55 @@ const OFFSITE_LABELS_EN: Record<string, string> = {
   NAVIGATION: 'Waze',
 }
 
+/**
+ * The offer, at the foot of a real report.
+ *
+ * It used to live on the page rather than in the result, gated only on a URL having been
+ * supplied — so "want us to make these fixes for you?" appeared underneath every failure
+ * notice too: under an email address, under a Facebook page, under a site that refused us.
+ * Offering to carry out fixes that were never produced is the fastest way to look like a
+ * page of templated sales copy rather than a measurement.
+ */
+const Offer = ({ url, language }: { url: string; language: 'he' | 'en' }) => {
+  const he = language === 'he'
+  return (
+    <div className="no-print border-t border-line pt-6">
+      <p className="text-sm text-muted">
+        {he
+          ? 'רוצים שנעשה את התיקונים האלה עבורכם ונמדוד כל חודש אם זה עבד?'
+          : 'Want us to make these fixes for you and measure every month whether it worked?'}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <Link
+          href={`/pricing?lang=${language}`}
+          className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white"
+        >
+          {he ? 'לבחור תוכנית ולהיכנס' : 'Choose a plan and go in'}
+        </Link>
+        {/* A form, not a link: Next prefetches link targets, and a prefetched request to a
+            route that signs you in would do so without a click. */}
+        <form action="/start" method="post">
+          <input type="hidden" name="lang" value={language} />
+          <input type="hidden" name="plan" value="FREE_SCAN" />
+          <input type="hidden" name="url" value={url} />
+          <button
+            type="submit"
+            className="rounded-lg border border-line px-5 py-2.5 text-sm font-medium"
+          >
+            {he ? 'להיכנס לאפליקציה בחינם' : 'Enter the app free'}
+          </button>
+        </form>
+        <Link
+          href={`/join?lang=${language}`}
+          className="rounded-lg border border-line px-5 py-2.5 text-sm font-medium"
+        >
+          {he ? 'לסרוק אתר אחר' : 'Scan another site'}
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export const ScanResult = async ({
   rawUrl,
   language,
@@ -67,24 +118,42 @@ export const ScanResult = async ({
   language: 'he' | 'en'
 }) => {
   const he = language === 'he'
-  const url = normalizeSiteUrl(rawUrl)
+  // The same switch the crawler uses, so the field never refuses an address the fetcher
+  // would have accepted. `APP_ENV=production` refuses to set it at all.
+  const verdict = classifySiteUrl(rawUrl, {
+    allowLocalTargets: loadEnv().CRAWLER_ALLOW_PRIVATE_HOSTS,
+  })
 
-  if (!url) {
+  /* Not every address that cannot be scanned is a mistake. A business whose only presence
+     is a Facebook page or a Yad2 listing has just been told the single most useful thing
+     this product knows — that assistants read websites and cannot read theirs — so that
+     answer is delivered as the finding it is, rather than as a validation error asking
+     them to try again with something they do not have. */
+  if (!verdict.ok) {
+    const message = explainSiteUrl(verdict.problem, verdict.subject, language)
     return (
-      <Notice title={he ? 'הכתובת לא תקינה' : 'That address is not valid'}>
-        <p>
-          {he
-            ? 'צריך כתובת אתר מלאה, למשל example.co.il. בדקו את מה שהזנתם ונסו שוב.'
-            : 'We need a full website address, for example example.co.il. Check what you entered and try again.'}
-        </p>
+      <Notice title={message.title}>
+        {message.body.map((paragraph) => (
+          <p key={paragraph} className={message.isFinding ? 'text-ink' : undefined}>
+            {paragraph}
+          </p>
+        ))}
         <Link href={`/join?lang=${language}`} className="inline-block underline">
-          {he ? 'חזרה' : 'Back'}
+          {message.isFinding
+            ? he
+              ? 'לסרוק אתר אחר'
+              : 'Scan a different site'
+            : he
+              ? 'חזרה'
+              : 'Back'}
         </Link>
       </Notice>
     )
   }
 
-  const limit = checkRateLimit(await clientKey())
+  const url = verdict.url
+
+  const limit = checkRateLimit(await clientKey(), url)
   if (!limit.allowed) {
     return (
       <Notice title={he ? 'רגע אחד' : 'One moment'}>
@@ -95,8 +164,8 @@ export const ScanResult = async ({
         </p>
         <p>
           {he
-            ? 'המגבלה קיימת כדי שסריקה שלנו לא תעמיס על אתר של אף אחד.'
-            : 'The limit exists so our scanning never becomes a load on anybody’s website.'}
+            ? 'יש שתי מגבלות: כמה סריקות אדם אחד מריץ, וכמה סריקות אתר אחד מקבל. השנייה קיימת כדי שהסריקות שלנו לא יהפכו לעומס על אתר של מישהו — גם כשהן מגיעות מהרבה אנשים בבת אחת.'
+            : 'There are two limits: how many scans one person runs, and how many one website receives. The second exists so our scanning never becomes a load on somebody’s site — including when it arrives from many people at once.'}
         </p>
       </Notice>
     )
@@ -177,9 +246,11 @@ export const ScanResult = async ({
             </p>
             <p>
               {he
-                ? 'בהגדרות ההגנה אפשרו סורקים מאומתים, או הוסיפו חריגה ל-GPTBot, ClaudeBot, PerplexityBot ו-Google-Extended.'
-                : 'In your protection settings allow verified bots, or add an exception for GPTBot, ClaudeBot, PerplexityBot and Google-Extended.'}
+                ? 'בהגדרות ההגנה אפשרו סורקים מאומתים, או הוסיפו חריגה לסורקים הבאים.'
+                : 'In your protection settings allow verified bots, or add an exception for the crawlers below.'}
             </p>
+            <p className="font-medium text-ink">{unblockAdvice(language).action}</p>
+            <p>{unblockAdvice(language).training}</p>
           </>
         ) : why === 'SITE_ERRORS' ? (
           <p>
@@ -413,6 +484,8 @@ export const ScanResult = async ({
           ))}
         </section>
       ) : null}
+
+      <Offer url={report.requestedUrl} language={language} />
     </div>
   )
 }

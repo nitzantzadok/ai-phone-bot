@@ -15,6 +15,7 @@ import {
   type Insight,
   type InsightCategory,
 } from './catalogue.ts'
+import { attributeLabel } from '@autopilot/knowledge/attributes.ts'
 import { fixGuide, IMPACT_RANK, type FixOwner, type Impact, type Language } from './explain.ts'
 
 export type { Language }
@@ -130,6 +131,74 @@ const affectedUrlsOf = (opportunity: Opportunity): readonly string[] => {
 }
 
 /**
+ * The one measured finding that has no fix guide, and needed one badly.
+ *
+ * An attribute gap is not a technical fault, so it has no `findingType` and therefore
+ * matched no guide. What the reader got instead was the fallback: "this needs a decision
+ * from you — we show you exactly what we propose before anything changes." That is not an
+ * instruction. It is a sentence about our process, printed where the instruction should be,
+ * under a finding that had just told them four of the twenty-two questions customers ask
+ * are about this exact thing.
+ *
+ * These are among the most valuable items in the report — they come from real question
+ * demand rather than from a crawler's checklist — and they were the only ones that ended
+ * without telling anybody what to do.
+ *
+ * Nobody else can write this. The owner knows whether they do implants and what is
+ * included; we know only that their site does not say so clearly. So the steps are written
+ * for them, and the owner is named as the person who does it.
+ */
+const attributeGapGuide = (
+  opportunity: Opportunity,
+  language: Language,
+): { steps: string[]; what: string; impact: Impact; who: FixOwner; minutes: number } | null => {
+  const key = opportunity.attributeKey
+  if (key === undefined || key === '') return null
+
+  const he = language === 'he'
+  const label = attributeLabel(key, language)
+
+  /* How much is already there changes the instruction. "Write about this" is wrong advice
+     for a site that mentions it in passing on three pages; that site needs it said once,
+     properly, somewhere a reader would look. */
+  const strength = typeof opportunity.evidence?.ourStrength === 'number'
+    ? opportunity.evidence.ourStrength
+    : 0
+  const barelyThere = strength < 0.3
+
+  const steps = he
+    ? [
+        barelyThere
+          ? `בחרו איפה זה שייך: עמוד השירותים, או עמוד משלו אם ${label} הוא שירות מרכזי אצלכם.`
+          : `${label} כבר מוזכר אצלכם, אבל בפיזור. בחרו עמוד אחד שיהיה המקום הרשמי לזה.`,
+        `כתבו שם פסקה של 40–80 מילים שאומרת במפורש שאתם עושים ${label}: למי זה מתאים, באיזו עיר, ופרט אחד קונקרטי — כמה זמן זה לוקח, מה כלול, או טווח מחיר.`,
+        `כתבו את זה במילים שלקוח משתמש בהן, לא רק במונח המקצועי. אם הם שונים — שיופיעו שניהם באותה פסקה.`,
+        `ודאו שהמונח "${label}" מופיע בכותרת בעמוד (H1 או H2), ולא רק בתוך הפסקה. מערכת AI מייחסת לכותרת משקל גדול בהרבה.`,
+      ]
+    : [
+        barelyThere
+          ? `Decide where this belongs: your services page, or a page of its own if ${label} is a main service for you.`
+          : `${label} is already mentioned, but scattered. Pick one page to be the official place for it.`,
+        `Write a 40–80 word paragraph there that says plainly that you do ${label}: who it suits, in which city, and one concrete detail — how long it takes, what is included, or a price range.`,
+        `Use the words a customer uses, not only the professional term. If they differ, put both in the same paragraph.`,
+        `Make sure ${label} appears in a heading on that page (H1 or H2), not only inside the paragraph. An AI weighs a heading far more heavily.`,
+      ]
+
+  return {
+    steps,
+    what: he
+      ? `פסקה באתר שאומרת במפורש שאתם עושים "${label}".`
+      : `A paragraph on your site that plainly states ${label} is something you do.`,
+    // It does not stop an assistant reading the site, so it is never critical. It decides
+    // whether the site answers a question customers are demonstrably asking, which is
+    // exactly what "important" means here.
+    impact: 'IMPORTANT',
+    who: 'YOU',
+    minutes: 25,
+  }
+}
+
+/**
  * A measured finding, written out for the person who has to act on it.
  *
  * The steps used to say "we handle this automatically" for anything auto-fixable. That is
@@ -146,7 +215,10 @@ const fromOpportunity = (
 ): PlaybookItem => {
   const guide = fixGuide(findingTypeOf(opportunity) ?? '')
   const localized = (value: { he: string; en: string }) => localize(value, language)
+  const gap = guide ? null : attributeGapGuide(opportunity, language)
 
+  /* Reached only when there is neither a fix guide nor an attribute gap — an opportunity
+     shape nothing here knows how to instruct. It says so, rather than pretending. */
   const fallbackSteps = [
     language === 'he'
       ? 'זה דורש החלטה שלכם. נציג לכם בדיוק מה מוצע לפני שמשנים משהו.'
@@ -157,7 +229,7 @@ const fromOpportunity = (
     kind: 'MEASURED',
     title: guide ? localized(guide.headline) : opportunity.title,
     why: guide ? localized(guide.costs) : opportunity.explanation,
-    steps: guide ? guide.steps.map(localized) : fallbackSteps,
+    steps: guide ? guide.steps.map(localized) : (gap?.steps ?? fallbackSteps),
     controllability: opportunity.controllability,
     weDoThisForYou: opportunity.autoFixable,
     howYouWillKnow:
@@ -184,7 +256,9 @@ const fromOpportunity = (
           what: localized(guide.what),
           ...(guide.example ? { example: localized(guide.example) } : {}),
         }
-      : {}),
+      : gap
+        ? { impact: gap.impact, who: gap.who, minutes: gap.minutes, what: gap.what }
+        : {}),
     ...(affectedUrlsOf(opportunity).length > 0
       ? { affectedUrls: affectedUrlsOf(opportunity) }
       : {}),

@@ -16,6 +16,7 @@
  * a red ring and the sentence under it can never disagree.
  */
 import type { Band } from '@autopilot/insights/verdict.ts'
+import { PrintButton } from './print-button'
 
 type Lang = 'he' | 'en'
 
@@ -114,12 +115,17 @@ export const ReportHeader = ({
   language: Lang
 }) => (
   <section className="rise rounded-xl border border-line bg-white/90 p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)] backdrop-blur-sm sm:p-8">
-    <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-      {t('נסרק עכשיו', 'Scanned just now', language)}
-    </p>
-    <p className="mt-1 break-all text-sm font-medium" dir="ltr">
-      {url}
-    </p>
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted">
+          {t('נסרק עכשיו', 'Scanned just now', language)}
+        </p>
+        <p className="mt-1 break-all text-sm font-medium" dir="ltr">
+          {url}
+        </p>
+      </div>
+      <PrintButton language={language} />
+    </div>
 
     <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-6">
       {/* Capped, so a long band label cannot squeeze the counts beside it into three
