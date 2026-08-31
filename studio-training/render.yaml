@@ -1,0 +1,19 @@
+# פריסה ל-Render. חיבור הריפו ולחיצה אחת.
+services:
+  - type: web
+    name: studio-training
+    runtime: node
+    rootDir: studio-training
+    plan: starter
+    buildCommand: node build.mjs
+    startCommand: node src/server/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: STUDIO_DB_FILE
+        value: /var/data/db.json
+    disk:
+      name: studio-data
+      mountPath: /var/data
+      sizeGB: 1

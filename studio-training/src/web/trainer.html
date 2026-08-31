@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מסך המאמן — תכניות אימון</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --card2:#1e222b; --line:#2a2f3a;
+    --txt:#e8eaee; --muted:#9aa3b2; --accent:#4dabf7; --ok:#51cf66; --warn:#ffd43b; --err:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 "Segoe UI",Arial,sans-serif}
+  header{padding:14px 18px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  h1{font-size:17px;margin:0 12px 0 0}
+  select,button,input{font:inherit;background:var(--card2);color:var(--txt);border:1px solid var(--line);
+    border-radius:8px;padding:7px 10px}
+  button{cursor:pointer}
+  button.primary{background:var(--accent);color:#06121f;border-color:transparent;font-weight:600}
+  button:hover{border-color:var(--accent)}
+  main{padding:18px;max-width:1200px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .day h3{margin:0 0 4px;font-size:16px}
+  .sub{color:var(--muted);font-size:13px}
+  .ex{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+  .ex h4{margin:0 0 4px;font-size:15px}
+  .rx{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+  .chip{background:#232833;border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:12px;color:var(--muted)}
+  .chip.b{color:var(--txt);border-color:var(--accent)}
+  .notes{font-size:12.5px;color:var(--muted);margin:6px 0 0;padding-inline-start:16px}
+  .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .acts button{padding:4px 9px;font-size:12.5px;border-radius:999px}
+  .badge{border-radius:8px;padding:3px 9px;font-size:12.5px;font-weight:600}
+  .ok{background:rgba(81,207,102,.15);color:var(--ok)}
+  .warn{background:rgba(255,212,59,.15);color:var(--warn)}
+  .err{background:rgba(255,107,107,.15);color:var(--err)}
+  .info{background:rgba(77,171,247,.13);color:var(--accent)}
+  ul.issues{margin:6px 0 0;padding-inline-start:18px;font-size:13px}
+  .log{position:fixed;inset-block-end:12px;inset-inline-start:12px;max-width:380px;max-height:40vh;overflow:auto;
+    background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;display:none}
+  .log b{color:var(--accent)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td,th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:start}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .swap{display:flex;gap:6px;margin-top:8px}
+  .swap select{flex:1;font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>מסך המאמן</h1>
+  <select id="studio"></select>
+  <select id="trainee"></select>
+  <button class="primary" id="gen">בנה תכנית שבועית</button>
+  <button id="genAll">תכניות לכל הסטודיו</button>
+  <button id="next">שבוע הבא לפי המשוב</button>
+  <span id="status" class="sub"></span>
+</header>
+
+<main>
+  <div id="summary"></div>
+  <div id="days"></div>
+</main>
+
+<div class="log" id="log"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let META = null, PROGRAM = null, STUDIOS = [], TRAINEES = [];
+
+const api = async (path, body) => {
+  const res = await fetch(path, body
+    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    : {});
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+};
+
+function log(html) {
+  const el = $('#log');
+  el.style.display = 'block';
+  el.insertAdjacentHTML('afterbegin', `<div>${html}</div>`);
+}
+
+async function boot() {
+  META = await api('/api/meta');
+  STUDIOS = await api('/api/studios');
+  $('#studio').innerHTML = STUDIOS.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  await loadTrainees();
+  $('#studio').onchange = loadTrainees;
+  $('#gen').onclick = generate;
+  $('#genAll').onclick = generateAll;
+  $('#next').onclick = nextWeek;
+}
+
+async function loadTrainees() {
+  TRAINEES = await api('/api/trainees?studioId=' + $('#studio').value);
+  $('#trainee').innerHTML = TRAINEES.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+async function generate() {
+  $('#status').textContent = 'בונה…';
+  const r = await api('/api/programs/generate', { traineeId: $('#trainee').value });
+  if (!r.ok) { $('#status').textContent = 'שגיאה: ' + r.errors.join(', '); return; }
+  PROGRAM = r.program;
+  render();
+  $('#status').textContent = 'התכנית מוכנה';
+}
+
+async function generateAll() {
+  $('#status').textContent = 'בונה לכל המתאמנים…';
+  const r = await api('/api/programs/generate-all', { studioId: $('#studio').value });
+  $('#status').textContent = `נוצרו ${r.count} תכניות`;
+  log('<b>תכניות לסטודיו:</b><br>' + r.results
+    .map(x => `${x.name}: ${x.ok ? 'ציון איכות ' + x.qa.score : 'שגיאה'}`).join('<br>'));
+}
+
+async function nextWeek() {
+  const r = await api('/api/next-week', { traineeId: $('#trainee').value });
+  PROGRAM = r.program;
+  render();
+  log('<b>עדכון לשבוע הבא:</b><br>' + (r.changes.map(c => c.message).join('<br>') || 'אין שינויים מהשטח'));
+}
+
+function level(l) { return { error: 'err', warning: 'warn', info: 'info' }[l]; }
+
+function render() {
+  const p = PROGRAM;
+  const qa = p.qa;
+  $('#summary').innerHTML = `
+    <div class="card">
+      <div class="row">
+        <h3 style="margin:0">${p.traineeName} — שבוע ${p.week}</h3>
+        <span class="badge ${qa.passed ? 'ok' : 'err'}">ציון איכות ${qa.score}</span>
+        ${p.meta.deload ? '<span class="badge warn">שבוע הורדת עומס</span>' : ''}
+        <span class="chip b">${p.meta.goalLabel}</span>
+        <span class="chip">רמה: ${p.meta.level}</span>
+        <span class="chip">${p.meta.daysPerWeek} ימים × ${p.meta.sessionMinutes} דק׳</span>
+        <span class="chip">התאוששות ${(p.meta.recoveryScore * 100).toFixed(0)}%</span>
+      </div>
+      <p class="sub" style="margin:8px 0 0"><b>חלוקה — ${p.meta.split}:</b> ${p.meta.splitReason}</p>
+      ${p.constraints.length ? `<div style="margin-top:10px">
+        ${p.constraints.map(c => `<div class="chip ${c.severity === 'acute' ? 'b' : ''}" title="${c.note}">
+          ${c.name} (${c.severity})</div>`).join(' ')}
+        <ul class="notes">${p.constraints.map(c => `<li>${c.name}: ${c.note}</li>`).join('')}</ul>
+      </div>` : ''}
+      ${qa.issues.length ? `<ul class="issues">${qa.issues
+        .map(i => `<li><span class="badge ${level(i.level)}">${i.level}</span> ${i.message}</li>`).join('')}</ul>` : ''}
+      <details style="margin-top:8px"><summary class="sub">נפח שבועי לפי שריר (יעד ${p.volumeTarget.min}-${p.volumeTarget.max} סטים)</summary>
+        <table><tr><th>שריר</th><th>סטים</th></tr>
+        ${Object.entries(p.weeklyVolume).sort((a,b)=>b[1]-a[1])
+          .map(([m, v]) => `<tr><td>${m}</td><td>${v}</td></tr>`).join('')}</table>
+      </details>
+    </div>`;
+
+  $('#days').innerHTML = '<div class="grid">' + p.days.map((d, di) => `
+    <div class="card day">
+      <h3>${d.dayLabel} — ${d.label}</h3>
+      <div class="sub">${d.blocks.length} תרגילים · אומדן ${d.estimatedMinutes} דק׳ · עומס ${d.fatigueLoad}</div>
+      ${d.blocks.map((b, bi) => exerciseHtml(d, di, b, bi)).join('')}
+    </div>`).join('') + '</div>';
+
+  document.querySelectorAll('[data-act]').forEach(el => { el.onclick = () => onAction(el.dataset); });
+  document.querySelectorAll('[data-swap]').forEach(el => { el.onclick = () => doSwap(el.dataset); });
+}
+
+function exerciseHtml(day, di, b, bi) {
+  const rx = b.prescription;
+  return `<div class="ex">
+    <h4>${b.exercise.name} ${b.exercise.unilateral ? '<span class="chip">כל צד</span>' : ''}</h4>
+    <div class="sub">${b.slotLabel || b.role} · ${b.exercise.equipment.join(' + ')}${b.setType === 'superset' ? ' · סופרסט' : ''}</div>
+    <div class="rx">
+      <span class="chip b">${rx.sets} × ${rx.reps}${rx.unit === 'seconds' ? '' : ' חזרות'}</span>
+      <span class="chip">מנוחה ${rx.restSec} שנ׳</span>
+      <span class="chip">קצב ${rx.tempo}</span>
+      <span class="chip">RIR ${rx.rir}</span>
+      ${rx.intensityPct[1] ? `<span class="chip">${rx.intensityPct[0]}-${rx.intensityPct[1]}% 1RM</span>` : ''}
+    </div>
+    ${b.coachingNotes.length ? `<ul class="notes">${b.coachingNotes.map(n => `<li>${n}</li>`).join('')}</ul>` : ''}
+    <div class="acts">
+      <button data-act="log_set" data-d="${di}" data-b="${bi}">רישום סט</button>
+      <button data-act="too_easy" data-d="${di}" data-b="${bi}">קל מדי</button>
+      <button data-act="too_hard" data-d="${di}" data-b="${bi}">קשה מדי</button>
+      <button data-act="pain" data-d="${di}" data-b="${bi}">כאב</button>
+      <button data-act="form_breakdown" data-d="${di}" data-b="${bi}">טכניקה</button>
+      <button data-act="equipment_busy" data-d="${di}" data-b="${bi}">מכשיר תפוס</button>
+      <button data-act="skip" data-d="${di}" data-b="${bi}">דילוג</button>
+      <button data-act="love_it" data-d="${di}" data-b="${bi}">מוצלח</button>
+    </div>
+    ${b.alternatives.length ? `<div class="swap">
+      <select id="alt_${di}_${bi}">
+        ${b.alternatives.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+      </select>
+      <button data-swap="1" data-d="${di}" data-b="${bi}">החלף</button>
+    </div>` : ''}
+  </div>`;
+}
+
+async function doSwap(ds) {
+  const alt = $(`#alt_${ds.d}_${ds.b}`).value;
+  try {
+    const r = await api('/api/programs/swap', {
+      programId: PROGRAM.id, dayIndex: +ds.d, blockIndex: +ds.b, alternativeId: alt,
+    });
+    PROGRAM = r.program;
+    render();
+    log('<b>הוחלף תרגיל.</b> ציון איכות מעודכן: ' + PROGRAM.qa.score);
+  } catch (e) { log('<b>לא ניתן להחליף:</b> ' + e.message); }
+}
+
+async function onAction(ds) {
+  const block = PROGRAM.days[+ds.d].blocks[+ds.b];
+  const ev = { type: ds.act, exerciseId: block.exercise.id, dayIndex: +ds.d, prescription: block.prescription };
+
+  if (ds.act === 'log_set') {
+    const load = prompt('משקל עבודה (ק"ג):', '');
+    const reps = prompt('חזרות שבוצעו:', String(block.prescription.repsMin));
+    const rpe = prompt('RPE (1-10):', String(10 - block.prescription.rir));
+    ev.payload = { load: load ? +load : null, reps: reps ? +reps : null, rpe: rpe ? +rpe : null };
+  } else if (ds.act === 'pain') {
+    const joint = prompt('היכן הכאב? shoulder / low_back / knee / elbow / wrist / hip / ankle / neck', 'knee');
+    if (!joint) return;
+    const painLevel = +(prompt('עוצמת כאב 1-10:', '5') || 5);
+    ev.payload = { joint, painLevel };
+  } else if (ds.act === 'equipment_busy') {
+    ev.payload = { equipment: block.exercise.equipment };
+  }
+
+  const r = await api('/api/feedback', { traineeId: PROGRAM.traineeId, week: PROGRAM.week, events: [ev] });
+  log(`<b>${block.exercise.name} — ${ds.act}</b><br>` +
+      (r.changes.map(c => c.message).join('<br>') || 'נרשם.') +
+      (r.flags.deloadRecommended ? '<br><b>מומלץ שבוע הורדת עומס.</b>' : ''));
+}
+
+boot().catch(e => { $('#status').textContent = 'שגיאה: ' + e.message; });
+</script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+# בדיקות למערכת תכניות האימון.
+#
+# למה אין כאן פרסום ל-Pages: לריפו יש אתר Pages אחד בלבד, והוא כבר משמש
+# את הפרויקט השני (.github/workflows/nextjs.yml). פרסום מכאן היה דורס אותו.
+# המערכת הזאת מתפרסמת מריפו עצמאי משלה — ראה scripts/publish-standalone.sh,
+# ושם יושב תהליך הפרסום ל-Pages.
+#
+# מה שנשאר כאן הוא מה שבאמת שייך לריפו הזה: לוודא שהמערכת נבנית
+# והבדיקות עוברות בכל שינוי.
+name: studio-training · בדיקות
+
+on:
+  push:
+    branches: [main, 'claude/studio-workout-program-system-jxviy3']
+    paths: ['studio-training/**']
+  pull_request:
+    paths: ['studio-training/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-training-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: בדיקות
+        working-directory: studio-training
+        run: node --test tests/*.test.js
+
+      - name: בנייה
+        working-directory: studio-training
+        run: node build.mjs
+
+      - name: הקובץ הבנוי אינו ריק
+        working-directory: studio-training
+        run: |
+          test -s dist/artifact.html
+          test -s dist/app.html
+          echo "נבנה: $(wc -c < dist/artifact.html) בתים"

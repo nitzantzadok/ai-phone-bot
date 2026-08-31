@@ -1,0 +1,32 @@
+# פריסה ל-Fly.io. שם האפליקציה נפרד לחלוטין מכל פרויקט אחר בחשבון.
+app = "studio-training"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  STUDIO_DB_FILE = "/data/db.json"
+
+# הנפח שומר את מסד הנתונים בין פריסות. בלעדיו כל deploy מוחק את הסטודיואים.
+[[mounts]]
+  source = "studio_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true            # בלי זה עוגיית המושב לא תסומן Secure
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.checks]
+    [http_service.checks.health]
+      path = "/api/health"
+      interval = "30s"
+      timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
