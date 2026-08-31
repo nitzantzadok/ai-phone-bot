@@ -246,14 +246,21 @@ export function chooseSplit(trainee, studio) {
   const d = trainee.daysPerWeek;
   const goal = trainee.primaryGoal;
   const level = trainee.level;
-  const forced = studio.preferredSplit || trainee.preferredSplit;
+  /*
+   * מה שנקבע למתאמן גובר על ברירת המחדל של הסטודיו: ההגדרה הספציפית
+   * יותר מנצחת. 'auto' פירושו "תחליט אתה", ולכן הוא אינו כפייה.
+   */
+  const chosen = trainee.preferredSplit === 'auto' ? null : trainee.preferredSplit;
+  const forced = chosen || studio.preferredSplit;
 
   let split;
   let reason;
 
   if (forced && SPLIT_SEQUENCES[forced]) {
     split = forced;
-    reason = 'חלוקה שנקבעה מראש בהגדרות הסטודיו/המתאמן.';
+    reason = chosen === forced
+      ? (forced === 'full_body' ? 'גוף מלא — ברירת המחדל של המערכת, אלא אם נבחרה חלוקה אחרת למתאמן.' : 'חלוקה שנבחרה למתאמן.')
+      : 'חלוקה שנקבעה מראש בהגדרות הסטודיו.';
   } else if (studio.style === 'small_group' && d <= 3 && goal === 'fat_loss') {
     split = 'hybrid_circuit';
     reason = 'אימון קבוצתי קצר עם מטרת ירידה בשומן — מבנה תחנות מנצל את הזמן ואת הציוד המשותף.';

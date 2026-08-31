@@ -5,7 +5,10 @@
 
 import { CONSTRAINTS } from './constraints.js';
 import { BY_ID } from './exercises.js';
-import { ALWAYS_AVAILABLE, CYCLE_PHASES, EQUIPMENT, GOALS, LEVELS, LIFESTYLES, SPLITS, SPORTS } from './taxonomy.js';
+import {
+  ALWAYS_AVAILABLE, CYCLE_PHASES, EQUIPMENT, GOALS, LEVELS, LIFESTYLES, SPLITS, SPORTS,
+  TRAINING_STYLES,
+} from './taxonomy.js';
 import { normalizeNote } from './notes.js';
 import { normalizeInventory } from './inventory.js';
 import { latest, sortMeasurements } from './measurements.js';
@@ -148,6 +151,25 @@ export function normalizeTrainee(raw = {}) {
     // המדידה האחרונה גוברת על משקל שהוזן פעם אחת בטופס —
     // אחרת הצעות המשקל היו נשארות תקועות על נתון ישן
     weightKg: latest(raw.measurements || [])?.weightKg ?? raw.weightKg ?? null,
+    /**
+     * האם המתאמן פעיל.
+     * מתאמן שהפסיק אינו נמחק — ההיסטוריה שלו שווה משהו, והוא עשוי לחזור —
+     * אבל הוא גם לא אמור לקבל תכנית בכל שבוע. ברירת המחדל היא פעיל, כדי
+     * שכל מי שכבר רשום במערכת יישאר כפי שהיה.
+     */
+    active: raw.active !== undefined ? !!raw.active : !raw.inactive,
+    /** למה הופסק, ומתי — נשמר כדי שהמאמן יזכור. */
+    inactiveReason: raw.inactiveReason || '',
+    inactiveAt: raw.inactiveAt || null,
+    /**
+     * החלוקה השבועית שהמתאמן מקבל. ברירת המחדל היא גוף מלא — זו החלוקה
+     * שמתאימה לרוב המתאמנים בסטודיו ולרוב התדירויות. 'auto' מחזיר את
+     * ההכרעה למנוע, שבוחר לפי מטרה, רמה ומספר ימים.
+     */
+    preferredSplit: SPLITS.includes(raw.preferredSplit) ? raw.preferredSplit
+      : (raw.preferredSplit === 'auto' ? 'auto' : 'full_body'),
+    /** סגנונות האימון שנבחרו למתאמן. אפשר לשלב כמה. */
+    trainingStyles: [...new Set((raw.trainingStyles || []).filter((k) => TRAINING_STYLES[k]))],
     level: LEVELS.includes(raw.level) ? raw.level : 'beginner',
     trainingAgeMonths: raw.trainingAgeMonths ?? 0,
     goals,

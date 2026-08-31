@@ -6,7 +6,7 @@
  * הכול דטרמיניסטי לפי seed — אותה קלט תמיד מייצרת את אותה תכנית.
  */
 
-import { FATIGUE_COST, SPORTS } from '../domain/taxonomy.js';
+import { FATIGUE_COST, mergeTrainingStyles, SPORTS } from '../domain/taxonomy.js';
 import { fitsLevel, levelForPattern, levelIndex, trainingValue, valueFloor } from '../domain/level.js';
 
 /** מחולל אקראיות דטרמיניסטי (mulberry32) — מאפשר גיוון יציב וניתן לשחזור. */
@@ -205,6 +205,29 @@ export function scoreCandidate(cand, slot, ctx) {
   let tagScore = 0;
   for (const t of ex.tags) tagScore += tagBonus[t] || 0;
   score += tagScore; detail.goalTags = tagScore;
+
+  /*
+   * 6ב. סגנון האימון שנבחר למתאמן.
+   *
+   * המטרה קובעת לאן הולכים; הסגנון קובע איך. שני מתאמנים עם אותה מטרה
+   * ואותה רמה יקבלו תרגילים אחרים אם אחד מתאמן אתלטיקה והשני פיתוח גוף.
+   */
+  const style = ctx.style !== undefined ? ctx.style : mergeTrainingStyles(trainee.trainingStyles);
+  if (style) {
+    let styleScore = 0;
+    for (const t of ex.tags) styleScore += style.tagBonus[t] || 0;
+    // בידוד: פיתוח גוף מחפש אותו, כוח ואתלטיות מעדיפים תרגילים מורכבים
+    if (ex.type === 'isolation') styleScore += style.isolation;
+    if (ex.type === 'compound') styleScore += Math.max(0, -style.isolation) / 2;
+    if (style.equipment !== 'any') {
+      const items = new Set(ex.eq.flat());
+      const machine = [...items].some((i) => i.endsWith('_machine') || i === 'leg_press' || i === 'lat_pulldown' || i === 'cable_machine');
+      const free = items.has('barbell') || items.has('dumbbell') || items.has('kettlebell');
+      if (style.equipment === 'free' && free) styleScore += 3;
+      if (style.equipment === 'machine' && machine) styleScore += 3;
+    }
+    if (styleScore) { score += styleScore; detail.trainingStyle = +styleScore.toFixed(2); }
+  }
 
   // 7. התאמת ציוד לרמה/למטרה/לסגנון הסטודיו
   const eqAff = equipmentAffinity(ex, trainee, studio);

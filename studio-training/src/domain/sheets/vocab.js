@@ -65,6 +65,7 @@ export const HEADER_TERMS = {
   startDate: ['תאריך הצטרפות', 'תאריך התחלה', 'הצטרף', 'הצטרפה', 'תחילת אימונים', 'start date', 'joined', 'join date'],
   targetDate: ['תאריך יעד', 'יעד תאריך', 'אירוע', 'תחרות', 'target date', 'deadline', 'event'],
   status: ['סטטוס', 'פעיל', 'מצב', 'status', 'active'],
+  trainingStyle: ['סגנון אימון', 'סוג אימון', 'סוג האימון', 'סגנון', 'שיטת אימון', 'training style', 'style', 'workout type'],
   notes: ['הערות', 'הערה', 'תיאור', 'פרטים', 'notes', 'note', 'comments', 'remarks'],
   restingHR: ['דופק', 'דופק מנוחה', 'resting hr', 'heart rate'],
   bloodPressure: ['לחץ דם', 'blood pressure', 'bp'],
@@ -119,6 +120,18 @@ export const GOAL_TERMS = {
   active_aging: ['גיל שלישי', 'תפקוד', 'עצמאות', 'קשישים', 'הזדקנות פעילה', 'active aging', 'seniors', 'functional'],
   athletic_performance: ['ביצועים', 'ספורטיבי', 'שיפור ביצועים', 'תחרות', 'athletic', 'performance', 'sport specific'],
   stress_relief: ['הפגת מתחים', 'רגיעה', 'שינה', 'סטרס', 'נפש', 'stress', 'relax', 'mental'],
+};
+
+/** סגנון האימון כפי שמאמן כותב אותו בגיליון. */
+export const TRAINING_STYLE_TERMS = {
+  strength: ['כוח', 'פאוורליפטינג', 'הרמת כוח', 'strength', 'powerlifting'],
+  bodybuilding: ['פיתוח גוף', 'בודיבילדינג', 'מסה', 'היפרטרופיה', 'bodybuilding', 'hypertrophy'],
+  athletic: ['אתלטי', 'אתלטיות', 'ספורטיבי', 'אתלטיקה', 'קרוספיט', 'athletic', 'crossfit', 'sports'],
+  functional: ['פונקציונלי', 'תפקודי', 'פונקציונאלי', 'functional'],
+  conditioning: ['קונדישן', 'שריפת שומן', 'מטבולי', 'hiit', 'conditioning', 'metcon'],
+  endurance: ['סיבולת', 'אירובי', 'endurance', 'cardio'],
+  mobility: ['ניידות', 'גמישות', 'מתיחות', 'יוגה', 'פילאטיס', 'mobility', 'flexibility', 'yoga', 'pilates'],
+  rehab: ['שיקום', 'שיקומי', 'פיזיותרפיה', 'rehab', 'physio'],
 };
 
 export const LEVEL_TERMS = {
@@ -341,6 +354,7 @@ export const SH_FIELD_LABELS = {
   pastInjuries: 'פציעות עבר', medications: 'תרופות', medicalClearance: 'אישור רפואי',
   sport: 'ספורט', externalSessions: 'אימונים חיצוניים', lifestyle: 'אורח חיים', coach: 'מאמן',
   studio: 'סניף', startDate: 'תאריך הצטרפות', targetDate: 'תאריך יעד', status: 'סטטוס',
+  trainingStyle: 'סגנון אימון',
   notes: 'הערות', restingHR: 'דופק מנוחה', bloodPressure: 'לחץ דם',
   equipmentItem: 'פריט ציוד', count: 'כמות', weightRange: 'טווח משקלים',
   exercise: 'תרגיל', sets: 'סטים', reps: 'חזרות', load: 'משקל בתרגיל', rest: 'מנוחה',

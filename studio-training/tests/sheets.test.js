@@ -18,6 +18,7 @@ import {
 } from '../src/domain/sheets/table.js';
 import { shIsZip, shReadXlsx } from '../src/domain/sheets/xlsx.js';
 import { shReadFile } from '../src/domain/sheets/read.js';
+import { shLooksLikePerson } from '../src/domain/sheets/person.js';
 import { shAnalyzeWorkbookAsync } from '../src/domain/sheets/build.js';
 import { shParseAny, shParseHtmlTables, shParseJsonRows } from '../src/domain/sheets/table.js';
 import { shFixHeaderless, shMapColumns } from '../src/domain/sheets/columns.js';
@@ -1117,4 +1118,59 @@ test('תכנית בגודל רגיל אינה נחתכת ואינה מייצרת
   const built = shBuildImport(shAnalyzeWorkbook([{ name: 'שי דמתי', rows }]), { studioName: 'ס' });
   assert.equal(built.snapshots[0].program.days[0].blocks.length, 3);
   assert.ok(!built.report.warnings.some((w) => w.includes('לא נכנסו לתכנית')));
+});
+
+/* ==================================================================
+   מה נחשב שם של אדם
+
+   זו הטעות שהכי כואבת בייבוא: עמודת תרגילים או רשימת ציוד שנקראת
+   כרשימת מתאמנים, והמאמן פותח את המערכת ומוצא בה "לחיצת חזה" כמתאמן.
+   ================================================================== */
+
+test('שמות של אנשים מתקבלים, ושמות של תרגילים וציוד נפסלים', () => {
+  const people = ['רון כהן', 'דנה', 'מיקה מנדל', 'נועה בן דוד', 'Alex Cohen', 'חן לוי',
+    'שרון אראל', 'יהב רוזנצוייג', 'אור', 'גיא גרימברג'];
+  for (const name of people) assert.ok(shLooksLikePerson(name), `נפסל בטעות: ${name}`);
+
+  const notPeople = ['לחיצת חזה במוט', 'סקוואט', 'מוט אולימפי', 'מכונת חזה', 'חתירה בישיבה',
+    'דחיפת רגליים', 'סה"כ', 'ממוצע', 'שם מלא', 'יום שני', 'מתחילה', 'ירידה במשקל',
+    '054-1234567', 'a@b.com', 'מתאמן', '12', 'משקולות יד'];
+  for (const value of notPeople) assert.ok(!shLooksLikePerson(value), `התקבל בטעות: ${value}`);
+});
+
+test('לשונית תרגילים שסווגה בטעות כמתאמנים אינה מייצרת מתאמנים', () => {
+  const rows = [['שם', 'סטים', 'חזרות'], ['לחיצת חזה במוט', '3', '10'],
+    ['סקוואט', '4', '8'], ['חתירה בישיבה', '3', '12']];
+  const built = shBuildImport(
+    shAnalyzeWorkbook([{ name: 'גיליון', rows }], { overrides: { גיליון: 'trainees' } }),
+    { studioName: 'ס' },
+  );
+  assert.equal(built.trainees.length, 0);
+  assert.equal(built.report.rejectedNames.length, 3);
+  assert.match(built.report.rejectedNames[0].why, /תרגיל/);
+  assert.ok(built.report.warnings.some((w) => w.includes('לא זוהה אף מתאמן')));
+});
+
+test('עמודת תרגילים אינה ממופה כעמודת שם', () => {
+  const table = shTableFromText('תרגיל,סטים\nלחיצת חזה,3\nסקוואט,4\nחתירה,3');
+  const mapped = shMapColumns(table);
+  assert.notEqual(mapped.columns[0].field, 'name');
+});
+
+test('בדיקת שם לא מאטה גיליון גדול', () => {
+  const started = Date.now();
+  for (let i = 0; i < 3000; i++) shLooksLikePerson(`נועה ${i} כהן`);
+  assert.ok(Date.now() - started < 2000, 'בדיקת השמות איטית מדי');
+});
+
+test('סגנון אימון וסטטוס מיובאים מהגיליון', () => {
+  const rows = [['שם', 'גיל', 'מטרה', 'סוג אימון', 'סטטוס'],
+    ['רון כהן', '34', 'מסה', 'כוח + פיתוח גוף', 'פעיל'],
+    ['דנה לוי', '28', 'כושר כללי', 'פונקציונלי', 'לא פעיל']];
+  const built = shBuildImport(shAnalyzeWorkbook([{ name: 'מתאמנים', rows }]), { studioName: 'ס' });
+  const [ron, dana] = built.trainees;
+  assert.deepEqual(ron.trainingStyles, ['strength', 'bodybuilding']);
+  assert.equal(ron.active, true);
+  assert.deepEqual(dana.trainingStyles, ['functional']);
+  assert.equal(dana.active, false);
 });

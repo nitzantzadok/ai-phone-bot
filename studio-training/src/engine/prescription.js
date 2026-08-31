@@ -1,7 +1,9 @@
 /**
  * מרשם אימון: כמה סטים, כמה חזרות, כמה מנוחה, באיזה קצב ובאיזה מרחק מכשל.
- * הכול נגזר משילוב של מטרה × רמה × סוג התרגיל × מגבלות × מצב התאוששות.
+ * הכול נגזר משילוב של מטרה × סגנון × רמה × סוג התרגיל × מגבלות × התאוששות.
  */
+
+import { mergeTrainingStyles } from '../domain/taxonomy.js';
 
 /** פרופיל בסיס לכל מטרה. */
 export const GOAL_PROFILES = {
@@ -303,12 +305,27 @@ export function prescribe(exercise, trainee, opts = {}) {
     .map((p) => (deload ? Math.round(p * 0.85) : p))
     .map((p) => Math.min(p, age.maxIntensityPct));
 
+  /*
+   * סגנון האימון מזיז את המרשם בתוך גבולות התרגיל: פיתוח גוף מעלה חזרות
+   * ומקצר מנוחה, כוח עושה את ההפך. הגבולות של התרגיל עצמו נשמרים — סגנון
+   * אינו רשאי לבקש 20 חזרות בתרגיל שנועד ל-5.
+   */
+  const style = mergeTrainingStyles(trainee.trainingStyles);
+  if (style) {
+    const shift = isIso ? style.repShift : Math.round(style.repShift * 0.7);
+    reps[0] = clampInt(reps[0] + shift, exercise.repMin, exercise.repMax);
+    reps[1] = clampInt(Math.max(reps[1] + shift, reps[0]), exercise.repMin, exercise.repMax);
+    if (reps[1] < reps[0]) reps[1] = reps[0];
+    sets = Math.max(1, Math.round(sets + style.setBias));
+  }
+  const styledRest = style ? Math.max(30, restSec + style.restBump) : restSec;
+
   return {
     sets,
     reps: reps[0] === reps[1] ? `${reps[0]}` : `${reps[0]}-${reps[1]}`,
     repsMin: reps[0],
     repsMax: reps[1],
-    restSec,
+    restSec: styledRest,
     tempo: base.tempo,
     rir,
     intensityPct,

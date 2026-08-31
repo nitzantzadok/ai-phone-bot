@@ -30,6 +30,7 @@ const MODULES = [
   'src/domain/sheets/text.js',
   'src/domain/sheets/vocab.js',
   'src/domain/sheets/table.js',
+  'src/domain/sheets/person.js',
   'src/domain/sheets/columns.js',
   'src/domain/sheets/classify.js',
   'src/domain/sheets/build.js',

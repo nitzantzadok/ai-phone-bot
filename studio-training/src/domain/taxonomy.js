@@ -132,6 +132,61 @@ export const LIFESTYLES = {
 /** שלב במחזור החודשי — קלט אופציונלי בלבד, לוויסות עדין של עצימות. */
 export const CYCLE_PHASES = ['unknown', 'menstrual', 'follicular', 'ovulation', 'luteal', 'perimenopause', 'postmenopause'];
 
+/**
+ * סגנון האימון שהמאמן רוצה להריץ עם המתאמן.
+ *
+ * המטרה עונה על "בשביל מה" (מסה, ירידה בשומן), והסגנון עונה על "איך" —
+ * שני מתאמנים עם אותה מטרה בדיוק יכולים לקבל אימון פיתוח גוף או אימון
+ * אתלטי, וזה אימון אחר לגמרי. אפשר לבחור כמה סגנונות; המספרים מתמצעים
+ * וההעדפות מתאחדות, וכך "כוח + פיתוח גוף" הוא באמת שילוב ולא בחירה.
+ *
+ * repShift  — הזזת טווח החזרות (שלילי = כבד יותר)
+ * restBump  — שינוי המנוחה בשניות
+ * setBias   — נטייה לעוד/פחות סטים
+ * isolation — כמה בידוד מתאים לסגנון (חיובי = יותר)
+ * tagBonus  — תגיות תרגיל שהסגנון מחפש
+ * equipment — free (משקל חופשי) | machine | any
+ */
+export const TRAINING_STYLES = {
+  strength:     { goal: 'strength', repShift: -2, restBump: 30, setBias: 0.3, isolation: -3, equipment: 'free', tagBonus: { power: 1 } },
+  bodybuilding: { goal: 'hypertrophy', repShift: 2, restBump: -10, setBias: 0.4, isolation: 4, equipment: 'machine', tagBonus: {} },
+  athletic:     { goal: 'athletic_performance', repShift: -1, restBump: 20, setBias: 0, isolation: -2, equipment: 'free', tagBonus: { power: 4, functional: 3, balance_training: 1 } },
+  functional:   { goal: 'general_fitness', repShift: 1, restBump: 0, setBias: 0, isolation: -1, equipment: 'free', tagBonus: { functional: 4, core: 2, balance_training: 2 } },
+  conditioning: { goal: 'fat_loss', repShift: 3, restBump: -25, setBias: 0, isolation: 0, equipment: 'any', tagBonus: { conditioning: 4, low_impact: 1 } },
+  endurance:    { goal: 'endurance', repShift: 5, restBump: -20, setBias: -0.2, isolation: 0, equipment: 'any', tagBonus: { conditioning: 2 } },
+  mobility:     { goal: 'mobility', repShift: 2, restBump: -10, setBias: -0.3, isolation: 0, equipment: 'any', tagBonus: { mobility: 4, warmup: 1, cooldown: 1 } },
+  rehab:        { goal: 'rehab', repShift: 3, restBump: 10, setBias: -0.3, isolation: 2, equipment: 'machine', tagBonus: { rehab_friendly: 4, joint_friendly: 3, beginner_friendly: 1 } },
+};
+
+export const TRAINING_STYLE_KEYS = Object.keys(TRAINING_STYLES);
+
+/**
+ * מיזוג כמה סגנונות למקדם אחד.
+ * שילוב של שני סגנונות אינו ממוצע עיוור: ההעדפות (התגיות) מתאחדות לפי
+ * החזק מביניהן, כי מי שביקש גם כוח וגם אתלטיות רוצה את שניהם — ולא את
+ * הממוצע החיוור שביניהם.
+ */
+export function mergeTrainingStyles(keys = []) {
+  const styles = (keys || []).map((k) => TRAINING_STYLES[k]).filter(Boolean);
+  if (!styles.length) return null;
+  const avg = (f) => styles.reduce((n, s) => n + (s[f] || 0), 0) / styles.length;
+  const tagBonus = {};
+  for (const s of styles) {
+    for (const [tag, v] of Object.entries(s.tagBonus || {})) tagBonus[tag] = Math.max(tagBonus[tag] || 0, v);
+  }
+  const eq = new Set(styles.map((s) => s.equipment));
+  return {
+    keys: styles.map((s, i) => (keys || [])[i]).filter(Boolean),
+    repShift: Math.round(avg('repShift')),
+    restBump: Math.round(avg('restBump')),
+    setBias: +avg('setBias').toFixed(2),
+    isolation: +avg('isolation').toFixed(2),
+    equipment: eq.size === 1 ? [...eq][0] : 'any',
+    tagBonus,
+    goals: [...new Set(styles.map((s) => s.goal))],
+  };
+}
+
 /** סוגי חלוקה שבועית נתמכים. */
 export const SPLITS = [
   'full_body', 'upper_lower', 'push_pull', 'push_pull_legs',

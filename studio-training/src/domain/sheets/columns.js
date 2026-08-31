@@ -12,17 +12,20 @@ import {
 } from './text.js';
 import {
   constraintCandidates, equipmentCandidates, exerciseCandidates, GOAL_TERMS, HEADER_TERMS,
-  LEVEL_TERMS, SEX_TERMS, shCandidates, SPORT_TERMS, WEEKDAY_TERMS,
+  LEVEL_TERMS, SEX_TERMS, shCandidates, SPORT_TERMS, TRAINING_STYLE_TERMS, WEEKDAY_TERMS,
 } from './vocab.js';
+import { shLooksLikePerson } from './person.js';
 
 const between = (n, lo, hi) => n !== null && n >= lo && n <= hi;
 const intBetween = (n, lo, hi) => between(n, lo, hi) && Number.isInteger(n);
 
 /** בדיקות תוכן לכל שדה: איזה חלק מהערכים בעמודה מתאים לשדה הזה. */
 const VALUE_TESTS = {
-  name: (v) => /\p{L}/u.test(v) && shNum(v) === null && v.length >= 2 && v.length <= 40,
-  firstName: (v) => /^\p{L}[\p{L}'"-]{1,14}$/u.test(v.trim()),
-  lastName: (v) => /^\p{L}[\p{L}'"-]{1,18}$/u.test(v.trim()),
+  // עמודה של שמות היא עמודה של *אנשים*. עמודת תרגילים או ציוד עברה כאן
+  // בעבר כעמודת שם, וכל שורה בה הפכה למתאמן.
+  name: (v) => v.length >= 2 && shLooksLikePerson(v),
+  firstName: (v) => /^\p{L}[\p{L}'"-]{1,14}$/u.test(v.trim()) && shLooksLikePerson(v),
+  lastName: (v) => /^\p{L}[\p{L}'"-]{1,18}$/u.test(v.trim()) && shLooksLikePerson(v),
   phone: (v) => shPhone(v) !== null,
   email: (v) => shEmail(v) !== null,
   sex: (v) => !!shMatch(v, shCandidates(SEX_TERMS), { min: 0.8 }),
@@ -40,6 +43,7 @@ const VALUE_TESTS = {
   medications: (v) => /\p{L}/u.test(v) && v.length > 2,
   medicalClearance: (v) => shBool(v) !== null,
   sport: (v) => !!shMatch(v, shCandidates(SPORT_TERMS), { min: 0.7 }),
+  trainingStyle: (v) => shSplitList(v).some((p) => !!shMatch(p, shCandidates(TRAINING_STYLE_TERMS), { min: 0.75 })),
   externalSessions: (v) => intBetween(shNum(v), 0, 14),
   coach: (v) => /\p{L}/u.test(v) && v.length <= 30 && shNum(v) === null,
   studio: (v) => /\p{L}/u.test(v) && v.length <= 30,

@@ -527,6 +527,20 @@
   .imp-paste:focus{border-color:var(--accent-line); outline:none}
   .imp-tab{gap:.35rem}
   .imp-tab button{padding:0 .2rem; line-height:1; font-size:var(--step--1)}
+  /* בחירת סגנון אימון: כרטיסייה לכל סגנון, עם הסבר קצר מתחת לשם */
+  .pickbox{display:inline-flex; align-items:center; padding:.15rem; margin:0}
+  /* מתאמן לא פעיל נשאר ברשימה, אבל לא מושך את העין */
+  .listrow.dim strong{color:var(--muted)}
+  .listrow.dim .chip:not(.warn){opacity:.75}
+  button.chip{cursor:pointer; font:inherit; font-size:var(--step--1)}
+
+  .stylegrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.45rem; margin-top:.45rem}
+  .stylepick{display:flex; align-items:flex-start; gap:.5rem; padding:.5rem .6rem; cursor:pointer;
+    border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface-2)}
+  .stylepick:has(input:checked){border-color:var(--accent-line); background:var(--accent-soft)}
+  .stylepick span{display:flex; flex-direction:column; gap:.1rem; line-height:1.25}
+  .stylepick small{color:var(--muted); font-size:var(--step--2)}
+
   .imp-tabs{max-height:14rem; overflow-y:auto; padding:.2rem}
   .imp-scroll{display:block; overflow-x:auto; margin-top:.6rem;
     border:1px solid var(--line); border-radius:var(--radius-sm)}
@@ -755,7 +769,7 @@
       --accent-soft:#eef4ff; --shadow:none; --shadow-lift:none}
     body::before,body::after{display:none}
     header.bar,.steps,.tabs,.log,.acts,details.more,.swap,#programSteps,
-    #viewStudio,#viewTrainees,.tiles,#print,#gen,#genAll,#next,.bar,#exportCard{display:none !important}
+    #viewStudio,#viewTrainees,.tiles,#print,#gen,#genAll,#next,#nextAll,.bar,#exportCard{display:none !important}
     body{background:#fff; padding-bottom:0}
     main.wrap{max-width:none; padding:0}
     .cols{display:block}
@@ -823,6 +837,7 @@
       <button class="primary" id="gen">בנה תכנית</button>
       <button id="genAll">כל הסטודיו</button>
       <button id="next">שבוע הבא</button>
+      <button class="primary" id="nextAll" title="מקדם שבוע ובונה תכנית לכל מתאמן פעיל בסניף">שבוע הבא לכולם</button>
       <button id="print">הדפס / שמור PDF</button>
     </div>
     <div class="cols">
@@ -854,6 +869,8 @@ const STORE_KEY = 'studio-training/db/v2';
 const state = {
   studios: [], trainees: [], program: null, view: 'program', server: false,
   account: null, snapshots: [], sessionLog: [],
+  /** רשימת המתאמנים: חיפוש, סינון לפי סטטוס, ומי שנבחר לפעולה קבוצתית. */
+  traineeQuery: '', traineeFilter: 'all', picked: new Set(), bulkConfirm: false,
 };
 
 /* ==================================================================
@@ -1101,7 +1118,14 @@ const store = {
     const withId = { ...trainee, id };
     const v = validateInput(normalizeTrainee(withId), normalizeStudio(studioById(trainee.studioId)));
     if (!v.ok) return { ok: false, errors: v.errors, warnings: v.warnings };
-    state.trainees = [...state.trainees.filter((x) => x.id !== id), withId];
+    /*
+     * עדכון שומר על המקום ברשימה. קודם הרשומה נמחקה ונוספה בסוף, ולכן כל
+     * שינוי קטן — סימון "לא פעיל", תיקון טלפון — הקפיץ את המתאמן לתחתית
+     * הרשימה בזמן שהמאמן עובד עליה.
+     */
+    const at = state.trainees.findIndex((x) => x.id === id);
+    if (at >= 0) state.trainees = state.trainees.map((x, i) => (i === at ? withId : x));
+    else state.trainees = [...state.trainees, withId];
     this.persistLocal();
     return { ok: true, id, warnings: v.warnings };
   },
@@ -1122,7 +1146,10 @@ const store = {
   },
 
   async updateTrainee(raw) {
-    state.trainees = [...state.trainees.filter((x) => x.id !== raw.id), raw];
+    const at = state.trainees.findIndex((x) => x.id === raw.id);
+    state.trainees = at >= 0
+      ? state.trainees.map((x, i) => (i === at ? raw : x))
+      : [...state.trainees, raw];
     if (state.server) { try { await api('/api/trainees', raw); } catch { /* נשמר מקומית בכל מקרה */ } }
     this.persistLocal();
   },
@@ -1262,6 +1289,7 @@ async function boot() {
   $('#gen').onclick = generate;
   $('#genAll').onclick = generateAll;
   $('#next').onclick = nextWeek;
+  $('#nextAll').onclick = nextWeekAll;
   $('#print').onclick = () => window.print();
 
   document.querySelectorAll('#gateTabs button').forEach((b) => {
@@ -1391,7 +1419,7 @@ function fillTrainees() {
   const list = traineesOf($('#studio').value);
   const keep = $('#trainee').value;
   $('#trainee').innerHTML = list.length
-    ? list.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')
+    ? list.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}${isActive(t) ? '' : ' · לא פעיל'}</option>`).join('')
     : '<option value="">— אין מתאמנים —</option>';
   // מעבר בין סניפים לא אמור להחליף מתאמן — אותו אדם, ציוד אחר
   if (keep && list.some((t) => t.id === keep)) $('#trainee').value = keep;
@@ -2708,6 +2736,7 @@ function importReviewHtml() {
     ${preview.warnings.length ? `<div class="card"><fieldset><legend>לתשומת לבך</legend>
       <ul class="notecard">${preview.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></fieldset></div>` : ''}
 
+    ${importRejectedHtml(preview.rejectedNames)}
     ${importUnmatchedHtml(preview.unmatched)}
 
     <div class="card">
@@ -2755,6 +2784,22 @@ function importSheetCard(sheet, si) {
         </div>`}
       </fieldset>
     </div>`;
+}
+
+/**
+ * שורות שנפסלו כשם של אדם.
+ * המאמן חייב לראות אותן: אם המערכת פסלה שם אמיתי הוא צריך לדעת מיד,
+ * ואם היא פסלה "לחיצת חזה" — זו בדיוק ההתנהגות שהוא מצפה לה.
+ */
+function importRejectedHtml(rejected) {
+  if (!rejected || !rejected.length) return '';
+  return `<div class="card"><fieldset><legend>שורות שלא נכנסו כמתאמנים</legend>
+    <p class="hint">שורות שאינן נראות כמו שם של אדם. אם מישהו אמיתי נמצא כאן —
+       כדאי לבדוק שסוג הלשונית ועמודת השם נכונים.</p>
+    <table class="imp-map"><tbody>
+      ${rejected.map((r) => `<tr><td>${esc(r.value)}</td><td class="muted">${esc(r.why)}</td></tr>`).join('')}
+    </tbody></table>
+  </fieldset></div>`;
 }
 
 function importUnmatchedHtml(unmatched) {
@@ -3127,6 +3172,27 @@ function renderTraineesView() {
             <label class="f"><span>אורך אימון (דקות)</span><input name="sessionMinutes" type="number" min="20" max="120" value="60"></label>
             <label class="f"><span>רמת ניסיון</span>
               <select name="level">${LEVELS.map((l) => `<option value="${l}">${esc(levelLabel(l))}</option>`).join('')}</select></label>
+            <label class="f"><span>סטטוס</span>
+              <select name="active"><option value="true">פעיל</option><option value="false">לא פעיל</option></select>
+              <small class="hint">מתאמן לא פעיל נשאר עם כל ההיסטוריה שלו, ואינו נכלל בבניית תכניות לכולם.</small></label>
+            <label class="f"><span>חלוקת האימון</span>
+              <select name="preferredSplit">
+                <option value="full_body">גוף מלא (ברירת מחדל)</option>
+                ${SPLITS.filter((k) => k !== 'full_body').map((k) => `<option value="${k}">${esc(splitLabel(k))}</option>`).join('')}
+                <option value="auto">שהמערכת תחליט לפי המטרה והימים</option>
+              </select></label>
+          </div>
+
+          <div style="margin-top:.7rem">
+            <span class="hint"><b>סגנון האימון</b> — איך מתאמנים, להבדיל מהמטרה שהיא בשביל מה.
+              אפשר לבחור כמה; הם משתלבים זה בזה. בלי בחירה המערכת עובדת לפי המטרה בלבד.</span>
+            <div class="stylegrid">
+              ${Object.keys(TRAINING_STYLE_LABELS).map((k) => `
+                <label class="stylepick">
+                  <input type="checkbox" name="trainingStyles" value="${k}">
+                  <span><b>${esc(TRAINING_STYLE_LABELS[k])}</b><small>${esc(TRAINING_STYLE_HINTS[k] || '')}</small></span>
+                </label>`).join('')}
+            </div>
           </div>
           ${state.studios.length > 1 ? `
           <div style="margin-top:.6rem">
@@ -3287,25 +3353,34 @@ function renderTraineesView() {
 
     <div class="card">
       <p class="eyebrow">מתאמנים רשומים</p>
-      ${state.trainees.length ? state.trainees.map((t) => (state.confirmDeleteId === t.id ? `
+      ${traineeListToolbarHtml()}
+      ${listedTrainees().length ? listedTrainees().map((t) => (state.confirmDeleteId === t.id ? `
       <div class="listrow">
         <strong>${esc(t.name)}</strong>
         <span class="hint">למחוק? ההיסטוריה, התכניות והמדידות שלו יימחקו יחד איתו ואי אפשר לשחזר.</span>
         <span class="grow"></span>
         <button class="danger" data-del-confirm="${esc(t.id)}">כן, מחק</button>
         <button data-del-cancel>ביטול</button>
-      </div>` : `<div class="listrow">
+      </div>` : `<div class="listrow${isActive(t) ? '' : ' dim'}">
+        <label class="pickbox" title="בחירה לפעולה קבוצתית">
+          <input type="checkbox" data-pick-t="${esc(t.id)}"${state.picked.has(t.id) ? ' checked' : ''}
+                 aria-label="בחירת ${esc(t.name)}"></label>
         <strong>${esc(t.name)}</strong>
+        <button class="chip ${isActive(t) ? 'ok' : 'warn'}" data-toggle-active="${esc(t.id)}"
+                title="לחיצה משנה סטטוס">${isActive(t) ? 'פעיל' : 'לא פעיל'}</button>
         <span class="chip">${esc(studioById(t.homeStudioId || t.studioId)?.name || t.studioId)}</span>
         <span class="chip">${esc(GOAL_PROFILES[t.primaryGoal]?.label || t.primaryGoal || '')}</span>
+        ${(t.trainingStyles || []).map((k) => `<span class="chip">${esc(TRAINING_STYLE_LABELS[k] || k)}</span>`).join('')}
         ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
         <span class="grow"></span>
         <button data-open-trainee="${esc(t.id)}">פתח תכנית</button>
         <button data-edit-trainee="${esc(t.id)}">ערוך</button>
         <button class="danger" data-del-trainee="${esc(t.id)}" aria-label="מחיקת ${esc(t.name)}">מחק</button>
-      </div>`)).join('') : `<p class="empty">עדיין לא נרשם מתאמן.
+      </div>`)).join('') : `<p class="empty">${state.trainees.length
+        ? 'אין מתאמן שמתאים לסינון הנוכחי.'
+        : `עדיין לא נרשם מתאמן.
         אם הרשימה שלך כבר קיימת בגיליון Google —
-        <a href="#" data-goto="import">אפשר לייבא ממנו את כולם בבת אחת</a>.</p>`}
+        <a href="#" data-goto="import">אפשר לייבא ממנו את כולם בבת אחת</a>.`}</p>`}
     </div>`;
 
   wireSteps();
@@ -3316,6 +3391,45 @@ function renderTraineesView() {
 
   document.querySelectorAll('[data-edit-trainee]').forEach((b) => {
     b.onclick = () => startEditTrainee(b.dataset.editTrainee);
+  });
+
+  const search = $('#traineeSearch');
+  if (search) {
+    search.oninput = () => {
+      state.traineeQuery = search.value;
+      renderTraineesView();
+      // הציור מחדש בונה שדה חדש; בלי החזרת המיקוד ההקלדה נקטעת אחרי תו אחד
+      const again = $('#traineeSearch');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
+  document.querySelectorAll('[data-tfilter]').forEach((b) => {
+    b.onclick = () => { state.traineeFilter = b.dataset.tfilter; renderTraineesView(); };
+  });
+  document.querySelectorAll('[data-pick-t]').forEach((box) => {
+    box.onchange = () => {
+      if (box.checked) state.picked.add(box.dataset.pickT); else state.picked.delete(box.dataset.pickT);
+      renderTraineesView();
+    };
+  });
+  const pickAll = $('#pickAll');
+  if (pickAll) {
+    pickAll.onchange = () => {
+      const shown = listedTrainees();
+      if (pickAll.checked) shown.forEach((t) => state.picked.add(t.id));
+      else shown.forEach((t) => state.picked.delete(t.id));
+      renderTraineesView();
+    };
+  }
+  document.querySelectorAll('[data-bulk]').forEach((b) => {
+    b.onclick = () => bulkTrainees(b.dataset.bulk);
+  });
+  const yes = $('#bulkDeleteYes');
+  if (yes) yes.onclick = bulkDeleteNow;
+  const no = $('#bulkDeleteNo');
+  if (no) no.onclick = () => { state.bulkConfirm = false; renderTraineesView(); };
+  document.querySelectorAll('[data-toggle-active]').forEach((b) => {
+    b.onclick = () => toggleTraineeActive(b.dataset.toggleActive);
   });
   // מחיקה בשני שלבים: הלחיצה הראשונה שואלת, השנייה מוחקת
   document.querySelectorAll('[data-del-trainee]').forEach((b) => {
@@ -3339,6 +3453,113 @@ function renderTraineesView() {
       setView('program');
     };
   });
+}
+
+/* --------------------------------------- רשימת המתאמנים: סינון ובחירה */
+
+/**
+ * האם המתאמן פעיל.
+ * רשומה שנוצרה לפני שהשדה היה קיים נחשבת פעילה — היעדר מידע אינו סיבה
+ * להעלים מתאמן מהרשימה של המאמן.
+ */
+const isActive = (t) => t.active !== false && !t.inactive;
+
+/** המתאמנים שמוצגים כרגע, אחרי חיפוש וסינון סטטוס. */
+function listedTrainees() {
+  const q = shNorm(state.traineeQuery || '');
+  return state.trainees.filter((t) => {
+    if (state.traineeFilter === 'active' && !isActive(t)) return false;
+    if (state.traineeFilter === 'inactive' && isActive(t)) return false;
+    if (!q) return true;
+    const hay = [t.name, studioById(t.homeStudioId || t.studioId)?.name, t.phone, t.coach,
+      GOAL_PROFILES[t.primaryGoal]?.label].filter(Boolean).join(' ');
+    return shNorm(hay).includes(q);
+  });
+}
+
+const activeCount = () => state.trainees.filter(isActive).length;
+
+/**
+ * הסרגל שמעל הרשימה: חיפוש, סינון, ופעולות על מה שנבחר.
+ * בסטודיו עם מאה מתאמנים רשימה בלי חיפוש היא רשימה שאי אפשר לעבוד איתה,
+ * ומחיקה אחד-אחד היא עשר דקות של לחיצות.
+ */
+function traineeListToolbarHtml() {
+  if (!state.trainees.length) return '';
+  const shown = listedTrainees();
+  const pickedHere = shown.filter((t) => state.picked.has(t.id));
+  const tab = (key, label) => `<button class="chip${state.traineeFilter === key ? ' ok' : ''}"
+    data-tfilter="${key}">${label}</button>`;
+  return `
+    <div class="row" style="margin-bottom:.6rem; gap:.4rem">
+      <input id="traineeSearch" class="grow" placeholder="חיפוש לפי שם, סניף, טלפון או מאמן"
+             value="${esc(state.traineeQuery || '')}" autocomplete="off">
+      ${tab('all', `הכול (${state.trainees.length})`)}
+      ${tab('active', `פעילים (${activeCount()})`)}
+      ${tab('inactive', `לא פעילים (${state.trainees.length - activeCount()})`)}
+    </div>
+    <div class="row" style="margin-bottom:.6rem; gap:.4rem">
+      <label class="pickbox"><input type="checkbox" id="pickAll"
+        ${shown.length && pickedHere.length === shown.length ? 'checked' : ''}
+        aria-label="בחירת כל המוצגים"></label>
+      <span class="hint">${pickedHere.length ? `${pickedHere.length} נבחרו` : 'בחירה מרובה'}</span>
+      ${pickedHere.length ? `
+        <span class="grow"></span>
+        <button data-bulk="active">סמן כפעילים</button>
+        <button data-bulk="inactive">סמן כלא פעילים</button>
+        <button class="danger" data-bulk="delete">מחיקת ${pickedHere.length} מתאמנים</button>` : ''}
+    </div>
+    ${state.bulkConfirm ? `<div class="banner warn">
+      למחוק ${pickedHere.length} מתאמנים? ההיסטוריה, התכניות והמדידות שלהם יימחקו יחד איתם
+      ואי אפשר לשחזר.
+      <div class="acts" style="margin-top:.5rem">
+        <button class="danger" id="bulkDeleteYes">כן, מחק את כולם</button>
+        <button id="bulkDeleteNo">ביטול</button>
+      </div></div>` : ''}`;
+}
+
+/** שינוי סטטוס של מתאמן אחד — הפעולה הכי נפוצה, ולכן לחיצה אחת. */
+async function toggleTraineeActive(id) {
+  const t = traineeById(id);
+  if (!t) return;
+  const active = !isActive(t);
+  const res = await store.saveTrainee({
+    ...t, active, inactive: !active, inactiveAt: active ? null : new Date().toISOString(),
+  });
+  if (res && res.ok === false) { flash((res.errors || []).join(', '), 'warn'); }
+  else flash(`${t.name} סומן/ה כ${active ? 'פעיל' : 'לא פעיל'}.`, 'ok');
+  renderTraineesView();
+}
+
+/** פעולה קבוצתית על כל מי שנבחר. */
+async function bulkTrainees(action) {
+  const ids = listedTrainees().filter((t) => state.picked.has(t.id)).map((t) => t.id);
+  if (!ids.length) return;
+  if (action === 'delete') { state.bulkConfirm = true; renderTraineesView(); return; }
+
+  const active = action === 'active';
+  status(`מעדכן ${ids.length} מתאמנים…`);
+  for (const id of ids) {
+    const t = traineeById(id);
+    if (t) await store.saveTrainee({ ...t, active, inactive: !active });
+  }
+  status('');
+  flash(`${ids.length} מתאמנים סומנו כ${active ? 'פעילים' : 'לא פעילים'}.`, 'ok');
+  state.picked.clear();
+  renderTraineesView();
+}
+
+async function bulkDeleteNow() {
+  const ids = listedTrainees().filter((t) => state.picked.has(t.id)).map((t) => t.id);
+  status(`מוחק ${ids.length} מתאמנים…`);
+  let done = 0;
+  for (const id of ids) { await store.deleteTrainee(id); done++; if (done % 5 === 0) status(`מוחק… ${done}/${ids.length}`); }
+  status('');
+  state.picked.clear();
+  state.bulkConfirm = false;
+  flash(`${done} מתאמנים נמחקו.`, 'ok');
+  fillStudios();
+  renderTraineesView();
 }
 
 /** שורת מגבלה — מקובצת לפי אזור כדי שקל יהיה למצוא. */
@@ -3391,6 +3612,7 @@ const TRAINEE_LIST_FIELDS = {
   knownMovements: (t) => t.knownMovements,
   preferredDays: (t) => t.preferredDays,
   alsoStudio: (t) => t.studioIds,
+  trainingStyles: (t) => t.trainingStyles,
 };
 
 /**
@@ -3413,6 +3635,7 @@ function fillTraineeForm(raw) {
     units: t.units, varietyPreference: t.varietyPreference, mesocycleLength: t.mesocycleLength,
     mesocycleWeek: t.mesocycleWeek,
     medicalClearance: String(t.medicalClearance), travelWeek: String(t.travelWeek),
+    active: String(t.active), preferredSplit: t.preferredSplit,
     sport: t.sport, externalSessions: t.externalSessions, lifestyle: t.lifestyle,
     cyclePhase: t.cyclePhase, medications: (t.medications || []).join(', '),
     sleepQuality: t.sleepQuality, stressLevel: t.stressLevel, nutritionAdherence: t.nutritionAdherence,
@@ -3518,6 +3741,9 @@ async function onTraineeSubmit(e) {
     pastInjuries: f.get('pastInjuries') || '',
     knownMovements: f.getAll('knownMovements'),
     notes: f.get('notes'), phone: f.get('phone') || '', email: f.get('email') || '',
+    active: f.get('active') !== 'false',
+    preferredSplit: f.get('preferredSplit') || 'full_body',
+    trainingStyles: f.getAll('trainingStyles'),
   };
 
   /*
@@ -3695,10 +3921,70 @@ function generate() {
 
 function generateAll() {
   const studio = studioById($('#studio').value);
-  const batch = buildStudioPrograms(traineesOf(studio.id), studio);
+  // מתאמן לא פעיל אינו מקבל תכנית: הוא לא מגיע לאימון, והתכנית שלו רק
+  // תעמיס על הרשימה ועל ההיסטוריה
+  const batch = buildStudioPrograms(traineesOf(studio.id).filter(isActive), studio);
   log(`${esc(studio.name)} — ${batch.total} תכניות`, batch.results.map((r) => (r.ok
     ? `${esc(r.name)}: ציון ${r.program.qa.score}${r.program.qa.passed ? '' : ' — נדרשת בדיקה'}`
     : `${esc(r.name)}: ${esc(r.errors[0])}`)));
+}
+
+/**
+ * תכנית לשבוע הבא לכל המתאמנים הפעילים — בלחיצה אחת.
+ *
+ * זו הפעולה השבועית של המאמן: במקום לפתוח כל מתאמן, לקדם שבוע ולבנות,
+ * הכול רץ ברצף. מתאמן לא פעיל מדולג בכוונה, וכך הרשימה נשארת נקייה בלי
+ * למחוק אף אחד. הכישלונות אינם נבלעים — הם מופיעים ביומן עם הסיבה.
+ */
+async function nextWeekAll() {
+  const studio = studioById($('#studio').value);
+  if (!studio) return;
+  const list = traineesOf(studio.id).filter(isActive);
+  if (!list.length) {
+    log('שבוע הבא לכולם', 'אין מתאמנים פעילים בסניף הזה. אפשר לסמן מתאמן כפעיל במסך המתאמנים.');
+    return;
+  }
+
+  const btn = $('#nextAll');
+  if (btn) btn.disabled = true;
+  const lines = [];
+  let built = 0;
+  let failed = 0;
+
+  for (const [i, raw] of list.entries()) {
+    status(`בונה תכניות… ${i + 1} מתוך ${list.length} · ${raw.name}`);
+    // הפוגה קצרה כדי שהמסך ימשיך להגיב גם בסטודיו עם מאה מתאמנים
+    await new Promise((r) => setTimeout(r, 0));
+    try {
+      const events = (raw._events || []).slice();
+      const { trainee, flags } = applyFeedback(normalizeTrainee(raw), events);
+      const advanced = advanceWeek(trainee, flags);
+      Object.assign(raw, advanced, { _events: [] });
+      await store.updateTrainee(raw);
+
+      const res = buildProgram(raw, studio);
+      if (!res.ok) {
+        failed++;
+        lines.push(`${esc(raw.name)}: ${esc(res.errors[0] || 'לא ניתן לבנות תכנית')}`);
+        continue;
+      }
+      await store.archive(res.program, 'next_week');
+      built++;
+      lines.push(`${esc(raw.name)}: שבוע ${advanced.mesocycleWeek} · ציון ${res.program.qa.score}`
+        + `${res.program.qa.passed ? '' : ' — נדרשת בדיקה'}`);
+    } catch (err) {
+      failed++;
+      lines.push(`${esc(raw.name)}: ${esc(err.message)}`);
+    }
+  }
+
+  status('');
+  if (btn) btn.disabled = false;
+  await store.load();
+  generate();
+  log(`שבוע הבא · ${esc(studio.name)}`,
+    [`נבנו ${built} תכניות${failed ? `, ${failed} נכשלו` : ''} מתוך ${list.length} מתאמנים פעילים.`, ...lines.slice(0, 30)]);
+  flash(`נבנו ${built} תכניות לשבוע הבא${failed ? ` · ${failed} דורשות טיפול` : ''}.`, failed ? 'warn' : 'ok');
 }
 
 async function nextWeek() {

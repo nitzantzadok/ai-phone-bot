@@ -15,6 +15,7 @@ import { EQUIPMENT_LABELS } from '../labels.js';
 import { GOALS, LEVELS } from '../taxonomy.js';
 import { shClassifyTable, shSheetPersonName } from './classify.js';
 import { shKeyValueTable, shSplitBlocks, shToTable } from './table.js';
+import { shPersonCheck } from './person.js';
 import { shCell, shFixHeaderless, shMapColumns } from './columns.js';
 import {
   shBool, shDate, shEmpty, shMatch, shMatchAll, shMatchPhrase, shNorm, shNum, shPhone, shEmail,
@@ -23,7 +24,7 @@ import {
 import {
   constraintCandidates, equipmentCandidates, exerciseCandidates, GOAL_TERMS, IGNORED_FIELDS,
   LEVEL_TERMS, LIFESTYLE_TERMS, SEVERITY_TERMS, SEX_TERMS, shCandidates, SH_FIELD_LABELS,
-  SIDE_TERMS, SPORT_TERMS, WEEKDAY_TERMS,
+  SIDE_TERMS, SPORT_TERMS, TRAINING_STYLE_TERMS, WEEKDAY_TERMS,
 } from './vocab.js';
 
 const GOAL_CANDS = shCandidates(GOAL_TERMS);
@@ -34,6 +35,7 @@ const LIFESTYLE_CANDS = shCandidates(LIFESTYLE_TERMS);
 const SEVERITY_CANDS = shCandidates(SEVERITY_TERMS);
 const SIDE_CANDS = shCandidates(SIDE_TERMS);
 const WEEKDAY_CANDS = shCandidates(WEEKDAY_TERMS);
+const STYLE_CANDS = shCandidates(TRAINING_STYLE_TERMS);
 
 /** שורות סיכום בתחתית גיליון — נתון שנראה כמו מתאמן ואינו מתאמן. */
 // בלי \b: בעברית אין גבול-מילה במובן של ביטוי רגולרי, ולכן "סה\"כ" בסוף שורה
@@ -224,8 +226,17 @@ function traineeFromRow(row, byField, ctx) {
   const first = cell('firstName'); const last = cell('lastName');
   let name = cell('name').trim();
   if (!name && (first || last)) name = `${first} ${last}`.trim();
-  // תא שכולו מספר אינו שם. שם שיש בו ספרה ("מתאמן 3", "דנה 2") הוא כן שם.
-  if (!name || SUMMARY_ROW.test(name) || /^[\d.,\s+-]+$/.test(name)) return null;
+  if (!name || SUMMARY_ROW.test(name)) return null;
+  /*
+   * לא כל תא בעמודה הראשונה הוא אדם. עמודת תרגילים או רשימת ציוד שנקראה
+   * בטעות כרשימת מתאמנים הייתה מכניסה למערכת "לחיצת חזה" ו"מוט אולימפי"
+   * כמתאמנים — וזה מה שהמאמן רואה כשהוא פותח את המסך.
+   */
+  const person = shPersonCheck(name);
+  if (!person.ok) {
+    if (ctx.rejected) ctx.rejected.push({ value: name, why: person.why });
+    return null;
+  }
 
   const t = { name, importedFrom: ctx.sheetName };
   const setIf = (key, value) => { if (value !== null && value !== undefined && value !== '') t[key] = value; };
@@ -310,8 +321,15 @@ function traineeFromRow(row, byField, ctx) {
     if (shEmpty(col.header)) continue;
     extras.push(`${col.header.trim()}: ${String(row[col.index]).trim()}`);
   }
+  // סגנון האימון: עמודה אחת יכולה להחזיק כמה סגנונות ("כוח + פונקציונלי")
+  const styles = shSplitList(cell('trainingStyle'))
+    .map((part) => shMatch(part, STYLE_CANDS, { min: 0.75 })?.key)
+    .filter(Boolean);
+  if (styles.length) t.trainingStyles = [...new Set(styles)];
+
   const active = shBool(cell('status'));
-  if (active === false) { t.inactive = true; extras.push('מסומן כלא פעיל בגיליון'); }
+  if (active === false) { t.inactive = true; t.active = false; extras.push('מסומן כלא פעיל בגיליון'); }
+  if (active === true) t.active = true;
   if (extras.length) t.notes = extras.join(' · ').slice(0, 600);
 
   const branch = cell('studio').trim();
@@ -643,6 +661,8 @@ export function shBuildImport(analysis, {
     customExercises: new Map(),
     exerciseCands: exerciseCandidates(),
     traineeNames: [],
+    // שורות שנפסלו כשם של אדם — מוצגות למאמן כדי שיראה מה לא נכנס ולמה
+    rejected: [],
   };
   const perSheet = [];
   const warnings = [];
@@ -655,7 +675,7 @@ export function shBuildImport(analysis, {
     const flat = shKeyValueTable(sheet.table);
     const mapped = shMapColumns(flat, { role: 'trainees' });
     const t = traineeFromRow(flat.rows[0] || [], mapped.byField, {
-      sheetName: sheet.name, columns: mapped.columns, unmatched: ctx.unmatched,
+      sheetName: sheet.name, columns: mapped.columns, unmatched: ctx.unmatched, rejected: ctx.rejected,
     }) || (shSheetPersonName(sheet.name) ? { name: shSheetPersonName(sheet.name) } : null);
     if (!t) { perSheet.push({ name: sheet.name, role: sheet.role, rows: sheet.rowCount, built: 0, what: 'מתאמנים' }); continue; }
     // בכרטיס אישי השם לא תמיד כתוב בפנים — אז שם הלשונית הוא השם
@@ -669,7 +689,7 @@ export function shBuildImport(analysis, {
     let added = 0;
     for (const row of sheet.table.rows) {
       const t = traineeFromRow(row, sheet.byField, {
-        sheetName: sheet.name, columns: sheet.columns, unmatched: ctx.unmatched,
+        sheetName: sheet.name, columns: sheet.columns, unmatched: ctx.unmatched, rejected: ctx.rejected,
       });
       if (!t) continue;
       const key = shNorm(t.name);
@@ -677,6 +697,15 @@ export function shBuildImport(analysis, {
       added++;
     }
     perSheet.push({ name: sheet.name, role: sheet.role, rows: sheet.rowCount, built: added, what: 'מתאמנים' });
+    /*
+     * לשונית שסומנה "מתאמנים" ולא יצא ממנה אף אדם היא כמעט תמיד לשונית
+     * אחרת שסווגה לא נכון. עדיף לומר את זה מפורשות מאשר להציג 0 בשקט.
+     */
+    if (!added && sheet.table.rows.length) {
+      const why = ctx.rejected.at(-1)?.why || '';
+      warnings.push(`בלשונית "${sheet.name}" לא זוהה אף מתאמן${why ? ` — ${why}` : ''}. `
+        + 'אם זו לשונית תרגילים או ציוד, אפשר לשנות את סוג הלשונית במסך הזה.');
+    }
   }
   ctx.traineeNames = [...traineesByKey.values()].map((t) => t.name);
 
@@ -976,6 +1005,7 @@ export function shBuildImport(analysis, {
         attendance: attendance.reduce((n, a) => n + a.dates.length, 0),
         customExercises: ctx.customExercises.size,
       },
+      rejectedNames: ctx.rejected.slice(0, 40),
       unmatched: {
         equipment: [...ctx.unmatched.equipment].slice(0, 40),
         exercises: [...ctx.unmatched.exercises].slice(0, 40),

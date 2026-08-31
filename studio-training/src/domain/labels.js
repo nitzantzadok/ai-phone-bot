@@ -38,6 +38,29 @@ export const SPLIT_LABELS = {
   bro_split: 'חלוקה לפי קבוצות שריר', hybrid_circuit: 'מעגל תחנות', mobility_flow: 'ניידות ותנועה',
 };
 
+/** סגנון האימון — איך מתאמנים, להבדיל מהמטרה שהיא בשביל מה. */
+export const TRAINING_STYLE_LABELS = {
+  strength: 'כוח',
+  bodybuilding: 'פיתוח גוף',
+  athletic: 'אתלטיות וספורט',
+  functional: 'פונקציונלי',
+  conditioning: 'קונדישן ושריפת שומן',
+  endurance: 'סיבולת',
+  mobility: 'ניידות וגמישות',
+  rehab: 'שיקום והחזרה לפעילות',
+};
+
+export const TRAINING_STYLE_HINTS = {
+  strength: 'חזרות נמוכות, מנוחות ארוכות, מוט ומשקל חופשי',
+  bodybuilding: 'נפח וחזרות גבוהות יותר, יותר תרגילי בידוד ומכונות',
+  athletic: 'תרגילים מתפרצים, רב-מפרקיים ורב-מישוריים',
+  functional: 'תנועות יומיום, ליבה ושיווי משקל',
+  conditioning: 'קצב גבוה, מנוחות קצרות, עבודה מטבולית',
+  endurance: 'חזרות גבוהות ומנוחות קצרות',
+  mobility: 'טווחי תנועה, יציבה ושחרור',
+  rehab: 'עבודה נתמכת, עומס מבוקר וידידותי למפרק',
+};
+
 export const LEVEL_LABELS = {
   beginner: 'מתחיל', novice: 'מתאמן צעיר', intermediate: 'בינוני', advanced: 'מתקדם',
 };
