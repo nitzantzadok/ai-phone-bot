@@ -244,3 +244,131 @@ export function shLooksLikeKeyValue(table) {
   if (pairs.length < Math.max(2, rows.length * 0.7)) return false;
   return new Set(pairs.map((r) => shNorm(r[0]))).size === pairs.length;
 }
+
+/**
+ * הדבקה של טבלה מדף אינטרנט.
+ *
+ * כשמעתיקים מ-Google Sheets בדפדפן, מה שיושב בלוח הוא גם טקסט מופרד-טאבים
+ * וגם HTML. הטקסט מספיק ברוב המקרים — אבל תא שיש בו שורה שנייה, או טבלה
+ * שהועתקה מדף רגיל ולא מגיליון, מגיעים בטקסט בלי מבנה עמודות בכלל. אז
+ * ה-HTML הוא היחיד שיודע איפה נגמר תא ומתחיל הבא.
+ */
+export function shIsHtmlTable(text) {
+  return /<t(able|r)\b/i.test(String(text || ''));
+}
+
+const HTML_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const htmlText = (html) => String(html || '')
+  .replace(/<br\s*\/?>/gi, ' ')
+  .replace(/<[^>]*>/g, '')
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&(amp|lt|gt|quot|apos|nbsp);/gi, (_, e) => HTML_ENTITIES[e.toLowerCase()] ?? ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+/** כל הטבלאות שב-HTML, כל אחת כמטריצה. */
+export function shParseHtmlTables(html) {
+  const src = String(html || '');
+  const tables = [];
+  const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
+  let m;
+  const chunks = [];
+  while ((m = tableRe.exec(src))) chunks.push(m[1]);
+  if (!chunks.length && /<tr\b/i.test(src)) chunks.push(src);
+
+  for (const chunk of chunks) {
+    const rows = [];
+    const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+    let r;
+    while ((r = rowRe.exec(chunk))) {
+      const cells = [];
+      const cellRe = /<t([hd])\b([^>]*)>([\s\S]*?)<\/t\1>/gi;
+      let c;
+      while ((c = cellRe.exec(r[1]))) {
+        cells.push(htmlText(c[3]));
+        // תא ממוזג תופס כמה עמודות, ובלעדיו כל השורה מוסטת שמאלה
+        const span = +((/colspan="?(\d+)/i.exec(c[2]) || [])[1] || 1);
+        for (let i = 1; i < Math.min(span, 50); i++) cells.push('');
+      }
+      rows.push(cells);
+    }
+    while (rows.length && rows.at(-1).every((c) => c === '')) rows.pop();
+    if (rows.some((row) => row.some((c) => c))) tables.push(rows);
+  }
+  return tables;
+}
+
+/**
+ * הדבקה שאין בה תו הפרדה בכלל.
+ *
+ * טבלה שהועתקה מ-PDF או מהודעה מגיעה כשורות שהעמודות בהן מיושרות ברווחים.
+ * שני רווחים ומעלה הם גבול עמודה; רווח בודד הוא חלק מהשם.
+ */
+export function shParseSpaced(text) {
+  return String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trim().split(/ {2,}|\t/).map((c) => c.trim()))
+    .filter((row) => row.length > 1 || row[0]);
+}
+
+/** האם הפיצול הרגיל נכשל והשאיר עמודה אחת בכל שורה. */
+function singleColumn(rows) {
+  return rows.length > 1 && rows.every((r) => r.filter((c) => !shEmpty(c)).length <= 1);
+}
+
+/**
+ * טקסט שהודבק -> מטריצה, בכל צורה שהוא מגיע: HTML, JSON, מופרד-תווים,
+ * או מיושר-רווחים. זו הנקודה היחידה שצריך לקרוא לה מהממשק.
+ */
+export function shParseAny(text) {
+  const src = String(text ?? '');
+  if (shIsHtmlTable(src)) {
+    const tables = shParseHtmlTables(src);
+    if (tables.length) return tables[0];
+  }
+  const json = shParseJsonRows(src);
+  if (json) return json;
+
+  const rows = shParseDelimited(src);
+  if (singleColumn(rows)) {
+    const spaced = shParseSpaced(src);
+    if (!singleColumn(spaced)) return spaced;
+  }
+  return rows;
+}
+
+/**
+ * ייצוא JSON של מערכת אחרת -> מטריצה.
+ * מערך של אובייקטים הוא טבלה לכל דבר: המפתחות הם הכותרות. איחוד המפתחות
+ * נשמר לפי סדר ההופעה, כך שרשומה חסרה אינה מזיזה עמודות.
+ */
+export function shParseJsonRows(text) {
+  const src = String(text || '').trim();
+  if (!(src.startsWith('[') || src.startsWith('{'))) return null;
+  let data;
+  try { data = JSON.parse(src); } catch { return null; }
+
+  if (data && !Array.isArray(data)) {
+    const list = Object.values(data).find((v) => Array.isArray(v) && v.length && typeof v[0] === 'object');
+    if (!list) return null;
+    data = list;
+  }
+  if (!Array.isArray(data) || !data.length) return null;
+
+  if (data.every((r) => Array.isArray(r))) {
+    return data.map((r) => r.map((c) => (c === null || c === undefined ? '' : String(c))));
+  }
+  if (!data.every((r) => r && typeof r === 'object')) return null;
+
+  const keys = [];
+  for (const row of data) for (const k of Object.keys(row)) if (!keys.includes(k)) keys.push(k);
+  const flat = (v) => {
+    if (v === null || v === undefined) return '';
+    if (Array.isArray(v)) return v.map(flat).filter(Boolean).join(', ');
+    if (typeof v === 'object') return Object.values(v).map(flat).filter(Boolean).join(' ');
+    return String(v);
+  };
+  return [keys, ...data.map((row) => keys.map((k) => flat(row[k])))];
+}

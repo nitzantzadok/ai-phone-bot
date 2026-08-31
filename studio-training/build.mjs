@@ -36,6 +36,8 @@ const MODULES = [
   'src/domain/sheets/google.js',
   'src/domain/sheets/export.js',
   'src/domain/sheets/xlsx.js',
+  'src/domain/sheets/ods.js',
+  'src/domain/sheets/read.js',
   'src/domain/models.js',
   'src/engine/prescription.js',
   'src/engine/split.js',

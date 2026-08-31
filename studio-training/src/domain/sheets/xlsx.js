@@ -27,7 +27,7 @@ const u32 = (b, i) => (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 
  * קוראים את הספרייה המרכזית ולא סורקים את הקובץ מהתחלה — כך גם ארכיון
  * שנוצר בכלים שונים נקרא נכון.
  */
-function zipEntries(bytes) {
+export function shZipOpen(bytes) {
   const b = U8(bytes);
   // סוף הספרייה המרכזית נמצא בסוף הקובץ; מחפשים אותו לאחור
   let eocd = -1;
@@ -58,7 +58,7 @@ function zipEntries(bytes) {
 }
 
 /** תוכן קובץ בודד מתוך הארכיון, כטקסט. */
-async function readEntry(zip, name) {
+export async function shZipReadText(zip, name) {
   const entry = zip.entries.get(name);
   if (!entry) return null;
   const b = zip.bytes;
@@ -76,7 +76,7 @@ async function readEntry(zip, name) {
 /* ------------------------------------------------------------------ XML */
 
 /** כל התגיות מסוג מסוים, עם התכונות והתוכן הפנימי. */
-function* tags(xml, name) {
+export function* shXmlTags(xml, name) {
   const re = new RegExp(`<${name}(\\s[^>]*?)?(/)?>`, 'g');
   let m;
   while ((m = re.exec(xml))) {
@@ -89,13 +89,13 @@ function* tags(xml, name) {
   }
 }
 
-const attr = (attrs, name) => {
+export const shXmlAttr = (attrs, name) => {
   const m = new RegExp(`${name}="([^"]*)"`).exec(attrs || '');
   return m ? m[1] : null;
 };
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
-const unescapeXml = (text) => String(text || '')
+export const shXmlUnescape = (text) => String(text || '')
   .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
   .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
   .replace(/&(amp|lt|gt|quot|apos);/g, (_, e) => ENTITIES[e]);
@@ -103,7 +103,7 @@ const unescapeXml = (text) => String(text || '')
 /** הטקסט של תא: איחוד של כל קטעי ה-<t>, כולל טקסט מעוצב שמפוצל לחלקים. */
 function textOf(xml) {
   let out = '';
-  for (const t of tags(xml, 't')) out += unescapeXml(t.inner);
+  for (const t of shXmlTags(xml, 't')) out += shXmlUnescape(t.inner);
   return out;
 }
 
@@ -122,18 +122,18 @@ function dateStyles(stylesXml) {
   if (!stylesXml) return isDate;
 
   const custom = new Set();
-  for (const fmt of tags(stylesXml, 'numFmt')) {
-    const id = +attr(fmt.attrs, 'numFmtId');
-    const code = (attr(fmt.attrs, 'formatCode') || '').toLowerCase();
+  for (const fmt of shXmlTags(stylesXml, 'numFmt')) {
+    const id = +shXmlAttr(fmt.attrs, 'numFmtId');
+    const code = (shXmlAttr(fmt.attrs, 'formatCode') || '').toLowerCase();
     // תבנית שיש בה יום/חודש/שנה היא תאריך; [h] ודומיו הם משך זמן ולא תאריך
     if (/[dmy]/.test(code.replace(/\[[^\]]*\]/g, '').replace(/"[^"]*"/g, ''))) custom.add(id);
   }
 
-  const cellXfs = [...tags(stylesXml, 'cellXfs')][0];
+  const cellXfs = [...shXmlTags(stylesXml, 'cellXfs')][0];
   if (!cellXfs) return isDate;
   let index = 0;
-  for (const xf of tags(cellXfs.inner, 'xf')) {
-    const id = +attr(xf.attrs, 'numFmtId');
+  for (const xf of shXmlTags(cellXfs.inner, 'xf')) {
+    const id = +shXmlAttr(xf.attrs, 'numFmtId');
     if (BUILTIN_DATE_FORMATS.has(id) || custom.has(id)) isDate.add(index);
     index++;
   }
@@ -161,25 +161,25 @@ function columnIndex(ref) {
 
 function parseSheet(xml, shared, isDateStyle) {
   const rows = [];
-  const sheetData = [...tags(xml, 'sheetData')][0];
+  const sheetData = [...shXmlTags(xml, 'sheetData')][0];
   if (!sheetData) return rows;
 
-  for (const row of tags(sheetData.inner, 'row')) {
+  for (const row of shXmlTags(sheetData.inner, 'row')) {
     const cells = [];
-    for (const c of tags(row.inner, 'c')) {
-      const ref = attr(c.attrs, 'r');
-      const type = attr(c.attrs, 't');
-      const style = attr(c.attrs, 's');
+    for (const c of shXmlTags(row.inner, 'c')) {
+      const ref = shXmlAttr(c.attrs, 'r');
+      const type = shXmlAttr(c.attrs, 't');
+      const style = shXmlAttr(c.attrs, 's');
       let value = '';
 
       if (type === 'inlineStr') {
         value = textOf(c.inner);
       } else if (type === 's') {
-        const v = [...tags(c.inner, 'v')][0];
-        value = v ? (shared[+unescapeXml(v.inner)] ?? '') : '';
+        const v = [...shXmlTags(c.inner, 'v')][0];
+        value = v ? (shared[+shXmlUnescape(v.inner)] ?? '') : '';
       } else {
-        const v = [...tags(c.inner, 'v')][0];
-        const raw = v ? unescapeXml(v.inner).trim() : '';
+        const v = [...shXmlTags(c.inner, 'v')][0];
+        const raw = v ? shXmlUnescape(v.inner).trim() : '';
         if (raw === '') value = '';
         else if (type === 'b') value = raw === '1' ? 'TRUE' : 'FALSE';
         else if (type === 'str' || type === 'e') value = raw;
@@ -205,22 +205,22 @@ function parseSheet(xml, shared, isDateStyle) {
  * @returns {Promise<Array<{name:string, rows:string[][]}>>}
  */
 export async function shReadXlsx(data) {
-  const zip = zipEntries(data);
+  const zip = shZipOpen(data);
   if (!zip.entries.has('xl/workbook.xml')) throw new Error('זה קובץ ZIP אבל לא קובץ Excel');
 
-  const workbook = await readEntry(zip, 'xl/workbook.xml');
-  const relsXml = await readEntry(zip, 'xl/_rels/workbook.xml.rels');
-  const stylesXml = await readEntry(zip, 'xl/styles.xml');
-  const sharedXml = await readEntry(zip, 'xl/sharedStrings.xml');
+  const workbook = await shZipReadText(zip, 'xl/workbook.xml');
+  const relsXml = await shZipReadText(zip, 'xl/_rels/workbook.xml.rels');
+  const stylesXml = await shZipReadText(zip, 'xl/styles.xml');
+  const sharedXml = await shZipReadText(zip, 'xl/sharedStrings.xml');
 
   const shared = [];
-  if (sharedXml) for (const si of tags(sharedXml, 'si')) shared.push(textOf(si.inner));
+  if (sharedXml) for (const si of shXmlTags(sharedXml, 'si')) shared.push(textOf(si.inner));
 
   const rels = new Map();
   if (relsXml) {
-    for (const r of tags(relsXml, 'Relationship')) {
-      const target = attr(r.attrs, 'Target') || '';
-      rels.set(attr(r.attrs, 'Id'), target.replace(/^\/?xl\//, '').replace(/^\//, ''));
+    for (const r of shXmlTags(relsXml, 'Relationship')) {
+      const target = shXmlAttr(r.attrs, 'Target') || '';
+      rels.set(shXmlAttr(r.attrs, 'Id'), target.replace(/^\/?xl\//, '').replace(/^\//, ''));
     }
   }
 
@@ -228,13 +228,13 @@ export async function shReadXlsx(data) {
   const out = [];
   let fallbackIndex = 0;
 
-  for (const sheet of tags(workbook, 'sheet')) {
+  for (const sheet of shXmlTags(workbook, 'sheet')) {
     fallbackIndex++;
-    const name = unescapeXml(attr(sheet.attrs, 'name') || `לשונית ${fallbackIndex}`);
-    const rid = attr(sheet.attrs, 'r:id') || attr(sheet.attrs, 'id');
+    const name = shXmlUnescape(shXmlAttr(sheet.attrs, 'name') || `לשונית ${fallbackIndex}`);
+    const rid = shXmlAttr(sheet.attrs, 'r:id') || shXmlAttr(sheet.attrs, 'id');
     const path = `xl/${rels.get(rid) || `worksheets/sheet${fallbackIndex}.xml`}`;
-    const xml = await readEntry(zip, path)
-      || await readEntry(zip, `xl/worksheets/sheet${fallbackIndex}.xml`);
+    const xml = await shZipReadText(zip, path)
+      || await shZipReadText(zip, `xl/worksheets/sheet${fallbackIndex}.xml`);
     if (!xml) continue;
     const rows = parseSheet(xml, shared, isDateStyle);
     // לשונית ריקה לגמרי אינה מעניינת אף אחד, ורק מוסיפה רעש למסך האישור

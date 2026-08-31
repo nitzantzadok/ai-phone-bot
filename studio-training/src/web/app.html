@@ -503,6 +503,10 @@
 
 
   /* ---------- ייבוא מגיליון ---------- */
+  .imp-drop{display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; justify-content:center;
+    padding:1rem; border:1px dashed var(--line); border-radius:var(--r-md); text-align:center;
+    color:var(--ink-3); transition:border-color .15s, background .15s}
+  .imp-drop.over{border-color:var(--accent); background:var(--accent-soft); color:var(--ink)}
   .imp-paste{width:100%; font-family:"IBM Plex Mono",monospace; font-size:var(--step--1);
     background:var(--surface-2); color:var(--ink); border:1px solid var(--line);
     border-radius:var(--radius-sm); padding:.6rem; resize:vertical; line-height:1.5}
@@ -2538,11 +2542,15 @@ function importSourceHtml() {
       <fieldset>
         <legend>2 · קובץ מהמחשב</legend>
         <p class="hint">בגיליון: קובץ ← הורדה ← <b>Microsoft Excel (.xlsx)</b>, וכל הלשוניות נכנסות בקובץ אחד.
-           גם CSV עובד — שם כל קובץ הוא לשונית אחת, ואפשר לבחור כמה קבצים יחד.</p>
-        <label class="filebtn">
-          <input type="file" id="impFile" accept=".csv,.tsv,.txt,.xlsx,.xlsm" multiple hidden>
-          <span>בחירת קבצים</span>
-        </label>
+           גם CSV, ODS ו-JSON עובדים — שם כל קובץ הוא לשונית אחת, ואפשר לבחור כמה קבצים יחד
+           או פשוט לגרור אותם לכאן.</p>
+        <div id="impDrop" class="imp-drop">
+          <span>גוררים לכאן קבצים — או</span>
+          <label class="filebtn">
+            <input type="file" id="impFile" accept="${SH_FILE_ACCEPT}" multiple hidden>
+            <span>בחירת קבצים</span>
+          </label>
+        </div>
       </fieldset>
     </div>
 
@@ -2793,49 +2801,96 @@ function impAddSheet(name, rows) {
   impState.error = '';
 }
 
+/**
+ * קריאת הקבצים שנבחרו או שנגררו לחלון.
+ * כל קובץ נקרא בנפרד, וכישלון באחד אינו מבטל את האחרים — מי שגרר שלושה
+ * קבצים ואחד מהם PDF צריך לקבל את השניים האחרים ולראות מה קרה לשלישי.
+ */
+async function impIngestFiles(files) {
+  const list = [...(files || [])];
+  if (!list.length) return;
+  status('קורא את הקובץ…');
+  impState.busy = list.length > 1 ? `קורא ${list.length} קבצים…` : 'קורא את הקובץ…';
+  impState.error = '';
+  renderImportView();
+
+  const problems = [];
+  for (const file of list) {
+    try {
+      const sheets = await shReadFile(await file.arrayBuffer(), file.name);
+      for (const sh of sheets) impAddSheet(sh.name, sh.rows);
+    } catch (err) {
+      problems.push(err.message);
+    }
+  }
+  impState.busy = '';
+  impState.error = problems.join(' · ');
+  status('');
+  renderImportView();
+}
+
+/** תוכן תיבת ההדבקה -> לשונית, בכל צורה שהודבקה. */
+function impPasteFromBox() {
+  const box = $('#impPaste');
+  const text = box ? box.value : '';
+  if (!text.trim()) { impState.error = 'אין מה להוסיף — התיבה ריקה.'; renderImportView(); return; }
+  const rows = shParseAny(text);
+  if (!rows.some((r) => r.some((c) => String(c).trim()))) {
+    impState.error = 'לא זיהינו טבלה במה שהודבק. בגיליון: מסמנים את הטווח, Ctrl+C, ומדביקים כאן.';
+    renderImportView();
+    return;
+  }
+  impAddSheet($('#impPasteName').value.trim(), rows);
+  renderImportView();
+}
+
 function wireImport() {
   const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
 
   on('#impPasteAdd', 'click', () => {
-    const text = $('#impPaste').value;
-    if (!text.trim()) { impState.error = 'אין מה להוסיף — התיבה ריקה.'; renderImportView(); return; }
-    impAddSheet($('#impPasteName').value.trim(), shParseDelimited(text));
+    impPasteFromBox();
+  });
+
+  /*
+   * הדבקה ישירה לתיבה: הלוח מכיל גם טקסט וגם HTML, ורק ה-HTML שומר על
+   * גבולות התאים כשיש בתא שורה שנייה. לוקחים אותו כשהוא שם.
+   */
+  on('#impPaste', 'paste', (ev) => {
+    const html = ev.clipboardData?.getData('text/html');
+    if (!html || !shIsHtmlTable(html)) return;
+    const rows = shParseHtmlTables(html)[0];
+    if (!rows || !rows.length) return;
+    ev.preventDefault();
+    impAddSheet($('#impPasteName').value.trim(), rows);
     renderImportView();
   });
 
-  on('#impFile', 'change', async (e) => {
-    const files = [...e.target.files];
-    status('קורא את הקובץ…');
-    for (const file of files) {
-      try {
-        const buffer = await file.arrayBuffer();
-        const base = file.name.replace(/\.[^.]+$/, '');
+  on('#impFile', 'change', (e) => impIngestFiles([...e.target.files]));
 
-        /*
-         * קובץ Excel הוא ארכיון ZIP של קובצי XML, והוא הפורמט שמתקבל
-         * כשמורידים גיליון מ-Google Sheets בלחיצה אחת. הוא נקרא כאן
-         * במלואו — כל הלשוניות — ולא נשלח לשום מקום.
-         */
-        if (shIsZip(buffer)) {
-          const sheets = await shReadXlsx(buffer);
-          for (const sh of sheets) impAddSheet(sheets.length > 1 ? sh.name : base, sh.rows);
-          continue;
-        }
-        // .xls הישן הוא פורמט בינארי אחר לגמרי. עדיף לומר את זה מיד מאשר
-        // להראות שורות של ג'יבריש ולתת למאמן לנחש מה השתבש.
-        const head = new Uint8Array(buffer.slice(0, 8));
-        if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0) {
-          impState.error = `${file.name} הוא קובץ Excel בפורמט הישן (xls). בגיליון: קובץ ← שמירה בשם ← xlsx, או הורדה כ-CSV.`;
-          continue;
-        }
-        impAddSheet(base, shParseDelimited(shDecodeBytes(buffer)));
-      } catch (err) {
-        impState.error = `לא הצלחנו לקרוא את ${file.name}: ${err.message}`;
-      }
-    }
-    status('');
-    renderImportView();
-  });
+  /*
+   * גרירה של הקובץ לחלון היא מה שמאמן מנסה קודם. בלי מאזין, הדפדפן פותח
+   * את הקובץ במקום להוסיף אותו — ומה שהיה על המסך נעלם.
+   */
+  const zone = $('#viewImport');
+  if (zone) {
+    const box = $('#impDrop');
+    const mark = (on) => box && box.classList.toggle('over', on);
+    // השמה ולא addEventListener: המסך מצויר מחדש אחרי כל הוספה, והמאזין
+    // היה נרשם שוב על אותו אלמנט — וקובץ אחד שנגרר היה נכנס ארבע פעמים.
+    zone.ondragover = (ev) => { ev.preventDefault(); mark(true); };
+    zone.ondragleave = (ev) => { if (ev.target === zone || ev.target === box) mark(false); };
+    zone.ondrop = (ev) => {
+      ev.preventDefault();
+      mark(false);
+      const files = [...(ev.dataTransfer?.files || [])];
+      if (files.length) { impIngestFiles(files); return; }
+      // גרירה של טווח מהגיליון עצמה מעבירה טקסט, לא קובץ
+      const text = ev.dataTransfer?.getData('text/html') || ev.dataTransfer?.getData('text/plain') || '';
+      if (!text.trim()) return;
+      const rows = shIsHtmlTable(text) ? (shParseHtmlTables(text)[0] || []) : shParseAny(text);
+      if (rows.length) { impAddSheet('', rows); renderImportView(); }
+    };
+  }
 
   on('#impUrlGo', 'click', async () => {
     const url = $('#impUrl').value.trim();

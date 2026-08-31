@@ -17,6 +17,8 @@ import {
   shDecodeBytes, shParseDelimited, shSniffDelimiter, shSplitBlocks, shTableFromText, shToTable,
 } from '../src/domain/sheets/table.js';
 import { shIsZip, shReadXlsx } from '../src/domain/sheets/xlsx.js';
+import { shReadFile } from '../src/domain/sheets/read.js';
+import { shParseAny, shParseHtmlTables, shParseJsonRows } from '../src/domain/sheets/table.js';
 import { shFixHeaderless, shMapColumns } from '../src/domain/sheets/columns.js';
 import { shClassifyTable } from '../src/domain/sheets/classify.js';
 import { shAnalyzeWorkbook, shBuildImport } from '../src/domain/sheets/build.js';
@@ -886,4 +888,145 @@ test('שתי מטרות בתא אחד, מחוברות בו׳', () => {
     rows: shParseDelimited('שם,גיל,מטרה\nרון,34,חיזוק ויציבה'),
   }]), { studioName: 'ס' });
   assert.deepEqual(out.trainees[0].goals, ['strength', 'posture']);
+});
+
+/* ==================================================================
+   כל הדרכים להכניס גיליון פנימה
+
+   מאמן לא בוחר פורמט — הוא לוקח את מה שיש לו. הבדיקות כאן עוברות על כל
+   הדרכים שבהן גיליון מגיע בפועל: קובץ ods, הדבקה של טבלה מדף, ייצוא JSON,
+   טבלה מיושרת ברווחים, וקבצים שאי אפשר לקרוא ושחייבים להסביר למה.
+   ================================================================== */
+
+const odsFixture = (cells) => makeZip({
+  'mimetype': 'application/vnd.oasis.opendocument.spreadsheet',
+  'content.xml': `<?xml version="1.0"?><office:document-content><office:body><office:spreadsheet>
+    <table:table table:name="מתאמנים">${cells}</table:table>
+  </office:spreadsheet></office:body></office:document-content>`,
+});
+
+test('ods: קובץ LibreOffice נקרא כמו כל גיליון אחר', async () => {
+  const bytes = await odsFixture(
+    '<table:table-row><table:table-cell><text:p>שם</text:p></table:table-cell>'
+    + '<table:table-cell><text:p>גיל</text:p></table:table-cell>'
+    + '<table:table-cell><text:p>הצטרפות</text:p></table:table-cell></table:table-row>'
+    + '<table:table-row><table:table-cell><text:p>רון כהן</text:p></table:table-cell>'
+    + '<table:table-cell office:value-type="float" office:value="34"><text:p>34</text:p></table:table-cell>'
+    + '<table:table-cell office:value-type="date" office:date-value="2024-03-01T00:00:00"/></table:table-row>',
+  );
+  const sheets = await shReadFile(bytes, 'הסטודיו שלי.ods');
+  assert.equal(sheets.length, 1);
+  assert.equal(sheets[0].name, 'מתאמנים');
+  assert.deepEqual(sheets[0].rows[0], ['שם', 'גיל', 'הצטרפות']);
+  assert.deepEqual(sheets[0].rows[1], ['רון כהן', '34', '2024-03-01']);
+});
+
+test('ods: תא ריק שחוזר על עצמו אינו מזיז את העמודות שאחריו', async () => {
+  const bytes = await odsFixture(
+    '<table:table-row><table:table-cell><text:p>שם</text:p></table:table-cell>'
+    + '<table:table-cell table:number-columns-repeated="2"/>'
+    + '<table:table-cell><text:p>מטרה</text:p></table:table-cell></table:table-row>'
+    + '<table:table-row><table:table-cell><text:p>דנה</text:p></table:table-cell>'
+    + '<table:table-cell table:number-columns-repeated="2"/>'
+    + '<table:table-cell><text:p>מסה</text:p></table:table-cell></table:table-row>',
+  );
+  const [sheet] = await shReadFile(bytes, 'a.ods');
+  assert.equal(sheet.rows[1][3], 'מסה');
+});
+
+test('ods נקרא גם כששמו נגמר ב-xlsx: ההכרעה היא לפי תוכן הארכיון', async () => {
+  const bytes = await odsFixture('<table:table-row><table:table-cell><text:p>שם</text:p></table:table-cell>'
+    + '<table:table-cell><text:p>רון</text:p></table:table-cell></table:table-row>');
+  const [sheet] = await shReadFile(bytes, 'trainees.xlsx');
+  assert.deepEqual(sheet.rows[0], ['שם', 'רון']);
+});
+
+test('הדבקה: טבלת HTML מהלוח נשמרת עם גבולות התאים', () => {
+  const rows = shParseAny(`<table><tr><th>שם</th><th>הערה</th></tr>
+    <tr><td>רון כהן</td><td>כאב<br>בכתף</td></tr>
+    <tr><td>דנה&nbsp;לוי</td><td></td></tr></table>`);
+  assert.deepEqual(rows[1], ['רון כהן', 'כאב בכתף']);
+  assert.deepEqual(rows[2], ['דנה לוי', '']);
+});
+
+test('הדבקה: תא ממוזג ב-HTML אינו מסיט את שאר השורה', () => {
+  const rows = shParseAny('<table><tr><td colspan="2">מתאמני הסטודיו</td></tr>'
+    + '<tr><td>שם</td><td>גיל</td></tr><tr><td>רון</td><td>34</td></tr></table>');
+  assert.deepEqual(rows[0], ['מתאמני הסטודיו', '']);
+  assert.deepEqual(rows[2], ['רון', '34']);
+});
+
+test('הדבקה: טבלה שמיושרת ברווחים בלבד מפוצלת לעמודות', () => {
+  const rows = shParseAny('שם        גיל   מטרה\nרון כהן    34    מסה\nדנה לוי    28    כוח');
+  assert.deepEqual(rows[0], ['שם', 'גיל', 'מטרה']);
+  assert.deepEqual(rows[1], ['רון כהן', '34', 'מסה']);
+});
+
+test('הדבקה: רווח בודד בתוך שם אינו נחשב גבול עמודה', () => {
+  const rows = shParseAny('שם,גיל\nרון כהן,34');
+  assert.deepEqual(rows[1], ['רון כהן', '34']);
+});
+
+test('JSON: ייצוא ממערכת אחרת הופך לטבלה עם כותרות', () => {
+  const rows = shParseJsonRows(JSON.stringify([
+    { name: 'רון כהן', age: 34, goals: ['מסה', 'כוח'] },
+    { name: 'דנה לוי', phone: '050-1234567' },
+  ]));
+  assert.deepEqual(rows[0], ['name', 'age', 'goals', 'phone']);
+  assert.deepEqual(rows[1], ['רון כהן', '34', 'מסה, כוח', '']);
+  assert.deepEqual(rows[2], ['דנה לוי', '', '', '050-1234567']);
+});
+
+test('JSON: מערך עטוף באובייקט נמצא גם הוא', () => {
+  const rows = shParseJsonRows('{"ok":true,"trainees":[{"שם":"רון"},{"שם":"דנה"}]}');
+  assert.deepEqual(rows, [['שם'], ['רון'], ['דנה']]);
+});
+
+test('JSON: טקסט שאינו JSON אינו נחטף מהמסלול הרגיל', () => {
+  assert.equal(shParseJsonRows('שם,גיל\nרון,34'), null);
+  assert.deepEqual(shParseAny('שם,גיל\nרון,34')[1], ['רון', '34']);
+});
+
+test('קובץ JSON נקרא דרך אותה נקודת כניסה', async () => {
+  const bytes = new TextEncoder().encode('[{"שם":"רון כהן","גיל":34}]');
+  const [sheet] = await shReadFile(bytes, 'מתאמנים.json');
+  assert.equal(sheet.name, 'מתאמנים');
+  assert.deepEqual(sheet.rows, [['שם', 'גיל'], ['רון כהן', '34']]);
+});
+
+test('CSV בעברית של חלונות נקרא נכון גם בלי סימן סדר', async () => {
+  // windows-1255: "שם,גיל" ואחריו שורה עם שם עברי
+  const bytes = Uint8Array.from([0xf9, 0xed, 0x2c, 0xe2, 0xe9, 0xec, 0x0a, 0xf8, 0xe5, 0xef, 0x2c, 0x33, 0x34]);
+  const [sheet] = await shReadFile(bytes, 'trainees.csv');
+  assert.deepEqual(sheet.rows[0], ['שם', 'גיל']);
+  assert.deepEqual(sheet.rows[1], ['רון', '34']);
+});
+
+test('קובץ xls ישן ו-PDF מוסברים במקום להיקרא כג׳יבריש', async () => {
+  const xls = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0]);
+  await assert.rejects(() => shReadFile(xls, 'ישן.xls'), /xlsx|CSV/);
+  const pdf = new TextEncoder().encode('%PDF-1.7\n...');
+  await assert.rejects(() => shReadFile(pdf, 'תכנית.pdf'), /PDF/);
+  await assert.rejects(() => shReadFile(new Uint8Array(0), 'ריק.csv'), /ריק/);
+});
+
+test('xlsx ממשיך להיקרא דרך נקודת הכניסה האחידה', async () => {
+  const sheets = await shReadFile(await xlsxFixture(), 'הסטודיו.xlsx');
+  assert.deepEqual(sheets.map((s) => s.name), ['מתאמנים', 'ציוד']);
+});
+
+test('כל הדרכים מגיעות לאותו סטודיו: הדבקה, HTML ו-JSON', () => {
+  const expected = (rows) => {
+    const out = shBuildImport(shAnalyzeWorkbook([{ name: 'מתאמנים', rows }]), { studioName: 'ס' });
+    return out.trainees.map((t) => [t.name, t.age]);
+  };
+  const csv = expected(shParseAny('שם,גיל,מטרה\nרון כהן,34,מסה\nדנה לוי,28,כוח'));
+  const html = expected(shParseAny('<table><tr><td>שם</td><td>גיל</td><td>מטרה</td></tr>'
+    + '<tr><td>רון כהן</td><td>34</td><td>מסה</td></tr><tr><td>דנה לוי</td><td>28</td><td>כוח</td></tr></table>'));
+  const json = expected(shParseAny(JSON.stringify([
+    { שם: 'רון כהן', גיל: 34, מטרה: 'מסה' }, { שם: 'דנה לוי', גיל: 28, מטרה: 'כוח' },
+  ])));
+  assert.deepEqual(csv, [['רון כהן', 34], ['דנה לוי', 28]]);
+  assert.deepEqual(html, csv);
+  assert.deepEqual(json, csv);
 });
