@@ -3402,6 +3402,7 @@ function renderTraineesView() {
         ${(t.trainingStyles || []).map((k) => `<span class="chip">${esc(TRAINING_STYLE_LABELS[k] || k)}</span>`).join('')}
         ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
         <span class="chip${hasFreshProgram(t) ? ' ok' : ''}">${esc(agoLabel(lastProgramAt(t.id)))}</span>
+        ${dataGaps(t).length ? `<span class="chip warn" title="השלמת הנתונים האלה משפרת ישירות את התכנית">חסר: ${esc(dataGaps(t).join(' · '))}</span>` : ''}
         <span class="grow"></span>
         <button data-open-trainee="${esc(t.id)}">פתח תכנית</button>
         <button data-edit-trainee="${esc(t.id)}">ערוך</button>
@@ -3528,6 +3529,24 @@ function agoLabel(at) {
   return `תכנית מלפני ${Math.floor(days / 7)} שבועות`;
 }
 
+/**
+ * מה חסר למתאמן כדי שהתכנית שלו תהיה מדויקת.
+ *
+ * לא כל שדה ריק שווה אותו דבר. משקל גוף משנה כל הצעת משקל וכל חישוב כוח
+ * יחסי; גיל משנה תקרות עצימות; מטרה משנה את המרשם כולו. אלה השדות שבאמת
+ * מזיזים תכנית, ולכן רק הם נספרים כאן — רשימה שמתלוננת על הכול היא רשימה
+ * שאיש לא מסתכל בה.
+ */
+function dataGaps(t) {
+  const gaps = [];
+  if (!t.weightKg) gaps.push('משקל גוף');
+  if (!t.age) gaps.push('גיל');
+  if (!t.primaryGoal) gaps.push('מטרה');
+  const hasEvidence = Object.keys(t.history || {}).length || (t.knownMovements || []).length;
+  if (!hasEvidence && t.levelSource !== 'inferred') gaps.push('ראיה לרמה');
+  return gaps;
+}
+
 /** המתאמנים שמוצגים כרגע, אחרי חיפוש וסינון סטטוס. */
 function listedTrainees() {
   const q = shNorm(state.traineeQuery || '');
@@ -3535,6 +3554,7 @@ function listedTrainees() {
     if (state.traineeFilter === 'active' && !isActive(t)) return false;
     if (state.traineeFilter === 'inactive' && isActive(t)) return false;
     if (state.traineeFilter === 'stale' && (!isActive(t) || hasFreshProgram(t))) return false;
+    if (state.traineeFilter === 'gaps' && !dataGaps(t).length) return false;
     if (!q) return true;
     const hay = [t.name, studioById(t.homeStudioId || t.studioId)?.name, t.phone, t.coach,
       GOAL_PROFILES[t.primaryGoal]?.label].filter(Boolean).join(' ');
@@ -3563,7 +3583,13 @@ function traineeListToolbarHtml() {
       ${tab('active', `פעילים (${activeCount()})`)}
       ${tab('inactive', `לא פעילים (${state.trainees.length - activeCount()})`)}
       ${tab('stale', `ללא תכנית השבוע (${state.trainees.filter((t) => isActive(t) && !hasFreshProgram(t)).length})`)}
+      ${tab('gaps', `חסרים נתונים (${state.trainees.filter((t) => dataGaps(t).length).length})`)}
     </div>
+    ${(() => {
+      const noWeight = state.trainees.filter((t) => isActive(t) && !t.weightKg).length;
+      return noWeight ? `<p class="hint" style="margin:-.2rem 0 .6rem">ל-${noWeight} מתאמנים פעילים אין משקל גוף.
+        זה הנתון היחיד שמשפיע גם על הצעות המשקל וגם על זיהוי הרמה — השלמה שלו משפרת את כל התכניות שלהם.</p>` : '';
+    })()}
     <div class="row" style="margin-bottom:.6rem; gap:.4rem">
       <label class="pickbox"><input type="checkbox" id="pickAll"
         ${shown.length && pickedHere.length === shown.length ? 'checked' : ''}
