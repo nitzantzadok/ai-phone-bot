@@ -8,9 +8,9 @@
  * Nothing is stubbed: a real HTTP server, a real socket, the real crawler and the real
  * diagnosis. Only the website is ours.
  */
-import { startDemoSite, type DemoVariant } from './testing/demo-site.ts'
-import { scanBusiness } from './scan.ts'
-import { renderReport } from './report-text.ts'
+import { startDemoSite, type DemoVariant } from '@autopilot/scan/testing/demo-site.ts'
+import { scanBusiness } from '@autopilot/scan/scan.ts'
+import { renderReport } from '@autopilot/scan/report-text.ts'
 
 const variant = (process.argv[2] === 'after' ? 'after' : 'before') as DemoVariant
 const asJson = process.argv.includes('json')

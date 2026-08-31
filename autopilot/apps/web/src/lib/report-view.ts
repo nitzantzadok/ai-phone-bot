@@ -6,7 +6,7 @@
  * `readiness.components` has three keys with those names — the page should not, and when
  * the scoring version changes the page should not have to.
  */
-import type { ScanReport, SkipReason } from '@autopilot/cli/scan.ts'
+import type { ScanReport, SkipReason } from '@autopilot/scan/scan.ts'
 import { buildHandoff, type Handoff } from '@autopilot/insights/handoff.ts'
 import {
   IMPACT_LABEL,

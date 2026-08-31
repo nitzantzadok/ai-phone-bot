@@ -5,9 +5,9 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { loadEnv } from '@autopilot/shared/env.ts'
-import { startDemoSite } from './testing/demo-site.ts'
-import { scanBusiness } from './scan.ts'
-import { renderReport } from './report-text.ts'
+import { startDemoSite } from '@autopilot/scan/testing/demo-site.ts'
+import { scanBusiness } from '@autopilot/scan/scan.ts'
+import { renderReport } from '@autopilot/scan/report-text.ts'
 
 const ANSWER =
   'הנה מרפאות שיניים מומלצות בפתח תקווה:\n' +

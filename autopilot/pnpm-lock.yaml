@@ -62,6 +62,9 @@ importers:
       '@autopilot/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@autopilot/scan':
+        specifier: workspace:*
+        version: link:../../packages/scan
       '@autopilot/scoring':
         specifier: workspace:*
         version: link:../../packages/scoring
@@ -113,6 +116,9 @@ importers:
       '@autopilot/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@autopilot/scan':
+        specifier: workspace:*
+        version: link:../../packages/scan
       '@autopilot/scoring':
         specifier: workspace:*
         version: link:../../packages/scoring
@@ -394,6 +400,36 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+
+  packages/scan:
+    dependencies:
+      '@autopilot/crawler':
+        specifier: workspace:*
+        version: link:../crawler
+      '@autopilot/insights':
+        specifier: workspace:*
+        version: link:../insights
+      '@autopilot/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@autopilot/measurement':
+        specifier: workspace:*
+        version: link:../measurement
+      '@autopilot/optimization':
+        specifier: workspace:*
+        version: link:../optimization
+      '@autopilot/prompts':
+        specifier: workspace:*
+        version: link:../prompts
+      '@autopilot/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@autopilot/scoring':
+        specifier: workspace:*
+        version: link:../scoring
+      '@autopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/scoring:
     dependencies:

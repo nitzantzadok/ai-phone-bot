@@ -17,8 +17,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { loadEnv } from '@autopilot/shared/env.ts'
-import { startDemoSite, type DemoSite } from '../src/testing/demo-site.ts'
-import { scanBusiness, type ScanReport } from '../src/scan.ts'
+import { startDemoSite, type DemoSite } from '@autopilot/scan/testing/demo-site.ts'
+import { scanBusiness, type ScanReport } from '@autopilot/scan/scan.ts'
 
 /** What the fake engine says. Swapped per test before the scan runs. */
 let answer = ''

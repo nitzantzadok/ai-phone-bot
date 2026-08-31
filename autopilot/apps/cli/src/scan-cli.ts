@@ -6,8 +6,8 @@
  * anything we did not do says so in the same breath. A report that quietly omits the AI
  * measurement reads exactly like a report that performed it.
  */
-import { scanBusiness } from './scan.ts'
-import { renderReport } from './report-text.ts'
+import { scanBusiness } from '@autopilot/scan/scan.ts'
+import { renderReport } from '@autopilot/scan/report-text.ts'
 
 /**
  * Loads `autopilot/.env` when one exists.

@@ -20,6 +20,7 @@ const config: NextConfig = {
     '@autopilot/integrations',
     '@autopilot/agent',
     '@autopilot/insights',
+    '@autopilot/scan',
     '@autopilot/jobs',
   ],
   poweredByHeader: false,

@@ -25,7 +25,8 @@
     "@autopilot/integrations": "workspace:*",
     "@autopilot/agent": "workspace:*",
     "@autopilot/jobs": "workspace:*",
-    "@autopilot/insights": "workspace:*"
+    "@autopilot/insights": "workspace:*",
+    "@autopilot/scan": "workspace:*"
   },
   "exports": {
     ".": "./src/pipeline.ts",

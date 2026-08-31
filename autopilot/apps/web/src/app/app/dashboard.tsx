@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
+import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/scan/scan.ts'
 import { platformById, GOOGLE_GUIDE, type PlatformGuide } from '@autopilot/insights/platforms.ts'
 import { unblockAdvice } from '@autopilot/insights/unblock.ts'
 import type { BusinessSession } from '@/lib/session'

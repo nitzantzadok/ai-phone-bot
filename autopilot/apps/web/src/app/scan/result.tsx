@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/cli/scan.ts'
+import { scanBusiness, whyNothingWasRead, type ScanReport } from '@autopilot/scan/scan.ts'
 import { loadEnv } from '@autopilot/shared/env.ts'
 import { unblockAdvice } from '@autopilot/insights/unblock.ts'
 import { checkRateLimit, classifySiteUrl, explainSiteUrl } from '@/lib/scan-limits'

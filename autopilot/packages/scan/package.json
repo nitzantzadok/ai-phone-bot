@@ -1,0 +1,26 @@
+{
+  "name": "@autopilot/scan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/scan.ts",
+  "types": "./src/scan.ts",
+  "exports": {
+    ".": "./src/scan.ts",
+    "./*.ts": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@autopilot/shared": "workspace:*",
+    "@autopilot/crawler": "workspace:*",
+    "@autopilot/knowledge": "workspace:*",
+    "@autopilot/prompts": "workspace:*",
+    "@autopilot/measurement": "workspace:*",
+    "@autopilot/providers": "workspace:*",
+    "@autopilot/scoring": "workspace:*",
+    "@autopilot/optimization": "workspace:*",
+    "@autopilot/insights": "workspace:*"
+  }
+}

@@ -28,7 +28,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "@autopilot/cli": "workspace:*",
-    "@autopilot/insights": "workspace:*"
+    "@autopilot/insights": "workspace:*",
+    "@autopilot/scan": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

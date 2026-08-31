@@ -8,7 +8,7 @@
  * shipping it. That exact string was live.
  */
 import { describe, expect, it } from 'vitest'
-import type { ScanReport } from '@autopilot/cli/scan.ts'
+import type { ScanReport } from '@autopilot/scan/scan.ts'
 import { buildReportView } from '../src/lib/report-view'
 
 const report = (over: Partial<ScanReport> = {}): ScanReport =>
