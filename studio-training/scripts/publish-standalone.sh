@@ -120,12 +120,19 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # בלי אסימון פשוט לא רצים — זה לא כישלון, זו פשוט פריסה שלא הוגדרה
-    if: ${{ github.event_name == 'workflow_dispatch' || secrets.CLOUDFLARE_API_TOKEN != '' }}
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
+      # הבדיקה כאן ולא בתנאי של המשימה: הקשר secrets אינו זמין ב-if ברמת
+      # המשימה, וניסיון להשתמש בו מפיל את כל התהליך עוד לפני שהוא מתחיל
+      - name: יש אסימון?
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::חסר CLOUDFLARE_API_TOKEN. מוסיפים אותו ב-Settings → Secrets and variables → Actions, ומריצים שוב."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
