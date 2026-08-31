@@ -163,6 +163,15 @@
                box-shadow .18s var(--ease), transform .12s var(--ease);
   }
   select{max-width:210px; cursor:pointer}
+  /*
+   * תיבת סימון בגודל ברירת המחדל היא 13 פיקסלים — מטרה שאי אפשר לפגוע בה
+   * באצבע. התווית מסביבה מקבלת ריווח כדי שהמגע יתפוס גם את הטקסט.
+   */
+  input[type=checkbox],input[type=radio]{
+    width:20px; height:20px; min-height:20px; flex:none; margin:0;
+    accent-color:var(--accent); cursor:pointer}
+  label:has(> input[type=checkbox]),label:has(> input[type=radio]){
+    display:inline-flex; align-items:center; gap:.45rem; cursor:pointer}
   button{cursor:pointer}
   button:hover{border-color:var(--accent-line); background:var(--surface-3)}
   button:active{transform:scale(.97)}
@@ -238,7 +247,12 @@
   .tile.accent b{color:var(--accent); text-shadow:0 0 22px var(--glow)}
 
   /* ---------- טפסים ---------- */
-  fieldset{border:0; border-top:1px solid var(--line); padding:1rem 0 .2rem; margin:0 0 .6rem}
+  /*
+   * fieldset מסרב להצטמצם מתחת לרוחב המינימלי של תוכנו — כך טבלה רחבה
+   * בתוכו מרחיבה את הכרטיס כולו ומכריחה את הדף לגלול לרוחב במסך צר.
+   */
+  fieldset{border:0; border-top:1px solid var(--line); padding:1rem 0 .2rem; margin:0 0 .6rem;
+    min-inline-size:0}
   fieldset:first-of-type{border-top:0; padding-top:.2rem}
   legend{font-family:"Secular One",Heebo,sans-serif; font-weight:400; padding:0;
     font-size:var(--step-1); margin-bottom:.35rem}
@@ -686,10 +700,35 @@
     .pcell:nth-child(n+4){display:none}
     .kgin{width:100%; max-width:78px; font-size:var(--step-1)}
 
+    /*
+     * שורת הפעולות של מסך האימון: בשולחן היא שורה אחת, בטלפון היא נשברת
+     * לשורות לא אחידות ונראית מבולגנת. רשת של שתי עמודות נותנת לכל בורר
+     * ולכל כפתור מקום שווה ומטרת מגע רחבה.
+     */
+    .progbar{display:grid; grid-template-columns:1fr 1fr; gap:.45rem}
+    .progbar select{max-width:none; width:100%}
+    .progbar button{width:100%}
+
+    /*
+     * שורת רשימה בטלפון: השם והשבבים בשורה אחת, והכפתורים בשורה משלהם
+     * שמתחילה באותו קו. בלי זה הם נוחתים כל פעם במקום אחר, לפי אורך השם.
+     */
+    .listrow{align-items:flex-start}
+    .listrow .grow{flex-basis:100%; height:0; margin:0}
+    .listrow > button{flex:1 1 auto}
+
+    /* הוספת משקל למלאי: משקל, כמות והוספה בשורה אחת; מילוי סט בשורה משלו */
+    .invadd{display:grid; grid-template-columns:1fr 1fr auto; gap:.4rem}
+    .invadd input{width:100%; min-width:0}
+    .invadd [data-invfill]{grid-column:1 / -1}
+
     /* מטרות מגע גדולות */
     .acts button{padding:.5rem .85rem; font-size:var(--step-0); min-height:40px}
     .acts{gap:.4rem}
     button,select,input{min-height:42px}
+    /* אצבע צריכה מטרה גדולה יותר מסמן עכבר */
+    input[type=checkbox],input[type=radio]{width:24px; height:24px; min-height:24px}
+    label:has(> input[type=checkbox]),label:has(> input[type=radio]){padding:.25rem 0}
     .fields{grid-template-columns:1fr}
     .charts{grid-template-columns:1fr 1fr; gap:.5rem}
     /* עורך מבנה האימון: הכפתורים יורדים לשורה משלהם, ונשאר מקום לשם המקטע */
@@ -700,7 +739,13 @@
   }
   @media (max-width:400px){
     .charts{grid-template-columns:1fr}
+    /*
+     * במסך צר שלוש עמודות נעשות צרות מדי, אבל שלושה תאים בשתי עמודות
+     * משאירים תא יתום באמצע. לכן מוסיפים את המנוחה ומקבלים ריבוע מלא.
+     */
     .pres{grid-template-columns:repeat(2,1fr)}
+    .pcell:nth-child(4){display:flex}
+    .pcell:nth-child(n+5){display:none}
   }
 
   /* ---------- הדפסה ---------- */
@@ -772,7 +817,7 @@
   <section id="viewTrainees" hidden></section>
   <section id="viewProgram" hidden>
     <div id="programSteps"></div>
-    <div class="bar" style="position:static; background:transparent; border:0; padding:0 0 .9rem">
+    <div class="bar progbar" style="position:static; background:transparent; border:0; padding:0 0 .9rem">
       <select id="studio" aria-label="בחירת סטודיו"></select>
       <select id="trainee" aria-label="בחירת מתאמן"></select>
       <button class="primary" id="gen">בנה תכנית</button>
@@ -1708,7 +1753,7 @@ function renderInventoryEditor() {
       <h4>${esc(g.label)} <span class="mono" data-invcount="${g.key}"></span></h4>
       ${g.hint ? `<p class="hint">${esc(g.hint)}</p>` : ''}
       <div class="invrows"></div>
-      <div class="row" style="margin-top:.35rem">
+      <div class="row invadd" style="margin-top:.35rem">
         <input class="invkg" type="number" step="0.5" min="0.5" placeholder="משקל" aria-label="משקל חדש">
         <input class="invct" type="number" min="1" value="${g.defaultCount}" placeholder="כמות" aria-label="כמות">
         <button type="button" data-invadd="${g.key}">הוסף</button>
@@ -2552,6 +2597,8 @@ function importSourceHtml() {
         <p class="hint">בגיליון: קובץ ← הורדה ← <b>Microsoft Excel (.xlsx)</b>, וכל הלשוניות נכנסות בקובץ אחד.
            גם CSV, ODS ו-JSON עובדים — שם כל קובץ הוא לשונית אחת, ואפשר לבחור כמה קבצים יחד
            או פשוט לגרור אותם לכאן.</p>
+        <p class="hint">בטלפון: באפליקציית Sheets — שיתוף וייצוא ← שמירה בשם ← Excel, ואז בוחרים
+           כאן את הקובץ שירד.</p>
         <div id="impDrop" class="imp-drop">
           <span>גוררים לכאן קבצים — או</span>
           <label class="filebtn">
