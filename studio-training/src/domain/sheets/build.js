@@ -979,6 +979,7 @@ export function shBuildImport(analysis, {
     if (profile.knownMovements.length) t.knownMovements = profile.knownMovements;
     if (Object.keys(profile.history).length) t.history = { ...profile.history, ...(t.history || {}) };
     if (profile.daysPerWeek && t.daysPerWeek === undefined) t.daysPerWeek = profile.daysPerWeek;
+    if (profile.sessionMinutes && t.sessionMinutes === undefined) t.sessionMinutes = profile.sessionMinutes;
     learned.push({ name: t.name, level: t.level, confidence: profile.level.confidence, reasons: profile.level.reasons });
   }
   if (learned.length) {

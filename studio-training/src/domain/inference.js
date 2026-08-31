@@ -107,6 +107,30 @@ function levelFromLoads(performed, trainee) {
   };
 }
 
+/**
+ * אורך האימון בפועל, מתוך מה שהיה כתוב בתכנית.
+ *
+ * מאמן שרשם שמונה תרגילים של ארבעה סטים לא התכוון לאימון של 30 דקות.
+ * ההערכה גסה — סט עבודה ומנוחה הם כדקה וחצי בממוצע — אבל היא קרובה
+ * הרבה יותר מברירת המחדל, ואורך האימון קובע כמה תרגילים בכלל נכנסים.
+ */
+function minutesFromPrograms(programs) {
+  const perDay = [];
+  for (const program of programs) {
+    for (const day of program.days || []) {
+      const blocks = day.blocks || [];
+      if (blocks.length < 3) continue;
+      const sets = blocks.reduce((n, b) => n + (b.prescription?.sets || 3), 0);
+      // סט + מנוחה ≈ 90 שניות, ועוד חימום קצר בתחילת האימון
+      perDay.push(Math.round((sets * 1.5) + 8));
+    }
+  }
+  if (!perDay.length) return null;
+  const sorted = perDay.sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  return Math.max(20, Math.min(120, Math.round(median / 5) * 5));
+}
+
 /** תדירות אמיתית מתוך התכניות שיובאו. */
 function daysFromPrograms(programs) {
   // תכנית של יום אחד אינה תדירות — היא לשונית של אימון בודד
@@ -201,6 +225,7 @@ export function inferTraineeProfile(trainee, { programs = [], logs = [], byId = 
     equipmentSeen,
     trainingAgeMonths,
     daysPerWeek: daysFromPrograms(programs),
+    sessionMinutes: minutesFromPrograms(programs),
     evidence: {
       exercises: performed.length,
       withLoad: performed.filter((p) => p.load !== null).length,

@@ -1174,3 +1174,49 @@ test('סגנון אימון וסטטוס מיובאים מהגיליון', () =>
   assert.deepEqual(dana.trainingStyles, ['functional']);
   assert.equal(dana.active, false);
 });
+
+test('ייבוא לומד רמה, ותק, משקלים ואורך אימון מהתכנית של המתאמן', () => {
+  const trainees = [['שם', 'גיל', 'מין', 'משקל', 'מטרה', 'רמה'],
+    ['רון כהן', '34', 'גבר', '82', 'מסה', 'מתחיל'],
+    ['דנה לוי', '28', 'אישה', '', 'כוח', 'מתחילה']];
+  const ron = [['תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['סקוואט מוט על הגב', '4', '5', '110'],
+    ['לחיצת חזה במוט', '4', '5', '80'],
+    ['מתח', '3', '8', '0'],
+    ['חתירה בהרכנה', '3', '8', '70']];
+  const dana = [['תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['לחיצת רגליים במכונה', '3', '12', '45'],
+    ['לחיצת חזה במכונה', '3', '12', '20'],
+    ['משיכת פולי עליון', '3', '12', '27']];
+
+  const built = shBuildImport(shAnalyzeWorkbook([
+    { name: 'מתאמנים', rows: trainees },
+    { name: 'רון כהן', rows: ron },
+    { name: 'דנה לוי', rows: dana },
+  ]), { studioName: 'ס' });
+
+  const byName = Object.fromEntries(built.trainees.map((t) => [t.name, t]));
+  // מוצהר "מתחיל", אבל סקוואט 110 ומתח אומרים אחרת
+  assert.equal(byName['רון כהן'].level, 'intermediate');
+  assert.ok(byName['רון כהן'].trainingAgeMonths >= 12);
+  assert.ok(byName['רון כהן'].knownMovements.includes('pullup'));
+  assert.equal(byName['רון כהן'].history.bb_back_squat.load, 110);
+  assert.ok(byName['רון כהן'].sessionMinutes >= 20);
+
+  // מכונות במשקלים קלים אינן מעלות רמה
+  assert.equal(byName['דנה לוי'].level, 'beginner');
+
+  // והמאמן רואה מה נלמד ולמה
+  const learned = built.report.learned.find((l) => l.name === 'רון כהן');
+  assert.ok(learned.reasons.some((r) => r.includes('מיומנות')), learned.reasons.join(' | '));
+  assert.ok(built.report.warnings.some((w) => w.includes('משקל גוף')), 'אין אזהרה על משקל גוף חסר');
+});
+
+test('ציוד הסטודיו מוסק מהתרגילים כשאין לשונית ציוד', () => {
+  const built = shBuildImport(shAnalyzeWorkbook([
+    { name: 'מתאמנים', rows: [['שם', 'מטרה'], ['רון כהן', 'מסה']] },
+    { name: 'רון כהן', rows: [['תרגיל', 'סטים', 'חזרות', 'משקל'], ['לחיצת רגליים במכונה', '3', '12', '80']] },
+  ]), { studioName: 'ס' });
+  assert.ok(built.studios[0].equipment.some((e) => e.item === 'leg_press'));
+  assert.ok(built.report.warnings.some((w) => w.includes('זוהו מתוך התרגילים')));
+});

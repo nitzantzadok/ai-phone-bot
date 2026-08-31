@@ -4052,14 +4052,34 @@ async function copyForSheet(text, what) {
   }
 }
 
-function downloadCsv() {
+async function downloadCsv() {
   const csv = shToCsv(shProgramRows(state.program));
   // BOM כדי ש-Excel יזהה עברית; Sheets מזהה בלעדיו גם כן
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const text = `\ufeff${csv}`;
+  const filename = shProgramFileName(state.program);
+
+  /*
+   * בעמוד מפורסם הדפדפן אינו מרשה לדף להוריד קובץ בעצמו, וקישור הורדה
+   * פשוט אינו עושה כלום — בלי הודעה. לכן מנסים קודם את מסלול השמירה של
+   * המארח, ורק אם אינו קיים (שרת מקומי, קובץ על המחשב) נופלים לקישור.
+   */
+  try {
+    const downloads = await window.claude?.use?.('downloads');
+    if (downloads) {
+      await downloads.save({ filename, data: text });
+      status('הקובץ נשמר', 'ok');
+      return;
+    }
+  } catch (err) {
+    status(err?.code === 'declined' ? 'ההורדה בוטלה' : 'ההורדה לא הושלמה — אפשר להעתיק ולהדביק בגיליון', 'warn');
+    return;
+  }
+
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = shProgramFileName(state.program);
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
