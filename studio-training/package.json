@@ -10,7 +10,8 @@
     "start": "node build.mjs && node src/server/server.js",
     "seed": "node src/seed.js",
     "demo": "node cli.js demo",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "deploy": "./scripts/deploy-cloudflare.sh"
   },
   "engines": { "node": ">=20" },
   "dependencies": {},

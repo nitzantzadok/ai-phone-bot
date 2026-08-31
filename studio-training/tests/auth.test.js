@@ -48,17 +48,29 @@ function client() {
 
 /* ---------------------------------------------------------------- סיסמאות */
 
-test('גיבוב סיסמה שונה בכל פעם ומאמת רק את הסיסמה הנכונה', () => {
-  const a = hashPassword('correct-horse-battery');
-  const b = hashPassword('correct-horse-battery');
+test('גיבוב סיסמה שונה בכל פעם ומאמת רק את הסיסמה הנכונה', async () => {
+  const a = await hashPassword('correct-horse-battery');
+  const b = await hashPassword('correct-horse-battery');
   assert.notEqual(a.hash, b.hash, 'מלח אקראי חייב לייצר גיבוב שונה');
-  assert.ok(verifyPassword('correct-horse-battery', a));
-  assert.ok(!verifyPassword('correct-horse-batter', a));
-  assert.ok(!verifyPassword('', a));
+  assert.ok(await verifyPassword('correct-horse-battery', a));
+  assert.ok(!await verifyPassword('correct-horse-batter', a));
+  assert.ok(!await verifyPassword('', a));
 });
 
-test('הסיסמה נשמרת מגובבת בלבד — לא בטקסט גלוי', () => {
-  const rec = hashPassword('studio-pass-2026');
+test('חשבון שנוצר ב-scrypt ממשיך להיכנס אחרי המעבר ל-PBKDF2', async () => {
+  const { scryptSync, randomBytes } = await import('node:crypto');
+  const salt = randomBytes(16).toString('hex');
+  const legacy = {
+    salt,
+    hash: scryptSync('old-studio-pass', salt, 64, { N: 16384, r: 8, p: 1 }).toString('hex'),
+    algo: 'scrypt:16384:8:1',
+  };
+  assert.ok(await verifyPassword('old-studio-pass', legacy));
+  assert.ok(!await verifyPassword('wrong', legacy));
+});
+
+test('הסיסמה נשמרת מגובבת בלבד — לא בטקסט גלוי', async () => {
+  const rec = await hashPassword('studio-pass-2026');
   assert.ok(!JSON.stringify(rec).includes('studio-pass-2026'));
 });
 

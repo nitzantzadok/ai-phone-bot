@@ -81,8 +81,24 @@ const EMPTY = {
 };
 
 export class Db {
-  constructor(file = process.env.STUDIO_DB_FILE || DEFAULT_FILE) {
-    this.file = file;
+  /**
+   * @param {string|{data?:object, persist?:(data:object)=>void}} source
+   *
+   * ברירת המחדל היא קובץ JSON על הדיסק — כך זה עבד תמיד, וכך זה ממשיך
+   * לעבוד בשרת מקומי. אבל אותה מערכת רצה גם במקום שאין בו מערכת קבצים
+   * (פונקציה בקצה, מול מסד מנוהל), ולכן אפשר להזין לה במקום זה מסמך
+   * טעון ופונקציית שמירה. כל שאר הקוד — הנתיבים, ההרשאות, המנוע — אינו
+   * יודע ולא צריך לדעת מאיפה הנתונים הגיעו.
+   */
+  constructor(source = process.env.STUDIO_DB_FILE || DEFAULT_FILE) {
+    if (source && typeof source === 'object') {
+      this.file = null;
+      this.persist = source.persist || null;
+      this.data = migrate({ ...structuredClone(EMPTY), ...(source.data || {}) });
+      return;
+    }
+    this.file = source;
+    this.persist = null;
     this.data = this.#load();
   }
 
@@ -236,6 +252,9 @@ export class Db {
    * עד הרגע שבו החדש מוכן במלואו.
    */
   save() {
+    this.data.meta = { ...(this.data.meta || {}), schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString() };
+    // מסד בזיכרון: מי שהזין אותו אחראי לשמירה, והוא זה שיודע לאן
+    if (!this.file) { if (this.persist) this.persist(this.data); return this; }
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = `${this.file}.tmp`;
     this.data.meta = { ...(this.data.meta || {}), schemaVersion: SCHEMA_VERSION, savedAt: new Date().toISOString() };
@@ -412,10 +431,19 @@ export class Db {
    * שמירת צילום מצב. אם התוכן זהה לצילום האחרון של אותו מתאמן —
    * לא נוצרת רשומה חדשה, כי ארכיון שמלא בכפילויות הוא ארכיון שאי אפשר לקרוא.
    */
-  putSnapshot(snap) {
+  /**
+   * שמירת צילום תכנית, עם גג לכל מתאמן.
+   *
+   * כל בניית תכנית מייצרת צילום, וצילום הוא התכנית המלאה — עשרות קילובייט.
+   * בלי גג, מתאמן ותיק לבדו מגיע למאות מגה, והמסד נהיה כבד עד שהוא מפסיק
+   * להישמר. שנים-עשר האחרונים הם רבעון שלם של היסטוריה, וזה מה שמאמן
+   * באמת מסתכל עליו.
+   */
+  putSnapshot(snap, keep = 12) {
     const last = this.listSnapshots(snap.traineeId)[0];
     if (last && sameSnapshotContent(last, snap)) return last;
     this.data.snapshots[snap.id] = snap;
+    for (const old of this.listSnapshots(snap.traineeId).slice(keep)) delete this.data.snapshots[old.id];
     this.save();
     return snap;
   }

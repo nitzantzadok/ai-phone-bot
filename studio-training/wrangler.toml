@@ -1,0 +1,21 @@
+# פריסת מערכת תכניות האימון ל-Cloudflare Workers.
+#
+# מה צריך פעם אחת:
+#   npx wrangler d1 create studio-training      → מעתיקים את ה-database_id לכאן
+#   npx wrangler deploy
+#
+# הנתונים יושבים ב-D1 (מסד מנוהל), ולכן הם שורדים פריסה מחדש ומשותפים
+# לכל מי שנכנס — זה בדיוק ההבדל מגרסת הדפדפן.
+
+name = "studio-training"
+main = "worker/index.js"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "studio-training"
+database_id = "PLACEHOLDER-אחרי-d1-create"
+
+[observability]
+enabled = true

@@ -139,5 +139,19 @@ const head = page.match(/<title>[\s\S]*?<\/title>/)[0]
   + '\n' + page.match(/<style>[\s\S]*?<\/style>/)[0];
 fs.writeFileSync(path.join(HERE, 'dist/artifact.html'), `${head}\n${body.replace(/<style>[\s\S]*?<\/style>/, '')}`, 'utf8');
 
+/*
+ * אותו מסך, כמודול JavaScript.
+ *
+ * הפריסה לקצה מגישה את המסך מתוך הפונקציה עצמה ולא מדיסק, ולכן הוא חייב
+ * להיות ניתן לייבוא. קובץ JS פשוט עובד גם ב-Node (לבדיקות) וגם בכל
+ * מאגד — בלי להסתמך על הגדרה מיוחדת של אף אחד מהם.
+ */
+fs.writeFileSync(
+  path.join(HERE, 'dist/app.page.js'),
+  `// נוצר על ידי build.mjs — אין לערוך.\nexport default ${JSON.stringify(page)};\n`,
+  'utf8',
+);
+
 const kb = (f) => (fs.statSync(path.join(HERE, f)).size / 1024).toFixed(0);
-console.log(`נבנה dist/app.html (${kb('dist/app.html')}KB) ו-dist/artifact.html (${kb('dist/artifact.html')}KB)`);
+console.log(`נבנה dist/app.html (${kb('dist/app.html')}KB), dist/artifact.html (${kb('dist/artifact.html')}KB)`
+  + ` ו-dist/app.page.js (${kb('dist/app.page.js')}KB)`);

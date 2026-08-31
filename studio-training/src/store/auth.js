@@ -8,10 +8,41 @@
  * ללא תלויות חיצוניות: scrypt ו-randomBytes מגיעים מ-node:crypto.
  */
 
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+/*
+ * גיבוב הסיסמה נעשה ב-PBKDF2 דרך WebCrypto ולא ב-scrypt של Node.
+ *
+ * הסיבה מעשית: המערכת רצה בשני מקומות — שרת Node על מחשב או בענן, וגם
+ * כפונקציה בקצה (Cloudflare Workers), ששם אין node:crypto מלא. WebCrypto
+ * קיים בשניהם, ולכן אותו קוד אימות רץ בשני המקומות בלי ענף נפרד.
+ * חשבונות ישנים שנוצרו ב-scrypt ממשיכים להיכנס: האימות מזהה את האלגוריתם
+ * מתוך הרשומה עצמה.
+ */
+const PBKDF2 = { iterations: 210000, hash: 'SHA-256', keylen: 32 };
 
-/** פרמטרי scrypt. N=16384 הוא איזון מקובל בין עלות תקיפה לזמן התחברות. */
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+const subtle = globalThis.crypto.subtle;
+const enc = new TextEncoder();
+
+const toHex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+const fromHex = (hex) => Uint8Array.from(String(hex).match(/../g) || [], (h) => parseInt(h, 16));
+
+/** השוואה בזמן קבוע — השוואת מחרוזות רגילה מדליפה מידע דרך זמן התגובה. */
+function sameBytes(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+async function pbkdf2(password, saltHex, iterations = PBKDF2.iterations) {
+  const key = await subtle.importKey('raw', enc.encode(String(password)), 'PBKDF2', false, ['deriveBits']);
+  const bits = await subtle.deriveBits(
+    { name: 'PBKDF2', salt: fromHex(saltHex), iterations, hash: PBKDF2.hash },
+    key, PBKDF2.keylen * 8,
+  );
+  return new Uint8Array(bits);
+}
+
+const randomHex = (bytes) => toHex(globalThis.crypto.getRandomValues(new Uint8Array(bytes)));
 
 /** תוקף מושב: שבועיים. מספיק כדי לא להתחבר כל אימון, קצר מספיק כדי שגניבת עוגייה לא תהיה נצחית. */
 export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -20,22 +51,38 @@ export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 export const LOCKOUT = { attempts: 8, windowMs: 15 * 60 * 1000 };
 
 /** גיבוב סיסמה עם מלח אקראי ייחודי לכל משתמש. */
-export function hashPassword(password) {
-  const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(password, salt, SCRYPT.keylen, SCRYPT).toString('hex');
-  return { salt, hash, algo: `scrypt:${SCRYPT.N}:${SCRYPT.r}:${SCRYPT.p}` };
+export async function hashPassword(password) {
+  const salt = randomHex(16);
+  const hash = toHex(await pbkdf2(password, salt));
+  return { salt, hash, algo: `pbkdf2:${PBKDF2.hash}:${PBKDF2.iterations}` };
 }
 
 /**
- * אימות סיסמה בהשוואה בזמן קבוע.
- * השוואת מחרוזות רגילה מדליפה מידע דרך זמן התגובה; timingSafeEqual לא.
+ * אימות סיסמה.
+ *
+ * האלגוריתם נקרא מהרשומה ולא מההגדרה הנוכחית, כדי שחשבון שנוצר בגרסה
+ * קודמת ימשיך לעבוד. scrypt מאומת רק כשהסביבה תומכת בו — בקצה אין node,
+ * ושם רשומה ישנה פשוט לא תאמת (ואין כאלה: הפריסה בקצה מתחילה נקייה).
  */
-export function verifyPassword(password, record) {
+export async function verifyPassword(password, record) {
   if (!record?.salt || !record?.hash) return false;
-  const derived = scryptSync(password, record.salt, SCRYPT.keylen, SCRYPT);
-  const stored = Buffer.from(record.hash, 'hex');
-  if (stored.length !== derived.length) return false;
-  return timingSafeEqual(derived, stored);
+  const stored = fromHex(record.hash);
+
+  if (String(record.algo || '').startsWith('scrypt')) {
+    try {
+      const { scryptSync } = await import('node:crypto');
+      const [, N, r, p] = String(record.algo).split(':').map(Number);
+      const derived = scryptSync(password, record.salt, stored.length,
+        { N: N || 16384, r: r || 8, p: p || 1 });
+      return sameBytes(new Uint8Array(derived), stored);
+    } catch {
+      return false;
+    }
+  }
+
+  const iterations = Number(String(record.algo || '').split(':')[2]) || PBKDF2.iterations;
+  const derived = await pbkdf2(password, record.salt, iterations);
+  return sameBytes(derived, stored);
 }
 
 /** בדיקות תקינות לסיסמה. לא דורשים תווים מיוחדים — אורך עדיף על מורכבות מאולצת. */
@@ -66,8 +113,13 @@ export function validateUsername(username) {
   return { ok: errors.length === 0, errors, username: u };
 }
 
-export function newAccountId() { return `acc_${randomUUID()}`; }
-export function newSessionToken() { return randomBytes(32).toString('base64url'); }
+export function newAccountId() { return `acc_${globalThis.crypto.randomUUID()}`; }
+
+/** אסימון מושב: 32 בתים אקראיים, בכתיב שבטוח בעוגייה ובכתובת. */
+export function newSessionToken() {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
 /** האם המושב עדיין בתוקף. */
 export function sessionValid(session, now = Date.now()) {
