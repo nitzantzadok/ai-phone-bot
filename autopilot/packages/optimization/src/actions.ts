@@ -51,6 +51,19 @@ const factValue = (facts: readonly GroundingFact[], kind: string): string | null
  * a legitimate, common outcome: it means the opportunity is real but needs a human, which
  * is a better answer than a plausible-looking edit nobody can defend.
  */
+/**
+ * Every customer-visible string the planner produces, in both languages.
+ *
+ * These were English-only while `PlanningContext` had carried a language all along. On a
+ * Hebrew account the dashboard listed its changes as "Publish a sitemap listing your
+ * pages" — and worse, the metadata action generated an English title and description for a
+ * Hebrew site, which the language gate then correctly refused. So for the entire launch
+ * market the one thing a paid plan buys, the fix being made for you, could not complete:
+ * every action was held for a person, with an English explanation of why.
+ */
+const say = (context: PlanningContext, he: string, en: string): string =>
+  context.language === 'he' ? he : en
+
 export const planAction = (
   opportunity: Opportunity,
   context: PlanningContext,
@@ -67,23 +80,40 @@ export const planAction = (
       const page = context.pages.find((p) => p.url === targetUrl) ?? context.pages[0]
       if (!page) return null
       const name = factValue(context.facts, 'business_name') ?? context.businessName
-      const category = factValue(context.facts, 'cuisine') ?? vertical.labels.en ?? 'business'
+      const category =
+        factValue(context.facts, 'cuisine') ??
+        vertical.labels[context.language] ??
+        vertical.labels.en ??
+        say(context, 'עסק', 'business')
       const city = context.city
       // Built only from confirmed facts: name, category, city. No adjectives, no claims.
       const title = [name, category, city].filter(Boolean).join(' - ').slice(0, 60)
       const description = factValue(context.facts, 'site_description')
         ? factValue(context.facts, 'site_description')!.slice(0, 160)
-        : `${name} is a ${category.toLowerCase()}${city ? ` in ${city}` : ''}. ` +
-          `See opening hours, contact details and what we offer.`
+        : say(
+            context,
+            `${name} — ${category}${city ? ` ב${city}` : ''}. ` +
+              `כאן אפשר למצוא שעות פתיחה, פרטי התקשרות ומה אנחנו מציעים.`,
+            `${name} is a ${category.toLowerCase()}${city ? ` in ${city}` : ''}. ` +
+              `See opening hours, contact details and what we offer.`,
+          )
 
       return {
         actionType: 'FIX_METADATA',
         category: 'TECHNICAL',
         riskTier: risk,
-        summary: `Set a clear title and summary on ${shortUrl(page.url)}`,
-        rationale:
+        summary: say(
+          context,
+          `כותרת ותיאור ברורים ל-${shortUrl(page.url, context.language)}`,
+          `Set a clear title and summary on ${shortUrl(page.url, context.language)}`,
+        ),
+        rationale: say(
+          context,
+          'מערכות AI קוראות קודם כול את הכותרת ואת התיאור כדי להחליט על מה העמוד. ' +
+            'אצלכם הם חסרים או לא ברורים, ולכן אין להן ממה לעבוד.',
           'AI systems read the title and summary first to decide what a page is about. ' +
-          'Yours is missing or unclear, so there is nothing for them to work from.',
+            'Yours is missing or unclear, so there is nothing for them to work from.',
+        ),
         expectedImpact: opportunity.expectedLift,
         targetUrl: page.url,
         payload: { url: page.url, title, metaDescription: description },
@@ -98,10 +128,18 @@ export const planAction = (
         actionType: 'FIX_CANONICAL',
         category: 'TECHNICAL',
         riskTier: risk,
-        summary: `State the official address of ${shortUrl(targetUrl)}`,
-        rationale:
+        summary: say(
+          context,
+          `לציין את הכתובת הרשמית של ${shortUrl(targetUrl, context.language)}`,
+          `State the official address of ${shortUrl(targetUrl, context.language)}`,
+        ),
+        rationale: say(
+          context,
+          'בלי זה, סורקים עלולים להתייחס לכמה גרסאות של אותו עמוד כאל עמודים שונים, ' +
+            'וזה מפצל את המידע על העסק שלכם.',
           'Without this, crawlers can treat several versions of the same page as different ' +
-          'pages, which splits the signal about your business.',
+            'pages, which splits the signal about your business.',
+        ),
         expectedImpact: opportunity.expectedLift,
         targetUrl,
         payload: { url: targetUrl, canonical: targetUrl },
@@ -115,10 +153,18 @@ export const planAction = (
         actionType: 'FIX_LANG_ATTRIBUTE',
         category: 'TECHNICAL',
         riskTier: risk,
-        summary: `Declare the language of ${shortUrl(targetUrl)} as ${language}`,
-        rationale:
+        summary: say(
+          context,
+          `להצהיר שהשפה של ${shortUrl(targetUrl, context.language)} היא ${language}`,
+          `Declare the language of ${shortUrl(targetUrl, context.language)} as ${language}`,
+        ),
+        rationale: say(
+          context,
+          'האתר שלכם פונה לקוראי עברית ואנגלית. הצהרה על שפת כל עמוד עוזרת למערכות AI ' +
+            'לענות בשפה הנכונה.',
           'Your site serves Hebrew and English readers. Declaring each page language ' +
-          'helps AI systems answer in the right one.',
+            'helps AI systems answer in the right one.',
+        ),
         expectedImpact: opportunity.expectedLift,
         targetUrl,
         payload: { url: targetUrl, lang: language },
@@ -130,9 +176,12 @@ export const planAction = (
         actionType: 'ADD_SITEMAP',
         category: 'TECHNICAL',
         riskTier: risk,
-        summary: 'Publish a sitemap listing your pages',
-        rationale:
+        summary: say(context, 'לפרסם מפת אתר שמפרטת את העמודים', 'Publish a sitemap listing your pages'),
+        rationale: say(
+          context,
+          'מפת אתר אומרת לסורקים אילו עמודים קיימים, במקום להשאיר להם לנחש.',
           'A sitemap tells crawlers which pages exist instead of leaving them to guess.',
+        ),
         expectedImpact: opportunity.expectedLift,
         targetUrl: `${context.homeUrl.replace(/\/$/, '')}/sitemap.xml`,
         payload: { urls: context.pages.map((p) => p.url) },
@@ -146,10 +195,18 @@ export const planAction = (
         actionType: 'ADD_SCHEMA',
         category: 'SCHEMA',
         riskTier: risk,
-        summary: 'Add machine-readable business information to your site',
-        rationale:
+        summary: say(
+          context,
+          'להוסיף לאתר מידע עסקי שמכונה יכולה לקרוא',
+          'Add machine-readable business information to your site',
+        ),
+        rationale: say(
+          context,
+          'זה חוזר על מידע שכבר קיים בעמוד, בפורמט שמערכות AI קוראות ישירות. ' +
+            'לא נטען שום דבר חדש — רק מוסרת אי-בהירות.',
           'This restates information already on your page in a format AI systems read ' +
-          'directly. Nothing new is claimed; it only removes ambiguity.',
+            'directly. Nothing new is claimed; it only removes ambiguity.',
+        ),
         expectedImpact: opportunity.expectedLift,
         targetUrl: targetUrl ?? context.homeUrl,
         payload: { url: targetUrl ?? context.homeUrl, structuredData: schema },
@@ -172,10 +229,18 @@ export const planAction = (
         actionType: 'ADD_CONTENT_SECTION',
         category: 'CONTENT',
         riskTier: risk,
-        summary: `Describe "${label}" clearly on your site`,
-        rationale:
-          `Customers ask AI systems for exactly this, and your confirmed business ` +
-          `information supports it, but your website never states it plainly.`,
+        summary: say(
+          context,
+          `לתאר את "${label}" בבירור באתר`,
+          `Describe "${label}" clearly on your site`,
+        ),
+        rationale: say(
+          context,
+          'לקוחות שואלים מערכות AI בדיוק על זה, והמידע שאישרתם תומך בכך — אבל האתר שלכם ' +
+            'לא אומר את זה במפורש בשום מקום.',
+          'Customers ask AI systems for exactly this, and your confirmed business ' +
+            'information supports it, but your website never states it plainly.',
+        ),
         expectedImpact: opportunity.expectedLift,
         targetUrl: targetUrl ?? context.homeUrl,
         payload: {
@@ -197,7 +262,7 @@ export const planAction = (
         actionType: 'CREATE_PAGE',
         category: 'CONTENT',
         riskTier: risk,
-        summary: `Create ${article(pageType)} ${pageType} page`,
+        summary: say(context, `ליצור עמוד ${pageType}`, `Create ${article(pageType)} ${pageType} page`),
         rationale: opportunity.explanation,
         expectedImpact: opportunity.expectedLift,
         targetUrl: `${context.homeUrl.replace(/\/$/, '')}/${pageType}`,
@@ -225,10 +290,17 @@ const pickTarget = (opportunity: Opportunity, context: PlanningContext): string 
 /** English article agreement, so generated copy does not read as machine output. */
 const article = (word: string): string => (/^[aeiou]/i.test(word) ? 'an' : 'a')
 
-const shortUrl = (url: string): string => {
+/**
+ * A page, named the way somebody would say it out loud.
+ *
+ * The home page produced the literal English words "your home page", which then sat inside
+ * an otherwise Hebrew sentence: "לציין את הכתובת הרשמית של your home page".
+ */
+const shortUrl = (url: string, language: 'he' | 'en' = 'en'): string => {
   try {
     const parsed = new URL(url)
-    return parsed.pathname === '/' ? 'your home page' : parsed.pathname
+    if (parsed.pathname !== '/') return parsed.pathname
+    return language === 'he' ? 'עמוד הבית' : 'your home page'
   } catch {
     return url
   }

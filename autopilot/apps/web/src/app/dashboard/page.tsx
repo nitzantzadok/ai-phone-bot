@@ -1,4 +1,4 @@
-import { compareScores, explainScore } from '@autopilot/scoring/airs.ts'
+import { airsDisclosure, compareScores, explainScore } from '@autopilot/scoring/airs.ts'
 import { topOpportunities } from '@autopilot/optimization/diagnosis.ts'
 import { Card, ControlBadge, Disclosure, Rate, SimulatedBadge, Stat } from '@/components/primitives'
 import { Shell, languageFrom } from '@/components/shell'
@@ -21,7 +21,7 @@ export default async function Dashboard({
 }) {
   const language = languageFrom(await searchParams)
   const he = language === 'he'
-  const data = await dashboardData()
+  const data = await dashboardData(language)
   const copy = t(language)
 
   const { before, after, diagnosis, agentRun, prompts, competitors } = data
@@ -50,7 +50,7 @@ export default async function Dashboard({
             sub={`${copy.scoreOutOf} · ${comparison.delta >= 0 ? '+' : ''}${comparison.delta} ${copy.thisMonth}`}
           />
           <p className="mt-3 text-sm text-muted">{explainScore(after.airs, language)}</p>
-          <Disclosure text={after.airs.disclosure} />
+          <Disclosure text={airsDisclosure(language)} />
         </Card>
 
         <Card

@@ -1,6 +1,6 @@
 import { IL, resolveVatPeriod } from '@autopilot/shared/country.ts'
 import { applyVatToNet, formatMoney } from '@autopilot/shared/money.ts'
-import { purchasablePlans } from '@autopilot/billing/plans.ts'
+import { AUTONOMY_LABEL, purchasablePlans } from '@autopilot/billing/plans.ts'
 import { Shell, languageFrom } from '@/components/shell'
 
 /**
@@ -58,7 +58,7 @@ export default async function Pricing({
             </p>
           </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {plans.map((plan) => {
             const taxed = applyVatToNet(plan.monthlyNet!, vat.rateBps, vat.id)
             const featured = plan.code === 'GROWTH'
@@ -110,9 +110,10 @@ export default async function Pricing({
                     he
                       ? `עד ${plan.limits.businesses} עסקים`
                       : `Up to ${plan.limits.businesses} business${plan.limits.businesses === 1 ? '' : 'es'}`,
-                    he
-                      ? `רמת אוטומציה מרבית: ${plan.maxAutonomy}`
-                      : `Maximum automation: ${plan.maxAutonomy}`,
+                    // Not `plan.maxAutonomy`: that is a stored identifier, and it was
+                    // being shown to a Hebrew-speaking owner as "רמת אוטומציה מרבית:
+                    // AUTOPILOT" on the one line that answers who does the work.
+                    AUTONOMY_LABEL[plan.maxAutonomy][language],
                   ].map((line) => (
                     <li key={line} className="flex gap-2 text-muted">
                       <span aria-hidden className="mt-2 inline-block size-1 shrink-0 rounded-full bg-accent" />

@@ -73,10 +73,19 @@ const check = (
   return { allowed: true, retryAfterSeconds: 0 }
 }
 
-/** The host a scan is pointed at, which is the thing a per-target ceiling protects. */
+/**
+ * The site a scan is pointed at, which is the thing a per-target ceiling protects.
+ *
+ * The port is part of the identity. In production it never appears — anything but 80 or
+ * 443 is refused at the field — but in local development every fixture server lives on
+ * `127.0.0.1` at a different port, and keying on the hostname alone made three separate
+ * test sites share one budget, so a walk through the product ran out of allowance
+ * scanning its own fixtures.
+ */
 const targetKey = (url: string): string => {
   try {
-    return new URL(url).hostname.toLowerCase()
+    const parsed = new URL(url)
+    return parsed.port === '' ? parsed.hostname.toLowerCase() : `${parsed.hostname.toLowerCase()}:${parsed.port}`
   } catch {
     return url.toLowerCase()
   }

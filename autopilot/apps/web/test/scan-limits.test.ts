@@ -92,3 +92,22 @@ describe('how the two interact', () => {
     expect(checkRateLimit('1.2.3.4', '', AT).allowed).toBe(true)
   })
 })
+
+describe('what counts as one site', () => {
+  beforeEach(resetRateLimits)
+
+  it('keeps two servers on the same host apart', () => {
+    // Never true in production, where anything but 80 and 443 is refused at the field.
+    // Always true in development, where every fixture site is 127.0.0.1 on its own port —
+    // and keying on the hostname alone made a walk through the product run out of
+    // allowance scanning its own test sites.
+    for (let i = 0; i < 4; i++) checkRateLimit(`c${i}`, 'http://127.0.0.1:4001/', AT)
+    expect(checkRateLimit('x', 'http://127.0.0.1:4001/', AT).allowed).toBe(false)
+    expect(checkRateLimit('x', 'http://127.0.0.1:4002/', AT).allowed).toBe(true)
+  })
+
+  it('still treats the default port and no port as the same site', () => {
+    for (let i = 0; i < 4; i++) checkRateLimit(`c${i}`, 'https://garage.co.il/', AT)
+    expect(checkRateLimit('x', 'https://garage.co.il/about', AT).allowed).toBe(false)
+  })
+})

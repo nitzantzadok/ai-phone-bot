@@ -304,9 +304,14 @@ export const runAgent = async (options: AgentRunOptions): Promise<AgentRunResult
           summary: opportunity.title,
           rationale: opportunity.explanation,
           riskTier: opportunity.riskTier,
+          // Shown in the customer's activity feed, so it follows their language like
+          // everything else there. It was the one line every held action carried, which
+          // made it the most-read English sentence on a Hebrew dashboard.
           heldBecause:
-            'We could not build a change for this that is fully grounded in your confirmed ' +
-            'information, so it needs a person.',
+            options.context.language === 'he'
+              ? 'לא הצלחנו לבנות שינוי שנשען כולו על מידע שאישרתם, ולכן זה דורש אדם.'
+              : 'We could not build a change for this that is fully grounded in your confirmed ' +
+                'information, so it needs a person.',
         })
         await record({
           stepType: 'DECISION',

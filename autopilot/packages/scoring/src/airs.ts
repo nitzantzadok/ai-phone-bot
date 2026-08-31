@@ -37,6 +37,20 @@ export const AIRS_DISCLOSURE =
   'particular response for every user.'
 
 /**
+ * The same sentence, for the reader rather than for a log.
+ *
+ * `AirsResult.disclosure` is stored on the result and is English by design — it travels
+ * into records and API responses, where one stable wording is right. What a customer sees
+ * under their score is a different requirement, and printing the stored value there put an
+ * English paragraph directly beneath a Hebrew explanation of the same number.
+ */
+export const airsDisclosure = (language: 'he' | 'en'): string =>
+  language === 'he'
+    ? 'ציון ההמלצה של AI מודד ביצועים שנצפו בפועל, על פני מערכת השאלות שאנחנו במעקב אחריה, ' +
+      'המנועים והמיקומים, בחלון הזמן שצוין. הוא לא הבטחה לתשובה מסוימת לכל משתמש.'
+    : AIRS_DISCLOSURE
+
+/**
  * Component weights, summing to 1.
  *
  * Weighted toward outcomes over hygiene: being recommended is what earns the customer

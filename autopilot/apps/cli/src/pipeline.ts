@@ -59,6 +59,16 @@ export interface PipelineOptions {
   readonly maxPrompts?: number
   /** Spend ceiling for the whole run, in minor units. */
   readonly maxSpendMinor?: number
+  /**
+   * The language every customer-visible string comes back in.
+   *
+   * It was pinned to English in three places, and the sample dashboard — the one the join
+   * page invites a Hebrew-speaking owner to look at before they start — came back with its
+   * findings, its opportunities and its list of changes in English, reflowed under RTL into
+   * sentences with the numbers on the wrong side. `diagnose` had taken a language all
+   * along; nothing passed one.
+   */
+  readonly language?: 'he' | 'en'
 }
 
 export interface MeasurementPhase {
@@ -94,6 +104,7 @@ export interface PipelineResult {
 export const runPipeline = async (options: PipelineOptions = {}): Promise<PipelineResult> => {
   const clock = options.clock ?? systemClock
   const logger = options.logger ?? noopLogger
+  const language = options.language ?? 'en'
   const businessId = newId<'BusinessId'>()
   const ledger = new CostLedger({ clock })
   if (options.maxSpendMinor) {
@@ -256,6 +267,7 @@ export const runPipeline = async (options: PipelineOptions = {}): Promise<Pipeli
     competitorEvidence: competitorEvidence(),
     promptDemand: demand,
     ownerConfirmedAttributes: new Set(OWNER_CONFIRMED_ATTRIBUTES),
+    language,
   })
 
   // Diagnosis reasons about QUESTIONS, not about individual engine calls.
@@ -277,6 +289,7 @@ export const runPipeline = async (options: PipelineOptions = {}): Promise<Pipeli
     ),
     factConflicts: findConflicts(allFacts),
     vertical: ROSA_BUSINESS.vertical,
+    language,
   })
 
   /* --------------------------------------------------------------- agent ----- */
@@ -292,7 +305,7 @@ export const runPipeline = async (options: PipelineOptions = {}): Promise<Pipeli
     vertical: ROSA_BUSINESS.vertical,
     businessName: ROSA_BUSINESS.name,
     city: ROSA_BUSINESS.city,
-    language: 'en',
+    language,
     facts: groundingFacts,
     homeUrl: `${ROSA_ORIGIN}/`,
     pages: crawl.pages.map((p) => ({ url: p.url, pageType: p.pageType, title: p.title })),
@@ -306,7 +319,7 @@ export const runPipeline = async (options: PipelineOptions = {}): Promise<Pipeli
       autonomyMode: options.autonomyMode ?? 'AUTOPILOT',
       businessRules: options.businessRules ?? [],
       facts: groundingFacts,
-      language: 'en',
+      language,
       existingContent: pages.map((p) => p.content),
     },
     opportunities: diagnosis.opportunities,

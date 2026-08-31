@@ -38,6 +38,40 @@ export interface Plan {
   readonly sortOrder: number
 }
 
+export type AutonomyLevel = Plan['maxAutonomy']
+
+/**
+ * What each autonomy level means to the person paying.
+ *
+ * `maxAutonomy` was printed onto the pricing page exactly as it is stored — a Hebrew
+ * speaking business owner comparing plans read the line "רמת אוטומציה מרבית: AUTOPILOT".
+ * That is an internal identifier, in the wrong language, describing the single thing that
+ * most distinguishes one plan from the next: who actually does the work.
+ *
+ * Written from the customer's side, because that is the question being asked. Not "what
+ * level of autonomy is enabled" but "after I pay, who changes my website".
+ */
+export const AUTONOMY_LABEL: Readonly<
+  Record<AutonomyLevel, Readonly<Record<'he' | 'en', string>>>
+> = {
+  MONITOR: {
+    he: 'אנחנו מודדים ומדווחים — התיקונים אצלכם',
+    en: 'We measure and report; the fixes are yours to make',
+  },
+  RECOMMEND: {
+    he: 'רשימת תיקונים מוכנה, מסודרת לפי מה שהכי משפיע',
+    en: 'A ready list of fixes, ordered by what moves the needle most',
+  },
+  AUTO_SAFE: {
+    he: 'אנחנו מבצעים את התיקונים הבטוחים אחרי שאתם מאשרים',
+    en: 'We carry out the safe fixes once you approve them',
+  },
+  AUTOPILOT: {
+    he: 'אנחנו מבצעים את התיקונים ומודדים אם זה עבד',
+    en: 'We make the fixes and measure whether they worked',
+  },
+}
+
 /**
  * The launch plan is a single paid tier at the price the business case is built on.
  * The others exist so the schema and the limit machinery are exercised from day one,
