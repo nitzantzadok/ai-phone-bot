@@ -64,9 +64,13 @@ jobs:
         run: |
           node build.mjs
           mkdir -p _site
-          cp dist/artifact.html _site/index.html
+          # app.html ולא artifact.html: הראשון הוא מסמך שלם עם doctype
+          # ועם תגית viewport. artifact.html הוא תוכן בלבד — המארח של
+          # הארטיפקט עוטף אותו בעצמו, אבל אתר רגיל אינו עושה זאת, והדפדפן
+          # בטלפון מקטין את העמוד כדי "להתאים" מסמך בלי viewport.
+          cp dist/app.html _site/index.html
           # כל נתיב שגוי מחזיר לאותה אפליקציה במקום למסך שגיאה
-          cp dist/artifact.html _site/404.html
+          cp dist/app.html _site/404.html
           # מונע מ-Jekyll לגעת בקבצים
           touch _site/.nojekyll
 
