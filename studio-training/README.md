@@ -516,15 +516,30 @@ cli.js           כלי שורת פקודה
 | **בדפדפן בלבד** (GitHub Pages, ארטיפקט, קובץ מקומי) | בדפדפן של מי שנכנס | רק הוא, רק במכשיר הזה |
 | **שרת משותף** (Cloudflare Workers + D1, או `npm start`) | במסד אחד | כל מי שנכנס לחשבון הסטודיו, מכל מכשיר |
 
-לסטודיו עם יותר ממאמן אחד צריך את השנייה. הפריסה חינמית ולוקחת דקה:
+לסטודיו עם יותר ממאמן אחד צריך את השנייה. הפריסה חינמית, ויש לה שתי דרכים.
+
+**מהדפדפן, בלי טרמינל** — הדרך הפשוטה יותר אם אין Node מותקן:
+
+1. פותחים חשבון חינמי ב-[Cloudflare](https://dash.cloudflare.com/sign-up) (בלי כרטיס אשראי).
+2. בלוח הבקרה: **My Profile → API Tokens → Create Token → Edit Cloudflare Workers**. מעתיקים
+   את האסימון. את **Account ID** מעתיקים מכתובת לוח הבקרה (`dash.cloudflare.com/<המזהה>`).
+3. בריפו ב-GitHub: **Settings → Secrets and variables → Actions → New repository secret**,
+   ומוסיפים שניים: `CLOUDFLARE_API_TOKEN` ו-`CLOUDFLARE_ACCOUNT_ID`.
+4. **Actions → "פריסה לשרת המשותף" → Run workflow.**
+
+בסוף ההרצה מודפסת הכתובת. מאותו רגע כל עדכון שנדחף מתפרסם לבד.
+
+**מהמחשב** — אם Node כבר מותקן:
 
 ```bash
+git clone https://github.com/nitzantzadok/studio-training
+cd studio-training
 npm run deploy      # בונה, מריץ בדיקות, יוצר מסד D1 ופורס
 ```
 
-בפעם הראשונה ייפתח דפדפן להתחברות ל-Cloudflare (חשבון חינמי, בלי כרטיס אשראי). בסוף
-מודפסת הכתובת — `https://studio-training.<שם>.workers.dev` — וזו הכתובת שנותנים לכל
-המאמנים. כל אחד נכנס עם שם המשתמש והסיסמה של הסטודיו ורואה את אותם מתאמנים.
+בפעם הראשונה ייפתח דפדפן להתחברות ל-Cloudflare. בסוף מודפסת הכתובת —
+`https://studio-training.<שם>.workers.dev` — וזו הכתובת שנותנים לכל המאמנים. כל אחד נכנס עם
+שם המשתמש והסיסמה של הסטודיו ורואה את אותם מתאמנים.
 
 **איך זה בנוי.** `src/server/api.js` הוא טבלת הנתיבים — הרשאות, מסד, מנוע — בלי שרת ובלי
 מערכת קבצים. שני עוטפים דקים משתמשים בה: `src/server/server.js` (שרת Node) ו-`worker/index.js`

@@ -94,6 +94,69 @@ jobs:
         uses: actions/deploy-pages@v4
 YAML
 
+cat > "$STAGE/.github/workflows/deploy-cloudflare.yml" <<'YAML'
+# פריסה לשרת המשותף — מהדפדפן, בלי טרמינל.
+#
+# פעם אחת: Settings → Secrets and variables → Actions → New repository secret
+#   CLOUDFLARE_API_TOKEN   אסימון מחשבון Cloudflare (חינמי)
+#   CLOUDFLARE_ACCOUNT_ID  מזהה החשבון, מתוך כתובת לוח הבקרה
+#
+# ואז: Actions → "פריסה לשרת המשותף" → Run workflow.
+# מאותו רגע כל שינוי שנדחף ל-main מתפרסם לבד.
+name: פריסה לשרת המשותף
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # בלי אסימון פשוט לא רצים — זה לא כישלון, זו פשוט פריסה שלא הוגדרה
+    if: ${{ github.event_name == 'workflow_dispatch' || secrets.CLOUDFLARE_API_TOKEN != '' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: בנייה
+        run: node build.mjs
+
+      - name: בדיקות
+        run: node --test tests/*.test.js
+
+      - name: מסד D1 — נוצר רק אם אינו קיים
+        run: |
+          set -e
+          if grep -q PLACEHOLDER wrangler.toml; then
+            OUT="$(npx --yes wrangler@4 d1 create studio-training 2>&1 || true)"
+            ID="$(printf '%s' "$OUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)"
+            if [ -z "$ID" ]; then
+              ID="$(npx --yes wrangler@4 d1 list --json 2>/dev/null \
+                | tr ',' '\n' | grep -A1 '"name":"studio-training"' \
+                | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)"
+            fi
+            if [ -z "$ID" ]; then echo "לא הצלחנו ליצור או למצוא את המסד:"; echo "$OUT"; exit 1; fi
+            sed -i "s|database_id = \".*\"|database_id = \"$ID\"|" wrangler.toml
+            echo "מסד: $ID"
+          fi
+
+      - name: פריסה
+        run: npx --yes wrangler@4 deploy
+YAML
+
 # הבדיקות הן שער בטיחות, אבל אין טעם להיכשל רק כי Node לא מותקן —
 # ב-GitHub Actions הן ירוצו בכל מקרה לפני הפרסום.
 if command -v node >/dev/null 2>&1; then
