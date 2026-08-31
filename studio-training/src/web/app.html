@@ -871,6 +871,8 @@ const state = {
   account: null, snapshots: [], sessionLog: [],
   /** רשימת המתאמנים: חיפוש, סינון לפי סטטוס, ומי שנבחר לפעולה קבוצתית. */
   traineeQuery: '', traineeFilter: 'all', picked: new Set(), bulkConfirm: false,
+  /** מה שנמחק לאחרונה — כדי שאפשר יהיה להחזיר אותו. */
+  undoDelete: null,
 };
 
 /* ==================================================================
@@ -3353,6 +3355,7 @@ function renderTraineesView() {
 
     <div class="card">
       <p class="eyebrow">מתאמנים רשומים</p>
+      ${undoBannerHtml()}
       ${traineeListToolbarHtml()}
       ${listedTrainees().length ? listedTrainees().map((t) => (state.confirmDeleteId === t.id ? `
       <div class="listrow">
@@ -3372,6 +3375,7 @@ function renderTraineesView() {
         <span class="chip">${esc(GOAL_PROFILES[t.primaryGoal]?.label || t.primaryGoal || '')}</span>
         ${(t.trainingStyles || []).map((k) => `<span class="chip">${esc(TRAINING_STYLE_LABELS[k] || k)}</span>`).join('')}
         ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
+        <span class="chip${hasFreshProgram(t) ? ' ok' : ''}">${esc(agoLabel(lastProgramAt(t.id)))}</span>
         <span class="grow"></span>
         <button data-open-trainee="${esc(t.id)}">פתח תכנית</button>
         <button data-edit-trainee="${esc(t.id)}">ערוך</button>
@@ -3424,6 +3428,8 @@ function renderTraineesView() {
   document.querySelectorAll('[data-bulk]').forEach((b) => {
     b.onclick = () => bulkTrainees(b.dataset.bulk);
   });
+  const undo = $('#undoDelete');
+  if (undo) undo.onclick = undoDelete;
   const yes = $('#bulkDeleteYes');
   if (yes) yes.onclick = bulkDeleteNow;
   const no = $('#bulkDeleteNo');
@@ -3464,12 +3470,45 @@ function renderTraineesView() {
  */
 const isActive = (t) => t.active !== false && !t.inactive;
 
+/**
+ * מתי נבנתה למתאמן תכנית בפעם האחרונה.
+ * זו השאלה שהמאמן שואל בתחילת כל שבוע, והתשובה יושבת בארכיון התכניות.
+ */
+function lastProgramAt(traineeId) {
+  let best = null;
+  for (const s of state.snapshots || []) {
+    if (s.traineeId !== traineeId) continue;
+    if (!best || s.at > best) best = s.at;
+  }
+  return best;
+}
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/** האם קיבל תכנית בשבוע האחרון. */
+function hasFreshProgram(t) {
+  const at = lastProgramAt(t.id);
+  return !!at && Date.now() - new Date(at).getTime() < 7 * DAY_MS;
+}
+
+/** "לפני 3 ימים" / "היום" — מה שהמאמן באמת רוצה לדעת. */
+function agoLabel(at) {
+  if (!at) return 'אין תכנית';
+  const days = Math.floor((Date.now() - new Date(at).getTime()) / DAY_MS);
+  if (days <= 0) return 'תכנית מהיום';
+  if (days === 1) return 'תכנית מאתמול';
+  if (days < 7) return `תכנית מלפני ${days} ימים`;
+  if (days < 14) return 'תכנית מלפני שבוע';
+  return `תכנית מלפני ${Math.floor(days / 7)} שבועות`;
+}
+
 /** המתאמנים שמוצגים כרגע, אחרי חיפוש וסינון סטטוס. */
 function listedTrainees() {
   const q = shNorm(state.traineeQuery || '');
   return state.trainees.filter((t) => {
     if (state.traineeFilter === 'active' && !isActive(t)) return false;
     if (state.traineeFilter === 'inactive' && isActive(t)) return false;
+    if (state.traineeFilter === 'stale' && (!isActive(t) || hasFreshProgram(t))) return false;
     if (!q) return true;
     const hay = [t.name, studioById(t.homeStudioId || t.studioId)?.name, t.phone, t.coach,
       GOAL_PROFILES[t.primaryGoal]?.label].filter(Boolean).join(' ');
@@ -3497,6 +3536,7 @@ function traineeListToolbarHtml() {
       ${tab('all', `הכול (${state.trainees.length})`)}
       ${tab('active', `פעילים (${activeCount()})`)}
       ${tab('inactive', `לא פעילים (${state.trainees.length - activeCount()})`)}
+      ${tab('stale', `ללא תכנית השבוע (${state.trainees.filter((t) => isActive(t) && !hasFreshProgram(t)).length})`)}
     </div>
     <div class="row" style="margin-bottom:.6rem; gap:.4rem">
       <label class="pickbox"><input type="checkbox" id="pickAll"
@@ -3516,6 +3556,42 @@ function traineeListToolbarHtml() {
         <button class="danger" id="bulkDeleteYes">כן, מחק את כולם</button>
         <button id="bulkDeleteNo">ביטול</button>
       </div></div>` : ''}`;
+}
+
+/* ------------------------------------------------- ביטול מחיקה */
+
+/**
+ * מחיקה היא הפעולה היחידה כאן שאי אפשר לתקן, והיא נמצאת בדיוק ליד
+ * "ערוך". לכן כל מחיקה שומרת עותק בזיכרון של הדפדפן עד לפעולה הבאה,
+ * ואפשר להחזיר אותה בלחיצה. העותק אינו נשמר לדיסק — הוא מתאדה עם רענון,
+ * וזה בסדר: הוא נועד לתקן טעות של הרגע ולא לשמש גיבוי.
+ */
+function captureForUndo(ids) {
+  const trainees = ids.map((id) => traineeById(id)).filter(Boolean).map((t) => structuredClone(t));
+  const snapshots = (state.snapshots || []).filter((s) => ids.includes(s.traineeId)).map((s) => structuredClone(s));
+  state.undoDelete = trainees.length ? { trainees, snapshots, at: Date.now() } : null;
+}
+
+async function undoDelete() {
+  const u = state.undoDelete;
+  if (!u) return;
+  status('מחזיר…');
+  for (const t of u.trainees) await store.saveTrainee(t);
+  if (u.snapshots.length) await store.importSnapshots(u.snapshots);
+  await store.load();
+  state.undoDelete = null;
+  status('');
+  fillStudios();
+  flash(`${u.trainees.length === 1 ? `${esc(u.trainees[0].name)} הוחזר` : `${u.trainees.length} מתאמנים הוחזרו`} עם ההיסטוריה.`, 'ok');
+  renderTraineesView();
+}
+
+function undoBannerHtml() {
+  const u = state.undoDelete;
+  if (!u) return '';
+  const who = u.trainees.length === 1 ? esc(u.trainees[0].name) : `${u.trainees.length} מתאמנים`;
+  return `<div class="banner warn">${who} נמחק${u.trainees.length === 1 ? '' : 'ו'}.
+    <button id="undoDelete" style="margin-inline-start:.6rem">ביטול המחיקה</button></div>`;
 }
 
 /** שינוי סטטוס של מתאמן אחד — הפעולה הכי נפוצה, ולכן לחיצה אחת. */
@@ -3551,6 +3627,7 @@ async function bulkTrainees(action) {
 
 async function bulkDeleteNow() {
   const ids = listedTrainees().filter((t) => state.picked.has(t.id)).map((t) => t.id);
+  captureForUndo(ids);
   status(`מוחק ${ids.length} מתאמנים…`);
   let done = 0;
   for (const id of ids) { await store.deleteTrainee(id); done++; if (done % 5 === 0) status(`מוחק… ${done}/${ids.length}`); }
@@ -3684,6 +3761,7 @@ async function deleteTraineeNow(id) {
   const t = traineeById(id);
   if (!t) return;
   try {
+    captureForUndo([id]);
     await store.deleteTrainee(id);
     if (state.editingTraineeId === id) state.editingTraineeId = null;
     state.confirmDeleteId = null;
