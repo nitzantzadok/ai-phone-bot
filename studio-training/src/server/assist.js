@@ -21,22 +21,11 @@
 
 import { BY_ID, EXERCISES } from '../domain/exercises.js';
 import { CONSTRAINTS } from '../domain/constraints.js';
-
-const MODEL = 'claude-opus-5';
-
-// אותו טריק כמו בזיהוי הציוד: שם מחושב שהמאגד אינו יכול לנתח, כדי
-// שהתלות הרשות לא תפיל את הבנייה לפריסה בקצה
-const SDK = ['@anthropic-ai', 'sdk'].join('/');
+import { claudeAvailable, claudeCall, claudeJson } from './claude.js';
 
 /** האם השכבה החכמה זמינה בסביבה הזו. */
 export async function assistAvailable() {
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return { ok: false, reason: 'no_key' };
-  try {
-    await import(SDK);
-    return { ok: true };
-  } catch {
-    return { ok: false, reason: 'no_sdk' };
-  }
+  return claudeAvailable();
 }
 
 /*
@@ -88,37 +77,12 @@ export async function suggestMatches(leftovers = {}) {
   const notes = [...new Set((leftovers.notes || []).map((s) => String(s).trim()).filter(Boolean))].slice(0, 60);
   if (!exercises.length && !notes.length) return { exercises: [], notes: [], model: null };
 
-  const avail = await assistAvailable();
-  if (!avail.ok) {
-    const err = new Error(avail.reason === 'no_sdk'
-      ? 'השכבה החכמה אינה מותקנת. להפעלה: npm install @anthropic-ai/sdk ולהגדיר ANTHROPIC_API_KEY. הייבוא עובד גם בלעדיה.'
-      : 'לא הוגדר מפתח API לשכבה החכמה. הייבוא עובד גם בלעדיה — השמות שלא זוהו נשמרים כתרגילים חופשיים.');
-    err.code = avail.reason;
-    throw err;
-  }
-
-  const { default: Anthropic } = await import(SDK);
-  const client = new Anthropic();
-
   const payload = JSON.stringify({ exercises, notes }, null, 1);
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: 'adaptive' },
-    // המאגר הוא החלק היציב והגדול בבקשה, והוא זהה בכל ייבוא — שמירתו
-    // במטמון הופכת ייבוא שני ואילך לזול משמעותית
-    system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: `הנה מה שלא זוהה. החזר JSON בלבד.\n\n${payload}` }],
+  const { text, model } = await claudeCall({
+    system: SYSTEM,
+    user: `הנה מה שלא זוהה. החזר JSON בלבד.\n\n${payload}`,
   });
-
-  if (response.stop_reason === 'refusal') {
-    const err = new Error('הבקשה נדחתה על ידי המודל. הייבוא ממשיך בלי השכבה החכמה.');
-    err.code = 'refusal';
-    throw err;
-  }
-
-  const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-  return { ...validateSuggestions(parseJson(text)), model: response.model };
+  return { ...validateSuggestions(claudeJson(text)), model };
 }
 
 /*
@@ -161,24 +125,6 @@ export function validateSuggestions(parsed) {
 
   return { exercises, notes };
 }
-
-/** JSON מתוך תשובה שעשויה להגיע עטופה בגדר קוד. */
-function parseJson(text) {
-  const cleaned = String(text).replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const at = cleaned.indexOf('{');
-    const to = cleaned.lastIndexOf('}');
-    if (at >= 0 && to > at) {
-      try { return JSON.parse(cleaned.slice(at, to + 1)); } catch { /* נופל לשגיאה למטה */ }
-    }
-    const err = new Error('התשובה מהמודל לא הייתה JSON תקין. הייבוא ממשיך בלי השכבה החכמה.');
-    err.code = 'bad_json';
-    throw err;
-  }
-}
-
 
 /* ================================================================
    הביקורת החכמה.
@@ -225,38 +171,15 @@ const REVIEW_SYSTEM = `אתה מאמן כושר ותיק שעובר על כרט�
 export async function reviewTrainee({ trainee, program = null, findings = [] } = {}) {
   if (!trainee) throw new Error('חסר מתאמן לביקורת');
 
-  const avail = await assistAvailable();
-  if (!avail.ok) {
-    const err = new Error(avail.reason === 'no_sdk'
-      ? 'הביקורת החכמה אינה מותקנת. הבדיקות הרגילות ממשיכות לעבוד.'
-      : 'לא הוגדר מפתח API לביקורת החכמה. הבדיקות הרגילות ממשיכות לעבוד.');
-    err.code = avail.reason;
-    throw err;
-  }
-
-  const { default: Anthropic } = await import(SDK);
-  const client = new Anthropic();
-
   const payload = JSON.stringify({ trainee: profileFor(trainee), program: programFor(program), knownFindings: findings.map((x) => x.message) }, null, 1);
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: 'adaptive' },
-    system: [{ type: 'text', text: REVIEW_SYSTEM, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: `עבור על הכרטיס והתכנית. החזר JSON בלבד.\n\n${payload}` }],
+  const { text, model: served } = await claudeCall({
+    system: REVIEW_SYSTEM,
+    user: `עבור על הכרטיס והתכנית. החזר JSON בלבד.\n\n${payload}`,
   });
-
-  if (response.stop_reason === 'refusal') {
-    const err = new Error('הבקשה נדחתה על ידי המודל.');
-    err.code = 'refusal';
-    throw err;
-  }
-
-  const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-  const parsed = parseJson(text);
+  const parsed = claudeJson(text);
   const levels = new Set(['error', 'warning', 'info']);
   return {
-    model: response.model,
+    model: served,
     summary: String(parsed.summary || '').slice(0, 300),
     findings: (parsed.findings || [])
       .filter((x) => x && typeof x.message === 'string')
@@ -302,4 +225,138 @@ function programFor(p) {
       })),
     })),
   };
+}
+
+/* ================================================================
+   מתכנן הייבוא — המוח של הבנת הגיליון.
+
+   הרעיון: לא נותנים למודל לקרוא את הקובץ ולהמציא נתונים. מחלקים את
+   העבודה לפי מה שכל צד באמת טוב בו:
+
+     המודל מחליט *מה כל דבר* — מה כל לשונית, מה כל עמודה, של מי היא.
+       זה שיקול דעת על שפה חופשית, ושם כללים תמיד יפספסו.
+     הקוד קורא *את הערכים* — כל מספר, כל תאריך, כל שם, מהתאים עצמם.
+       המודל לא נוגע במספרים בכלל, ולכן אין לו איך להמציא משקל.
+
+   לכן הקלט אינו הקובץ אלא תקציר: כותרות וכמה שורות דוגמה מכל לשונית,
+   לצד מה שהזיהוי האוטומטי כבר החליט. הפלט הוא תכנית מיפוי — תיקונים
+   בלבד — שמוזרמת חזרה לאותו מנגנון דריסה שכבר קיים למאמן. גיליון של
+   מאה לשוניות מתומצת לאלפי טוקנים בודדים, וכל תו בפלט מאומת מול
+   רשימות סגורות.
+   ================================================================ */
+
+/** התפקידים שהמערכת מכירה; המודל בוחר מתוכם ולא ממציא. */
+const PLAN_ROLES = new Set(['trainees', 'trainee_card', 'programs', 'log', 'measurements', 'attendance', 'equipment', 'studio', 'ignore']);
+
+/** השדות שעמודה יכולה להיות; 'none' פירושו להתעלם מהעמודה. */
+const PLAN_FIELDS = new Set(['none',
+  'name', 'firstName', 'lastName', 'phone', 'email', 'sex', 'age', 'birthDate', 'heightCm', 'weightKg',
+  'bodyFatPct', 'level', 'trainingAgeMonths', 'goal', 'goalDetail', 'daysPerWeek', 'sessionMinutes',
+  'preferredDays', 'preferredTime', 'constraints', 'pastInjuries', 'medicalClearance', 'sport',
+  'lifestyle', 'coach', 'studio', 'startDate', 'status', 'trainingStyle', 'notes',
+  'exercise', 'sets', 'reps', 'load', 'rest', 'tempo', 'rpe', 'day', 'date', 'week', 'pain',
+  'waist', 'chest', 'hips', 'arm', 'thigh', 'calf',
+  'equipmentItem', 'count', 'weightRange',
+]);
+
+const PLAN_SYSTEM = `אתה מומחה לקריאת גיליונות מעקב של סטודיו לאימון כוח, ואתה עוזר למערכת לייבא אותם.
+
+המערכת כבר ניתחה את הגיליון בעצמה. אתה מקבל תקציר: לכל לשונית — שמה, הכותרות, שורות
+דוגמה, ומה שהמערכת החליטה (תפקיד הלשונית ומיפוי העמודות). תפקידך לבדוק את ההחלטות
+ולתקן רק את מה ששגוי. אל תחזיר לשוניות שההבנה שלהן נכונה.
+
+תפקידי לשונית אפשריים (בחר רק מאלה):
+- trainees: רשימת מתאמנים, שורה לאדם
+- trainee_card: כרטיס של מתאמן יחיד, פרט בכל שורה (מפתח-ערך)
+- programs: תכנית אימונים — תרגילים עם סטים/חזרות/משקל
+- log: יומן ביצועים עם תאריכים — מה בוצע בפועל
+- measurements: מדידות גוף (משקל גוף, היקפים, אחוז שומן)
+- attendance: נוכחות — מי הגיע מתי
+- equipment: ציוד הסטודיו
+- studio: פרטי הסטודיו
+- ignore: הוראות, סיכומים, לשונית שאין לייבא
+
+שדות עמודה אפשריים (בחר רק מאלה): name, phone, email, sex, age, heightCm, weightKg,
+bodyFatPct, level, trainingAgeMonths, goal, daysPerWeek, sessionMinutes, preferredDays,
+constraints, pastInjuries, sport, lifestyle, coach, studio, startDate, status, trainingStyle,
+notes, exercise, sets, reps, load, rest, tempo, rpe, day, date, week, pain, waist, chest,
+hips, arm, thigh, calf, equipmentItem, count, weightRange, none.
+
+הבחנות שחשוב לדייק בהן:
+- "משקל" בלשונית מדידות הוא weightKg (משקל גוף); "משקל" ליד תרגיל הוא load (משקל עבודה).
+- עמודה ששמה "שם" אבל הערכים בה הם תרגילים — היא exercise, לא name.
+- owner: כשלשונית שלמה שייכת לאדם אחד ושמו כתוב בשם הלשונית או בכותרת — ציין את שמו.
+- אינך קורא מספרים ואינך ממציא ערכים. אתה קובע רק מה כל דבר.
+
+החזר אך ורק JSON תקין:
+{"sheets":[{"sheet":"<שם הלשונית>","role":"programs","owner":"רון כהן","columns":{"0":"exercise","3":"load"},"why":"משפט קצר בעברית"}]}
+- כלול לשונית רק אם אתה מתקן בה משהו. columns כולל רק עמודות שגויות. owner רק כשידוע.
+- רשימה ריקה {"sheets":[]} היא תשובה מצוינת כשהמערכת הבינה הכול נכון.`;
+
+/**
+ * תכנית מיפוי לייבוא: מה המודל מתקן בהבנת הגיליון.
+ *
+ * @param {{sheets: Array<{name:string, headers:string[], sample:string[][], rowCount:number,
+ *          guessedRole:string, guessedColumns:Array<{index:number, field:string|null}>}>}} digest
+ * @returns {Promise<{overrides:object, columnOverrides:object, ownerOverrides:object,
+ *           explanations:string[], model:string|null}>}
+ */
+export async function planImport(digest = {}) {
+  const sheets = (digest.sheets || []).slice(0, 100);
+  if (!sheets.length) return { overrides: {}, columnOverrides: {}, ownerOverrides: {}, explanations: [], model: null };
+
+  const compact = sheets.map((sh) => ({
+    sheet: String(sh.name || '').slice(0, 60),
+    rows: sh.rowCount,
+    headers: (sh.headers || []).slice(0, 20).map((h) => String(h).slice(0, 30)),
+    sample: (sh.sample || []).slice(0, 6).map((r) => r.slice(0, 20).map((c) => String(c ?? '').slice(0, 30))),
+    systemGuess: {
+      role: sh.guessedRole,
+      columns: Object.fromEntries((sh.guessedColumns || [])
+        .filter((c) => c.field).map((c) => [c.index, c.field])),
+    },
+  }));
+
+  const { text, model } = await claudeCall({
+    system: PLAN_SYSTEM,
+    user: `הנה תקציר הגיליון. החזר JSON בלבד, עם תיקונים בלבד.\n\n${JSON.stringify(compact, null, 1)}`,
+  });
+
+  return { ...validatePlan(claudeJson(text), sheets), model };
+}
+
+/**
+ * אימות התכנית מול הרשימות הסגורות ומול הגיליון עצמו.
+ * תפקיד לא מוכר, שדה לא מוכר או עמודה שאינה קיימת — נזרקים בשקט.
+ * מה שיוצא מכאן בטוח להזרמה ישירה למנגנון הדריסה.
+ */
+export function validatePlan(parsed, sheets = []) {
+  const known = new Map(sheets.map((s) => [String(s.name || ''), s]));
+  const overrides = {};
+  const columnOverrides = {};
+  const ownerOverrides = {};
+  const explanations = [];
+
+  for (const fix of parsed?.sheets || []) {
+    const sheetName = String(fix?.sheet || '');
+    const src = known.get(sheetName);
+    if (!src) continue;
+
+    if (fix.role && PLAN_ROLES.has(fix.role) && fix.role !== src.guessedRole) {
+      overrides[sheetName] = fix.role;
+    }
+    const cols = {};
+    for (const [idx, field] of Object.entries(fix.columns || {})) {
+      const i = Number(idx);
+      if (!Number.isInteger(i) || i < 0 || i >= (src.headers || []).length) continue;
+      if (!PLAN_FIELDS.has(field)) continue;
+      cols[i] = field;
+    }
+    if (Object.keys(cols).length) columnOverrides[sheetName] = cols;
+    if (typeof fix.owner === 'string' && fix.owner.trim() && fix.owner.trim().length <= 40) {
+      ownerOverrides[sheetName] = fix.owner.trim();
+    }
+    if (fix.why) explanations.push(`${sheetName}: ${String(fix.why).slice(0, 160)}`);
+  }
+  return { overrides, columnOverrides, ownerOverrides, explanations };
 }

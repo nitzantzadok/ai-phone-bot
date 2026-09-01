@@ -2925,6 +2925,11 @@ function importReviewHtml() {
     ${preview.warnings.length ? `<div class="card"><fieldset><legend>לתשומת לבך</legend>
       <ul class="notecard">${preview.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></fieldset></div>` : ''}
 
+    ${(impState.planNotes || []).length ? `<div class="card"><fieldset>
+      <legend>המוח בדק את הגיליון</legend>
+      <ul class="cues">${impState.planNotes.slice(0, 10).map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
+      <p class="hint">ההבנה תוקנה אוטומטית והניתוח רץ מחדש. אפשר לשנות כל החלטה בכרטיסי הלשוניות למטה.</p>
+    </fieldset></div>` : ''}
     ${importLearnedHtml(preview.learned)}
     ${importRejectedHtml(preview.rejectedNames)}
     ${importUnmatchedHtml(preview.unmatched)}
@@ -3161,6 +3166,39 @@ async function impAnalyze() {
         breathe: heavy ? impBreathe : null,
       },
     );
+    /*
+     * המוח של הייבוא: אחרי שהניתוח המקומי סיים, המודל מקבל תקציר —
+     * כותרות ושורות דוגמה מכל לשונית, לצד ההחלטות האוטומטיות — ומחזיר
+     * תיקוני הבנה בלבד. הם מוזרמים לאותו מנגנון דריסה שהמאמן משתמש בו
+     * ידנית, והניתוח רץ שוב באותו מסלול דטרמיניסטי. הערכים עצמם נקראים
+     * תמיד מהתאים, אף מספר אינו מגיע מהמודל, ומה שהמאמן קבע ידנית גובר.
+     */
+    if (state.assist?.ok) {
+      try {
+        impState.busy = 'מבקש מהמודל לבדוק את ההבנה של הגיליון…';
+        renderImportView();
+        const digest = shWorkbookDigest(impState.analysis);
+        const plan = await api('/api/assist/plan', { digest });
+        if (plan.ok) {
+          const roleFixes = { ...plan.overrides, ...impState.roleOverrides };
+          const colFixes = { ...plan.columnOverrides };
+          for (const [sheet, cols] of Object.entries(impState.columnOverrides)) {
+            colFixes[sheet] = { ...(colFixes[sheet] || {}), ...cols };
+          }
+          const changed = Object.keys(plan.overrides).length
+            + Object.keys(plan.columnOverrides).length
+            + Object.keys(plan.ownerOverrides).length;
+          if (changed) {
+            impState.analysis = await shAnalyzeWorkbookAsync(
+              impState.sheets.map((sh) => ({ name: sh.name, rows: sh.rows })),
+              { overrides: roleFixes, columnOverrides: colFixes, ownerOverrides: plan.ownerOverrides },
+            );
+            impState.previewKey = null;
+            impState.planNotes = plan.explanations || [];
+          }
+        }
+      } catch { /* המודל לא זמין — הניתוח המקומי עומד בפני עצמו */ }
+    }
     impState.stage = 'review';
   } catch (err) {
     impState.error = `הניתוח נכשל: ${err.message}`;

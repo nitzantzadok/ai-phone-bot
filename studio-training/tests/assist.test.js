@@ -38,7 +38,7 @@ test('הצעה בלי מפתח מחזירה תשובה מסודרת עם מסל�
     const r = await ALL_ROUTES['POST /api/assist/match']({ exercises: ['לחיצה צרפתית'] }, null, {});
     assert.equal(r.ok, false);
     assert.equal(r.fallback, 'manual');
-    assert.ok(r.error.includes('הייבוא'), r.error);
+    assert.ok(r.error.includes('מפתח'), r.error);
   } finally {
     if (key !== undefined) process.env.ANTHROPIC_API_KEY = key;
     if (token !== undefined) process.env.ANTHROPIC_AUTH_TOKEN = token;
@@ -106,4 +106,86 @@ test('ערכים לא חוקיים מתוקנים לברירת מחדל זהיר
   assert.equal(out.notes[0].constraints[0].severity, 'moderate', 'חומרה מומצאת התקבלה');
   assert.equal(out.notes[0].constraints[0].side, null);
   assert.equal(out.notes[0].constraints[0].confidence, 0.5);
+});
+
+/* ------------------------------------------------- מתכנן הייבוא */
+
+test('תכנית מיפוי מאומתת: תפקיד מומצא נזרק, ותיקון אמיתי עובר', async () => {
+  const { validatePlan } = await import('../src/server/assist.js');
+  const sheets = [
+    { name: 'אימוני בוקר', headers: ['שם', 'סטים', 'חזרות', 'משקל'], guessedRole: 'programs' },
+    { name: 'מדידות', headers: ['שם', 'תאריך', 'משקל'], guessedRole: 'programs' },
+  ];
+  const out = validatePlan({ sheets: [
+    { sheet: 'אימוני בוקר', role: 'programs', owner: 'רון כהן', columns: { 0: 'exercise', 7: 'load', 2: 'צבע' } },
+    { sheet: 'מדידות', role: 'measurements', columns: { 2: 'weightKg' } },
+    { sheet: 'לא קיימת', role: 'trainees' },
+    { sheet: 'אימוני בוקר', role: 'super_secret_role' },
+  ] }, sheets);
+
+  assert.equal(out.overrides['מדידות'], 'measurements', 'תיקון תפקיד אמיתי נזרק');
+  assert.ok(!('אימוני בוקר' in out.overrides), 'תפקיד זהה לניחוש נרשם כדריסה מיותרת');
+  assert.deepEqual(out.columnOverrides['אימוני בוקר'], { 0: 'exercise' },
+    'עמודה מחוץ לטווח או שדה מומצא עברו');
+  assert.equal(out.ownerOverrides['אימוני בוקר'], 'רון כהן');
+  assert.ok(!('לא קיימת' in out.overrides), 'לשונית שאינה קיימת בגיליון התקבלה');
+});
+
+/*
+ * המסלול המלא, מקצה לקצה, מול מודל מדומה: גיליון שהזיהוי האוטומטי
+ * מתבלבל בו → תקציר → "מודל" שמחזיר תיקונים → ניתוח חוזר → ייבוא נכון.
+ * זו הבדיקה שמוכיחה שהצנרת שלמה — בלי לשלם למודל אמיתי על כל הרצת CI.
+ */
+test('מקצה לקצה עם מודל מדומה: הבנת גיליון מתוקנת אוטומטית', async () => {
+  const http = await import('node:http');
+  const { planImport } = await import('../src/server/assist.js');
+  const { shAnalyzeWorkbook, shBuildImport, shWorkbookDigest } = await import('../src/domain/sheets/build.js');
+
+  // "המודל": מזהה שלשונית ששמה אינו שם של אדם שייכת לרון, לפי הכותרת
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      assert.ok(body.includes('systemGuess'), 'התקציר לא נשלח למודל');
+      assert.ok(!body.includes('"050'), 'טלפונים דלפו לתקציר?');
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({
+        model: 'claude-opus-5',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ sheets: [
+          { sheet: 'החזקים של הבוקר', role: 'programs', owner: 'רון כהן', why: 'הכותרת מציינת שהתכנית של רון' },
+        ] }) }],
+      }));
+    });
+  });
+  await new Promise((ok) => server.listen(0, ok));
+  const prevBase = process.env.ANTHROPIC_BASE_URL;
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${server.address().port}`;
+  process.env.ANTHROPIC_API_KEY = 'test-key';
+
+  try {
+    const sheets = [{ name: 'החזקים של הבוקר', rows: [
+      ['תכנית אישית — רון כהן', '', '', ''],
+      ['תרגיל', 'סטים', 'חזרות', 'משקל'],
+      ['סקוואט מוט על הגב', '4', '6', '100'],
+      ['לחיצת חזה במוט', '4', '6', '80']]}];
+
+    const first = shAnalyzeWorkbook(sheets);
+    const plan = await planImport(shWorkbookDigest(first));
+    assert.equal(plan.ownerOverrides['החזקים של הבוקר'], 'רון כהן');
+
+    const second = shAnalyzeWorkbook(sheets, {
+      overrides: plan.overrides, columnOverrides: plan.columnOverrides, ownerOverrides: plan.ownerOverrides,
+    });
+    const built = shBuildImport(second, { studioName: 'ס' });
+    assert.deepEqual(built.trainees.map((t) => t.name), ['רון כהן'],
+      `הבעלים מהמודל לא נקלט: ${built.trainees.map((t) => t.name)}`);
+    assert.equal(built.trainees[0].history.bb_back_squat.load, 100,
+      'המספרים חייבים להגיע מהתאים, לא מהמודל');
+  } finally {
+    if (prevBase !== undefined) process.env.ANTHROPIC_BASE_URL = prevBase; else delete process.env.ANTHROPIC_BASE_URL;
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey; else delete process.env.ANTHROPIC_API_KEY;
+    server.close();
+  }
 });

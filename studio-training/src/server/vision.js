@@ -4,35 +4,18 @@
  * זהו המסלול האופציונלי בהרשמת הסטודיו: בעל הסטודיו מצלם את החדר או מכשיר
  * בודד, והמערכת מציעה רשימת ציוד לאישור. הצ'קליסט הידני תמיד עובד גם בלעדיו.
  *
- * ה-SDK של Anthropic נטען בעצלתיים ואינו תלות חובה — מנוע התכניות עצמו
- * נשאר נקי לחלוטין מתלויות. אם החבילה לא מותקנת או שאין מפתח, הפונקציה
- * מחזירה שגיאה מפורשת והממשק נופל חזרה לצ'קליסט.
+ * הקריאה למודל עוברת דרך הלקוח המשותף (claude.js) — HTTP ישיר, בלי SDK —
+ * ולכן עובדת זהה בשרת Node ובקצה. בלי מפתח הממשק נופל חזרה לצ'קליסט.
  */
 
 import { EQUIPMENT } from '../domain/taxonomy.js';
 import { EQUIPMENT_LABELS } from '../domain/labels.js';
 
-const MODEL = 'claude-opus-5';
-
-/*
- * שם החבילה מורכב בזמן ריצה ולא נכתב כמחרוזת קבועה.
- *
- * הסיבה מעשית: מאגד שבונה את המערכת לפריסה בקצה מנסה לפתור כל ייבוא
- * שהוא רואה — גם ייבוא עצל שנמצא בתוך try ושנועד להיכשל בשקט — ונופל
- * כי החבילה אינה מותקנת. כשהשם מחושב, המאגד אינו יכול לנתח אותו, והייבוא
- * נשאר מה שהוא: ניסיון בזמן ריצה שנכשל בסדר גמור כשאין SDK.
- */
-const SDK = ['@anthropic-ai', 'sdk'].join('/');
+import { claudeAvailable, claudeCall, claudeJson } from './claude.js';
 
 /** האם זיהוי אוטומטי זמין בסביבה הזו. */
 export async function visionAvailable() {
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return { ok: false, reason: 'no_key' };
-  try {
-    await import(SDK);
-    return { ok: true };
-  } catch {
-    return { ok: false, reason: 'no_sdk' };
-  }
+  return claudeAvailable();
 }
 
 const VOCAB = EQUIPMENT.map((id) => `${id} = ${EQUIPMENT_LABELS[id] || id}`).join('\n');
@@ -58,18 +41,6 @@ ${VOCAB}
  * @returns {Promise<{items: object[], unrecognized: string[], model: string}>}
  */
 export async function identifyEquipment(images) {
-  const avail = await visionAvailable();
-  if (!avail.ok) {
-    const err = new Error(avail.reason === 'no_sdk'
-      ? 'זיהוי אוטומטי אינו מותקן. להפעלה: npm install @anthropic-ai/sdk (ולהגדיר ANTHROPIC_API_KEY). עד אז ניתן להשלים את הרישום מהצ׳קליסט.'
-      : 'לא הוגדר מפתח API. יש להגדיר ANTHROPIC_API_KEY, או להשלים את הרישום מהצ׳קליסט.');
-    err.code = avail.reason;
-    throw err;
-  }
-
-  const { default: Anthropic } = await import(SDK);
-  const client = new Anthropic();
-
   const content = [
     ...images.map((img) => ({
       type: 'image',
@@ -77,26 +48,12 @@ export async function identifyEquipment(images) {
     })),
     { type: 'text', text: 'אילו פריטי ציוד נראים כאן? החזר JSON בלבד לפי המבנה שהוגדר.' },
   ];
-
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4000,
-    system: SYSTEM,
-    messages: [{ role: 'user', content }],
-  });
-
-  if (response.stop_reason === 'refusal') {
-    const err = new Error('הבקשה נדחתה על ידי המודל. אפשר להשלים את הרישום מהצ׳קליסט.');
-    err.code = 'refusal';
-    throw err;
-  }
-
-  const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-  const parsed = parseJson(text);
+  const { text, model } = await claudeCall({ system: SYSTEM, user: content, maxTokens: 4000 });
+  const parsed = claudeJson(text);
   const valid = new Set(EQUIPMENT);
 
   return {
-    model: response.model,
+    model,
     items: (parsed.items || [])
       .filter((it) => valid.has(it.id))
       .map((it) => ({
@@ -113,12 +70,3 @@ export async function identifyEquipment(images) {
   };
 }
 
-/** חילוץ JSON גם כשהמודל עטף אותו בטקסט או בגדר קוד. */
-function parseJson(text) {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const raw = fenced ? fenced[1] : text;
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start < 0 || end < 0) return {};
-  try { return JSON.parse(raw.slice(start, end + 1)); } catch { return {}; }
-}

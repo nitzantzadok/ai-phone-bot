@@ -123,8 +123,35 @@ const withCounts = (analyzed) => {
   return { sheets: analyzed, counts };
 };
 
-export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {} } = {}) {
-  return withCounts(expandBlocks(sheets).map((sheet) => analyzeSheet(sheet, overrides, columnOverrides)));
+/**
+ * תקציר הגיליון עבור מתכנן הייבוא: כותרות, שורות דוגמה, ומה שהזיהוי
+ * האוטומטי החליט. קטן בכוונה — זה מה שנשלח למודל, לא הקובץ עצמו.
+ */
+export function shWorkbookDigest(analysis) {
+  return {
+    sheets: analysis.sheets.map((sh) => {
+      const rows = sh.table?.rows || [];
+      const sample = [
+        ...rows.slice(0, 3),
+        ...(rows.length > 5 ? [rows[Math.floor(rows.length / 2)]] : []),
+        ...rows.slice(-2),
+      ].slice(0, 6);
+      return {
+        name: sh.name,
+        rowCount: rows.length,
+        headers: sh.table?.headers || [],
+        sample,
+        guessedRole: sh.role,
+        guessedColumns: (sh.columns || []).map((c) => ({ index: c.index, field: c.field })),
+      };
+    }),
+  };
+}
+
+export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {}, ownerOverrides = {} } = {}) {
+  const analyzed = withCounts(expandBlocks(sheets).map((sheet) => analyzeSheet(sheet, overrides, columnOverrides)));
+  analyzed.ownerOverrides = ownerOverrides;
+  return analyzed;
 }
 
 /**
@@ -136,7 +163,7 @@ export function shAnalyzeWorkbook(sheets, { overrides = {}, columnOverrides = {}
  * ואפשר להראות התקדמות אמיתית.
  */
 export async function shAnalyzeWorkbookAsync(sheets, {
-  overrides = {}, columnOverrides = {}, onProgress = null, breathe = null,
+  overrides = {}, columnOverrides = {}, ownerOverrides = {}, onProgress = null, breathe = null,
 } = {}) {
   const expanded = expandBlocks(sheets);
   const analyzed = [];
@@ -145,7 +172,9 @@ export async function shAnalyzeWorkbookAsync(sheets, {
     if (onProgress) onProgress(i + 1, expanded.length, expanded[i].name || '');
     if (breathe) await breathe();
   }
-  return withCounts(analyzed);
+  const result = withCounts(analyzed);
+  result.ownerOverrides = ownerOverrides;
+  return result;
 }
 
 /* ------------------------------------------------------------------ ערכים */
@@ -490,7 +519,13 @@ function exerciseFrom(raw, ctx) {
  * לרוב שם הלשונית הוא שם המתאמן, אבל לא תמיד: לפעמים היא נקראת "גיליון1"
  * והשם כתוב בכותרת שמעל הטבלה ("תכנית אימון — מיכל אבן").
  */
-function sheetOwner(sheet, traineeNames) {
+function sheetOwner(sheet, traineeNames, ownerOverrides = {}) {
+  /*
+   * בעלים שנקבע על ידי המתכנן גובר: הוא נקבע מתוך קריאת הלשונית כולה
+   * (כותרת, הקשר), במקומות שזיהוי לפי שם הלשונית לא מגיע אליהם.
+   */
+  const forced = ownerOverrides[sheet.name];
+  if (forced) return traineeNames.find((t) => shNorm(t) === shNorm(forced)) || forced;
   const byName = shSheetPersonName(sheet.name, traineeNames);
   if (byName) return byName;
   const title = String(sheet.table.title || '');
@@ -562,7 +597,7 @@ function personFromCell(raw) {
 /** תכניות: כל שורה היא תרגיל; הקיבוץ הוא לפי מתאמן ולפי יום. */
 function programsFromSheet(sheet, ctx) {
   const byTrainee = new Map();
-  const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
+  const sheetPerson = sheetOwner(sheet, ctx.traineeNames, ctx.ownerOverrides);
   // מצב רץ שנקבע על ידי שורות המפריד, ומשמש כשאין עמודת יום או שם
   let currentDay = null;
   let currentPerson = null;
@@ -613,7 +648,7 @@ function programsFromSheet(sheet, ctx) {
 /** יומן ביצועים: מה בוצע בפועל, עם תאריך. */
 function logFromSheet(sheet, ctx) {
   const out = [];
-  const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
+  const sheetPerson = sheetOwner(sheet, ctx.traineeNames, ctx.ownerOverrides);
   for (const row of sheet.table.rows) {
     const rawEx = shCell(row, sheet.byField, 'exercise');
     const date = shDate(shCell(row, sheet.byField, 'date'));
@@ -645,7 +680,7 @@ const GIRTH_FIELDS = ['waist', 'chest', 'hips', 'arm', 'thigh', 'calf'];
 
 function measurementsFromSheet(sheet, ctx) {
   const out = [];
-  const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
+  const sheetPerson = sheetOwner(sheet, ctx.traineeNames, ctx.ownerOverrides);
   for (const row of sheet.table.rows) {
     const date = shDate(shCell(row, sheet.byField, 'date'));
     const person = personFromCell(shCell(row, sheet.byField, 'name')) || sheetPerson;
@@ -751,6 +786,7 @@ export function shBuildImport(analysis, {
   baseStudio = null,
 } = {}) {
   const ctx = {
+    ownerOverrides: analysis.ownerOverrides || {},
     unmatched: { equipment: new Set(), exercises: new Set(), constraints: new Set(), goals: new Set() },
     customExercises: new Map(),
     exerciseCands: exerciseCandidates(),

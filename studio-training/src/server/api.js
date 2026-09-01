@@ -19,7 +19,7 @@ import { buildProbes } from '../engine/probe.js';
 import { normalizeCustomExercise } from '../domain/models.js';
 import { EQUIPMENT_CATEGORIES, EQUIPMENT_LABELS, equipmentList } from '../domain/labels.js';
 import { identifyEquipment, visionAvailable } from './vision.js';
-import { assistAvailable, reviewTrainee, suggestMatches } from './assist.js';
+import { assistAvailable, planImport, reviewTrainee, suggestMatches } from './assist.js';
 import { auditProgramFit, auditTrainee, reviewAll } from '../domain/review.js';
 import { Db } from '../store/db.js';
 import {
@@ -297,6 +297,19 @@ const routes = {
       return { ok: true, ...out };
     } catch (err) {
       return { ok: false, code: err.code || 'error', error: err.message, fallback: 'checks' };
+    }
+  },
+
+  /**
+   * מתכנן הייבוא: המודל מקבל תקציר של הגיליון ומחזיר תיקוני הבנה —
+   * תפקידי לשוניות, מיפויי עמודות ובעלים. הערכים עצמם נקראים תמיד
+   * על ידי הקוד; המודל לא נוגע במספר אף פעם.
+   */
+  'POST /api/assist/plan': async (body) => {
+    try {
+      return { ok: true, ...(await planImport(body.digest || {})) };
+    } catch (err) {
+      return { ok: false, code: err.code || 'error', error: err.message, fallback: 'deterministic' };
     }
   },
 

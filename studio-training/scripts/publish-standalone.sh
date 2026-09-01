@@ -221,6 +221,19 @@ jobs:
           sed -i "s|database_id = \".*\"|database_id = \"$ID\"|" wrangler.toml
           echo "מסד: $ID"
 
+      # המוח של המערכת: אם הוגדר סוד ANTHROPIC_API_KEY בריפו, הוא מוזרם
+      # לשרת כסוד Worker. בלעדיו הכול עובד — רק בלי השכבה החכמה.
+      - name: מפתח המוח
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            printf '%s' "$ANTHROPIC_API_KEY" | npx --yes wrangler@4 secret put ANTHROPIC_API_KEY
+            echo "המפתח הוגדר — השכבה החכמה פעילה."
+          else
+            echo "לא הוגדר ANTHROPIC_API_KEY — המערכת תרוץ בלי השכבה החכמה (הכול עדיין עובד)."
+          fi
+
       - name: פריסה
         id: deploy
         run: |
