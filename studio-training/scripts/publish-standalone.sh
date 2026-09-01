@@ -137,6 +137,22 @@ jobs:
       # נבדקת מראש, והתשובה אומרת בדיוק מה לא בסדר ומה לעשות.
       - name: האסימון תקף?
         run: |
+          # מה נשמר בסוד — בלי להדפיס אותו. אורך וצורה מספיקים כדי לדעת אם
+          # הודבק ערך אחר לגמרי, וזו הטעות הנפוצה כאן.
+          LEN=${#CLOUDFLARE_API_TOKEN}
+          echo "אורך הערך שנשמר: $LEN תווים"
+          case "$CLOUDFLARE_API_TOKEN" in
+            cfat_*) echo "צורה: מתחיל ב-cfat_ — נראה כמו אסימון" ;;
+            v1.0-*) echo "צורה: פורמט אסימון ישן" ;;
+            *) echo "צורה: אינו מתחיל ב-cfat_ — ככל הנראה הודבק ערך אחר" ;;
+          esac
+          if [ "$LEN" -eq 32 ]; then
+            echo "שים לב: 32 תווים בדיוק — זה האורך של Account ID, לא של אסימון."
+          fi
+          if printf '%s' "$CLOUDFLARE_API_TOKEN" | grep -q '[[:space:]]'; then
+            echo "שים לב: יש רווח או שורה חדשה בתוך הערך — זה לבדו מפיל את האימות."
+          fi
+
           RESP="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             https://api.cloudflare.com/client/v4/user/tokens/verify || true)"
           if ! printf '%s' "$RESP" | grep -q '"success":true'; then
