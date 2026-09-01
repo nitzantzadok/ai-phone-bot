@@ -224,13 +224,16 @@ jobs:
       # המוח של המערכת: אם הוגדר סוד ANTHROPIC_API_KEY בריפו, הוא מוזרם
       # לשרת כסוד Worker. בלעדיו הכול עובד — רק בלי השכבה החכמה.
       - name: מפתח המוח
+        id: brain
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ -n "$ANTHROPIC_API_KEY" ]; then
             printf '%s' "$ANTHROPIC_API_KEY" | npx --yes wrangler@4 secret put ANTHROPIC_API_KEY
-            echo "המפתח הוגדר — השכבה החכמה פעילה."
+            echo "expected=1" >> "$GITHUB_OUTPUT"
+            echo "המפתח הוזרם לשרת. הבדיקה החיה תוודא שהמוח באמת דלוק."
           else
+            echo "expected=0" >> "$GITHUB_OUTPUT"
             echo "לא הוגדר ANTHROPIC_API_KEY — המערכת תרוץ בלי השכבה החכמה (הכול עדיין עובד)."
           fi
 
@@ -244,6 +247,11 @@ jobs:
           echo "הכתובת: $URL"
 
       - name: בדיקה חיה
+        env:
+          # כשהמפתח הוזרם, "המוח כבוי" הוא כשל פריסה ולא הערה: אחרת
+          # מפתח שגוי היה מתגלה רק כשמאמן מעלה גיליון ולא מבין למה
+          # שום דבר לא קרה
+          EXPECT_BRAIN: ${{ steps.brain.outputs.expected }}
         run: node scripts/smoke-live.mjs "${{ steps.deploy.outputs.url }}"
 YAML
 

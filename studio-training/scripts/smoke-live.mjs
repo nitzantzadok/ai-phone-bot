@@ -72,12 +72,21 @@ const list = await b('GET', '/api/trainees');
 const names = (Array.isArray(list.json) ? list.json : list.json?.trainees || []).map((t) => t.name);
 if (!names.includes(traineeName)) fail('הנתונים אינם משותפים בין שני המאמנים', list.json ?? list.text);
 
-// 5. בלי כניסה אין גישה לנתונים
+// 5. המוח: כשהמפתח הוזרם לשרת, השכבה החכמה חייבת לדווח שהיא זמינה
+const brain = await a('GET', '/api/assist/status');
+const brainOn = brain.json?.assist?.ok === true;
+if (process.env.EXPECT_BRAIN === '1' && !brainOn) {
+  fail('המפתח הוזרם לשרת אבל השכבה החכמה מדווחת שאינה זמינה', brain.json ?? brain.text);
+}
+
+// 6. בלי כניסה אין גישה לנתונים
 const anon = client();
 const denied = await anon('GET', '/api/trainees');
 if (denied.status !== 401) fail(`גישה בלי כניסה החזירה ${denied.status} במקום 401`, denied.json ?? denied.text);
 
 console.log('הכל עובד:');
+console.log(brainOn ? '  · המוח דלוק — תכנון ייבוא, זיהוי שמות וחוות דעת פעילים'
+  : '  · המוח כבוי (לא הוגדר מפתח) — כל השאר עובד כרגיל');
 console.log('  · המסך נטען מהכתובת');
 console.log('  · מאמן נרשם, פתח סטודיו ורשם מתאמן');
 console.log('  · מאמן שני מדפדפן אחר רואה את אותו מתאמן');
