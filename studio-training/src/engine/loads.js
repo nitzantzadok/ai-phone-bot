@@ -70,8 +70,10 @@ const LOAD_FACTOR = {
   good_morning: 0.45, rdl_bb: 0.80, rdl_db: 0.80, single_leg_rdl: 0.35,
   bb_front_squat: 0.78, split_squat: 0.45, walking_lunge: 0.40, reverse_lunge: 0.40,
   lateral_lunge: 0.35, step_up: 0.40, landmine_press: 0.55, arnold_press: 0.80,
-  skullcrusher: 0.50, overhead_ext: 0.55, preacher_curl: 0.85, kb_swing: 0.55,
+  preacher_curl: 0.85, kb_swing: 0.55,
   goblet_squat: 0.45, shrug: 1.40, back_extension: 0.35, cable_kickback: 0.35,
+  // שני אלה הופיעו כאן פעמיים, וההגדרה השנייה דרסה בשקט את הראשונה.
+  // הערכים שנשארו הם אלה שפעלו בפועל ושכל הבדיקות רצו מולם.
   overhead_ext: 0.60, skullcrusher: 0.80, farmer_carry: 1.30, suitcase_carry: 1.10,
   lateral_raise_cable: 0.28, straight_arm_pulldown: 0.65,
 };

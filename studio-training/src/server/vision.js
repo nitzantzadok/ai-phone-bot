@@ -14,11 +14,21 @@ import { EQUIPMENT_LABELS } from '../domain/labels.js';
 
 const MODEL = 'claude-opus-5';
 
+/*
+ * שם החבילה מורכב בזמן ריצה ולא נכתב כמחרוזת קבועה.
+ *
+ * הסיבה מעשית: מאגד שבונה את המערכת לפריסה בקצה מנסה לפתור כל ייבוא
+ * שהוא רואה — גם ייבוא עצל שנמצא בתוך try ושנועד להיכשל בשקט — ונופל
+ * כי החבילה אינה מותקנת. כשהשם מחושב, המאגד אינו יכול לנתח אותו, והייבוא
+ * נשאר מה שהוא: ניסיון בזמן ריצה שנכשל בסדר גמור כשאין SDK.
+ */
+const SDK = ['@anthropic-ai', 'sdk'].join('/');
+
 /** האם זיהוי אוטומטי זמין בסביבה הזו. */
 export async function visionAvailable() {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return { ok: false, reason: 'no_key' };
   try {
-    await import('@anthropic-ai/sdk');
+    await import(SDK);
     return { ok: true };
   } catch {
     return { ok: false, reason: 'no_sdk' };
@@ -57,7 +67,7 @@ export async function identifyEquipment(images) {
     throw err;
   }
 
-  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const { default: Anthropic } = await import(SDK);
   const client = new Anthropic();
 
   const content = [
