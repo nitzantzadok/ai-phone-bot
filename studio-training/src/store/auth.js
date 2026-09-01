@@ -17,7 +17,12 @@
  * חשבונות ישנים שנוצרו ב-scrypt ממשיכים להיכנס: האימות מזהה את האלגוריתם
  * מתוך הרשומה עצמה.
  */
-const PBKDF2 = { iterations: 210000, hash: 'SHA-256', keylen: 32 };
+/*
+ * 100,000 סיבובים ולא יותר: זו התקרה ש-Cloudflare Workers מאפשר, וכל ערך
+ * מעליה מפיל את ההרשמה בקצה. מספר הסיבובים נשמר בתוך הרשומה עצמה, ולכן
+ * חשבונות שנוצרו עם ערך אחר ממשיכים להיכנס כרגיל.
+ */
+const PBKDF2 = { iterations: 100000, hash: 'SHA-256', keylen: 32 };
 
 const subtle = globalThis.crypto.subtle;
 const enc = new TextEncoder();
