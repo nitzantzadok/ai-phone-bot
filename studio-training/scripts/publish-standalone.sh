@@ -186,21 +186,40 @@ jobs:
       - name: בדיקות
         run: node --test tests/*.test.js
 
-      - name: מסד D1 — נוצר רק אם אינו קיים
+      # מזהה המסד נלקח מה-API ישירות ולא מפלט של כלי.
+      #
+      # יצירה חוזרת נכשלת ב"כבר קיים", וזה המצב הרגיל מהפריסה השנייה
+      # והלאה. לכן קודם מחפשים מסד קיים בשם הזה, יוצרים רק אם אין, ובשני
+      # המקרים קוראים את המזהה מתשובת ה-API — שהיא JSON יציב.
+      - name: מסד D1
         run: |
           set -e
-          if grep -q PLACEHOLDER wrangler.toml; then
-            OUT="$(npx --yes wrangler@4 d1 create studio-training 2>&1 || true)"
-            ID="$(printf '%s' "$OUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)"
-            if [ -z "$ID" ]; then
-              ID="$(npx --yes wrangler@4 d1 list --json 2>/dev/null \
-                | tr ',' '\n' | grep -A1 '"name":"studio-training"' \
-                | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1 || true)"
-            fi
-            if [ -z "$ID" ]; then echo "לא הצלחנו ליצור או למצוא את המסד:"; echo "$OUT"; exit 1; fi
-            sed -i "s|database_id = \".*\"|database_id = \"$ID\"|" wrangler.toml
-            echo "מסד: $ID"
+          if ! grep -q PLACEHOLDER wrangler.toml; then
+            echo "המזהה כבר רשום בהגדרות."
+            exit 0
           fi
+
+          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database"
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          pick() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);const r=j.result;const a=Array.isArray(r)?r:[r];const m=a.find(x=>x&&x.name==="studio-training")||a[0];process.stdout.write(m&&(m.uuid||m.id)||"");}catch{process.stdout.write("");}})'; }
+
+          ID="$(curl -s -H "$AUTH" "$API?name=studio-training" | pick)"
+          if [ -z "$ID" ]; then
+            echo "יוצר מסד חדש…"
+            RESP="$(curl -s -X POST -H "$AUTH" -H 'content-type: application/json' \
+              --data '{"name":"studio-training"}' "$API")"
+            ID="$(printf '%s' "$RESP" | pick)"
+            if [ -z "$ID" ]; then
+              echo "::error::לא הצלחנו ליצור את המסד."
+              echo "תשובת Cloudflare: $RESP"
+              exit 1
+            fi
+          else
+            echo "נמצא מסד קיים."
+          fi
+
+          sed -i "s|database_id = \".*\"|database_id = \"$ID\"|" wrangler.toml
+          echo "מסד: $ID"
 
       - name: פריסה
         run: npx --yes wrangler@4 deploy
