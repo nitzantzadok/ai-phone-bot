@@ -1220,3 +1220,91 @@ test('ציוד הסטודיו מוסק מהתרגילים כשאין לשוני�
   assert.ok(built.studios[0].equipment.some((e) => e.item === 'leg_press'));
   assert.ok(built.report.warnings.some((w) => w.includes('זוהו מתוך התרגילים')));
 });
+
+/* ------------------------------------------- מה עוד נלמד מתכנית שיובאה */
+
+test('ייבוא לומד חלוקה, סגנון, ימים ודגשים ממתאמן שקיים רק כתכנית', () => {
+  // מתאמן שאין לו שורה בשום רשימה — רק לשונית תכנית משלו, כמו בסטודיו אמיתי
+  const yossi = [['יום', 'תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['יום א׳ — חזה וגב', 'לחיצת חזה במוט', '5', '3', '100'],
+    ['יום א׳ — חזה וגב', 'חתירה בהרכנה', '5', '3', '90'],
+    ['יום א׳ — חזה וגב', 'מתח', '4', '5', '10'],
+    ['יום ד׳ — רגליים', 'סקוואט מוט על הגב', '5', '3', '140'],
+    ['יום ד׳ — רגליים', 'דדליפט', '4', '3', '160'],
+    ['יום ד׳ — רגליים', 'מכרעים עם משקולות', '3', '6', '30']];
+
+  const built = shBuildImport(shAnalyzeWorkbook([
+    { name: 'יוסי אברהם', rows: yossi },
+  ]), { studioName: 'ס' });
+
+  const t = built.trainees.find((x) => x.name === 'יוסי אברהם');
+  assert.ok(t, 'מתאמן שמופיע רק בתכנית לא נכנס');
+
+  // חלוקה: יום עליון מלא ויום תחתון מלא — פלג עליון/תחתון
+  assert.equal(t.preferredSplit, 'upper_lower');
+  // סגנון: 3 חזרות במשקל חופשי הוא אימון כוח
+  assert.deepEqual(t.trainingStyles, ['strength']);
+  assert.equal(t.primaryGoal, 'strength');
+  // ימי האימון כתובים בשם היום ולא הולכים לאיבוד
+  assert.deepEqual(t.preferredDays, ['sun', 'wed']);
+  // והרמה, הוותק והמשקלים נלמדים כרגיל
+  assert.equal(t.level, 'advanced');
+  assert.equal(t.history.bb_back_squat.load, 140);
+  // כל מסקנה מגיעה עם נימוק שהמאמן יכול לקרוא
+  assert.ok(t.profileReasons.some((r) => r.includes('פלג')), t.profileReasons.join(' | '));
+});
+
+test('אימון מכונות בטווח בינוני מזוהה כפיתוח גוף, וגוף מלא כגוף מלא', () => {
+  const maya = [['יום', 'תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['אימון 1', 'לחיצת חזה במכונה', '3', '12', '25'],
+    ['אימון 1', 'משיכת פולי עליון', '3', '12', '30'],
+    ['אימון 1', 'לחיצת רגליים במכונה', '3', '12', '60'],
+    ['אימון 1', 'כפיפת מרפקים עם משקולות', '3', '12', '8'],
+    ['אימון 2', 'לחיצת כתפיים במכונה', '3', '12', '20'],
+    ['אימון 2', 'חתירה בישיבה בכבל', '3', '12', '35'],
+    ['אימון 2', 'פשיטת ברכיים במכונה', '3', '12', '30'],
+    ['אימון 2', 'פשיטת מרפקים בפולי', '3', '12', '15']];
+
+  const built = shBuildImport(shAnalyzeWorkbook([
+    { name: 'מאיה גל', rows: maya },
+  ]), { studioName: 'ס' });
+
+  const t = built.trainees.find((x) => x.name === 'מאיה גל');
+  assert.equal(t.preferredSplit, 'full_body');
+  assert.ok(t.trainingStyles.includes('bodybuilding'), JSON.stringify(t.trainingStyles));
+});
+
+test('מתאמן שלא נרשם לו דבר חודשים ארוכים מסומן לא פעיל, עם סיבה', () => {
+  const log = [['תאריך', 'שם', 'תרגיל', 'משקל', 'חזרות'],
+    ['01/02/2024', 'עמית דור', 'סקוואט מוט על הגב', '60', '8'],
+    ['08/02/2024', 'עמית דור', 'לחיצת חזה במוט', '40', '8']];
+
+  const built = shBuildImport(shAnalyzeWorkbook([
+    { name: 'יומן אימונים', rows: log },
+  ]), { studioName: 'ס' });
+
+  const t = built.trainees.find((x) => x.name === 'עמית דור');
+  assert.equal(t.active, false);
+  assert.ok(t.inactiveReason.includes('2024'), t.inactiveReason);
+  assert.ok(built.report.warnings.some((w) => w.includes('לא פעילים')));
+});
+
+test('מה שהמאמן כתב בגיליון גובר על מה שהמערכת הסיקה', () => {
+  const trainees = [['שם', 'סגנון אימון', 'סטטוס'],
+    ['נועה שמש', 'פיתוח גוף', 'פעיל']];
+  // התכנית נראית כמו אימון כוח, אבל בגיליון כתוב פיתוח גוף
+  const noa = [['יום', 'תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['יום א', 'סקוואט מוט על הגב', '5', '3', '100'],
+    ['יום א', 'לחיצת חזה במוט', '5', '3', '70'],
+    ['יום א', 'דדליפט', '5', '3', '120'],
+    ['יום א', 'מתח', '4', '4', '5']];
+
+  const built = shBuildImport(shAnalyzeWorkbook([
+    { name: 'מתאמנים', rows: trainees },
+    { name: 'נועה שמש', rows: noa },
+  ]), { studioName: 'ס' });
+
+  const t = built.trainees.find((x) => x.name === 'נועה שמש');
+  assert.deepEqual(t.trainingStyles, ['bodybuilding'], 'ההצהרה בגיליון נדרסה');
+  assert.notEqual(t.active, false);
+});

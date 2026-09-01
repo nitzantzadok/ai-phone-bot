@@ -3399,7 +3399,10 @@ function renderTraineesView() {
         <span class="chip">${esc(GOAL_PROFILES[t.primaryGoal]?.label || t.primaryGoal || '')}</span>
         <span class="chip${t.levelSource === 'inferred' ? ' key' : ''}"
               title="${esc((t.levelReasons || []).join(' · ') || 'רמה שהוזנה ידנית')}">${esc(levelLabel(t.level || 'beginner'))}${t.levelSource === 'inferred' ? ' · נלמד' : ''}</span>
-        ${(t.trainingStyles || []).map((k) => `<span class="chip">${esc(TRAINING_STYLE_LABELS[k] || k)}</span>`).join('')}
+        ${(t.trainingStyles || []).map((k) => `<span class="chip"${(t.profileReasons || []).length
+          ? ` title="${esc(t.profileReasons.join(' · '))}"` : ''}>${esc(TRAINING_STYLE_LABELS[k] || k)}</span>`).join('')}
+        ${t.preferredSplit && t.preferredSplit !== 'full_body'
+          ? `<span class="chip" title="${esc((t.profileReasons || []).join(' · ') || 'חלוקה שנבחרה ידנית')}">${esc(SPLIT_LABELS[t.preferredSplit] || t.preferredSplit)}</span>` : ''}
         ${(t.constraints || []).length ? `<span class="chip warn">${(t.constraints || []).length} מגבלות</span>` : ''}
         <span class="chip${hasFreshProgram(t) ? ' ok' : ''}">${esc(agoLabel(lastProgramAt(t.id)))}</span>
         ${dataGaps(t).length ? `<span class="chip warn" title="השלמת הנתונים האלה משפרת ישירות את התכנית">חסר: ${esc(dataGaps(t).join(' · '))}</span>` : ''}
@@ -3675,22 +3678,47 @@ async function learnProfiles(ids) {
     if (!raw) continue;
     const programs = (state.snapshots || []).filter((s) => s.traineeId === id).map((s) => s.program).filter(Boolean);
     const logs = (raw.sessionLog || []).filter((e) => e && e.exerciseId);
-    const profile = inferTraineeProfile(normalizeTrainee(raw), { programs, logs });
-    if (profile.level.confidence === 'none') continue;
+    const normalized = normalizeTrainee(raw);
+    const profile = inferTraineeProfile(normalized, { programs, logs });
+    const prefs = inferTrainingPreferences(normalized, { programs, logs });
+    const learnedSomething = profile.level.confidence !== 'none'
+      || prefs.preferredSplit || prefs.trainingStyles.length;
+    if (!learnedSomething) continue;
 
     const before = raw.level;
-    const next = {
-      ...raw,
-      level: profile.level.label,
-      levelSource: 'inferred',
-      levelConfidence: profile.level.confidence,
-      levelReasons: profile.level.reasons,
-      knownMovements: profile.knownMovements.length ? profile.knownMovements : raw.knownMovements,
-      history: { ...profile.history, ...(raw.history || {}) },
-    };
-    if (profile.trainingAgeMonths) next.trainingAgeMonths = profile.trainingAgeMonths;
+    const next = { ...raw };
+    if (profile.level.confidence !== 'none') {
+      next.level = profile.level.label;
+      next.levelSource = 'inferred';
+      next.levelConfidence = profile.level.confidence;
+      next.levelReasons = profile.level.reasons;
+      if (profile.trainingAgeMonths) next.trainingAgeMonths = profile.trainingAgeMonths;
+    }
+    next.knownMovements = profile.knownMovements.length ? profile.knownMovements : raw.knownMovements;
+    next.history = { ...profile.history, ...(raw.history || {}) };
+
+    /*
+     * החלוקה והסגנון נלמדים רק כשהמאמן לא קבע אותם בעצמו. 'full_body'
+     * הוא ברירת המחדל של המערכת ולא בחירה של אדם, ולכן הוא כן מתעדכן —
+     * אבל סגנון שנבחר ידנית נשאר כפי שהוא.
+     */
+    const reasons = [];
+    if (prefs.preferredSplit && (!raw.preferredSplit || raw.preferredSplit === 'full_body')) {
+      next.preferredSplit = prefs.preferredSplit;
+      reasons.push(prefs.splitReason);
+    }
+    if (prefs.trainingStyles.length && !(raw.trainingStyles || []).length) {
+      next.trainingStyles = prefs.trainingStyles;
+      reasons.push(...prefs.styleReasons);
+    }
+    if (prefs.emphasis.length && !(raw.focusMuscles || []).length) next.focusMuscles = prefs.emphasis;
+    if (reasons.length) next.profileReasons = reasons;
+
     await store.saveTrainee(next);
-    changed.push({ name: raw.name, before, after: profile.level.label, reasons: profile.level.reasons });
+    changed.push({
+      name: raw.name, before, after: next.level || before,
+      reasons: [...profile.level.reasons, ...reasons],
+    });
   }
   status('');
   await store.load();

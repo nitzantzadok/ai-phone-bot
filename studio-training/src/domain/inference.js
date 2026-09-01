@@ -17,7 +17,8 @@ import { BY_ID } from './exercises.js';
 import {
   ABSOLUTE_LOAD_BANDS, LEVEL_ORDER, TRAINING_AGE_MIN_MONTHS, levelFromMovements, levelFromStrength,
 } from './level.js';
-import { LEVEL_LABELS } from './labels.js';
+import { EQUIPMENT_CATEGORIES, LEVEL_LABELS } from './labels.js';
+import { MUSCLE_REGION, MUSCLE_ROLE } from './taxonomy.js';
 
 const levelIdxOf = (level) => Math.max(0, LEVEL_ORDER.indexOf(level));
 const levelKey = (i) => LEVEL_ORDER[Math.max(0, Math.min(3, i))];
@@ -233,5 +234,284 @@ export function inferTraineeProfile(trainee, { programs = [], logs = [], byId = 
       topSkill: complexity?.skill ?? null,
       loads: loads.details,
     },
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * מה עוד אפשר לקרוא מהתכניות, מעבר לרמה.
+ *
+ * מתאמן שמופיע בגיליון רק כלשונית של תכנית אינו "שם בלבד": התכנית שלו
+ * מספרת איך הוא מתאמן — איך האימון מחולק, אילו טווחי חזרות, כמה בידוד,
+ * משקולות חופשיות או מכונות, באילו ימים, ומתי היה כאן לאחרונה. כל אלה
+ * שדות שהמאמן היה ממלא ידנית לכל אדם, והם כתובים כבר בגיליון.
+ * ------------------------------------------------------------------ */
+
+/** דפוסי בידוד — יחס הבידוד הוא ההבדל בין אימון כוח לאימון פיתוח גוף. */
+const ISOLATION_PATTERNS = new Set([
+  'elbow_flexion', 'elbow_extension', 'shoulder_isolation', 'calf', 'hip_abduction',
+]);
+
+const MACHINE_ITEMS = new Set(EQUIPMENT_CATEGORIES.find((c) => c.key === 'machines')?.items || []);
+const FREE_ITEMS = new Set(EQUIPMENT_CATEGORIES.find((c) => c.key === 'free_weights')?.items || []);
+
+/** כל התרגילים של יום אימון, כרשומות מהמאגר. */
+function dayExercises(day, byId) {
+  return (day.blocks || [])
+    .map((b) => knownExercise(byId, b.exercise?.id))
+    .filter(Boolean);
+}
+
+/**
+ * אופיו של יום אימון אחד: פלג עליון, תחתון, גוף מלא, או דחיפה/משיכה.
+ * נקבע לפי השרירים הראשיים של התרגילים — לא לפי שם היום, כי "יום א'"
+ * אינו אומר דבר ו"חזה+יד אחורית" אומר הכול.
+ */
+function dayShape(exercises) {
+  const regions = { upper: 0, lower: 0, core: 0 };
+  const roles = { push: 0, pull: 0, legs: 0, core: 0 };
+  for (const ex of exercises) {
+    for (const m of ex.primary || []) {
+      const r = MUSCLE_REGION[m];
+      if (r) regions[r]++;
+      const role = MUSCLE_ROLE[m];
+      if (role) roles[role]++;
+    }
+  }
+  const lifting = regions.upper + regions.lower;
+  if (!lifting) return { region: null, role: null };
+
+  /*
+   * יום גוף מלא נמדד לפי הצד הקטן ולא לפי הגדול: אימון של שלושה תרגילי
+   * פלג עליון ולחיצת רגליים אחת הוא גוף מלא, ולא "יום עליון". יום עליון
+   * אמיתי הוא כזה שאין בו רגליים כמעט בכלל.
+   */
+  const minorityShare = Math.min(regions.upper, regions.lower) / lifting;
+  const region = minorityShare >= 0.2
+    ? 'full'
+    : (regions.upper >= regions.lower ? 'upper' : 'lower');
+
+  const moves = roles.push + roles.pull + roles.legs;
+  let role = null;
+  if (moves) {
+    const [top, topCount] = Object.entries(roles)
+      .filter(([k]) => k !== 'core')
+      .sort((a, b) => b[1] - a[1])[0];
+    if (topCount / moves >= 0.7) role = top;
+  }
+  return { region, role };
+}
+
+/**
+ * החלוקה השבועית שהמתאמן עבד לפיה.
+ *
+ * זה השדה שקובע איך תיראה התכנית הבאה, וכשהוא נלמד מהגיליון המתאמן
+ * ממשיך מאיפה שהפסיק במקום לקבל ברירת מחדל שאינה קשורה אליו.
+ */
+function splitFromPrograms(programs, byId) {
+  const shapes = [];
+  for (const program of programs) {
+    const days = (program.days || []).map((d) => dayShape(dayExercises(d, byId)));
+    if (days.length >= 2) shapes.push(days);
+  }
+  if (!shapes.length) return null;
+
+  // התכנית הארוכה ביותר היא העדות הטובה ביותר לחלוקה
+  const days = shapes.sort((a, b) => b.length - a.length)[0];
+  const regions = days.map((d) => d.region).filter(Boolean);
+  const roles = days.map((d) => d.role).filter(Boolean);
+  if (!regions.length) return null;
+
+  const all = (arr, v) => arr.length && arr.every((x) => x === v);
+  const has = (v) => roles.includes(v);
+
+  if (all(regions, 'full')) {
+    return { split: 'full_body', reason: `כל ${days.length} האימונים בתכנית משלבים פלג גוף עליון ותחתון.` };
+  }
+  if (has('push') && has('pull') && has('legs')) {
+    return { split: 'push_pull_legs', reason: 'האימונים מחולקים לדחיפה, משיכה ורגליים.' };
+  }
+  if (regions.includes('upper') && regions.includes('lower') && !regions.includes('full')) {
+    return { split: 'upper_lower', reason: 'האימונים מתחלקים בין פלג גוף עליון לתחתון.' };
+  }
+  if (days.length >= 4 && regions.filter((r) => r !== 'full').length >= 3) {
+    return { split: 'bro_split', reason: `תכנית של ${days.length} ימים, כל יום מוקדש לקבוצת שרירים.` };
+  }
+  return null;
+}
+
+/** טווח החזרות שנרשם בפועל — ממוצע על פני כל התכניות. */
+function repsFromPrograms(programs) {
+  const reps = [];
+  for (const program of programs) {
+    for (const day of program.days || []) {
+      for (const block of day.blocks || []) {
+        const min = block.prescription?.repsMin;
+        const max = block.prescription?.repsMax;
+        if (Number.isFinite(min) && Number.isFinite(max)) reps.push((min + max) / 2);
+        else if (Number.isFinite(min)) reps.push(min);
+      }
+    }
+  }
+  if (!reps.length) return null;
+  return reps.reduce((a, b) => a + b, 0) / reps.length;
+}
+
+/**
+ * סגנון האימון שהמתאמן כבר מתאמן בו.
+ *
+ * המטרה עונה על "בשביל מה", והסגנון על "איך" — וה"איך" כתוב בגיליון
+ * במפורש: חמישה סטים של שלוש חזרות במוט הם אימון כוח; שנים-עשר חזרות
+ * במכונות עם הרבה בידוד הם פיתוח גוף. מוחזרים עד שני סגנונות, כי מאמן
+ * שרושם גם וגם באמת עושה שילוב.
+ */
+function stylesFromTraining(performed, programs) {
+  const exercises = performed.map((p) => p.ex);
+  if (exercises.length < 4) return null;
+
+  const share = (fn) => exercises.filter(fn).length / exercises.length;
+  const isolation = share((e) => e.type === 'isolation' || ISOLATION_PATTERNS.has(e.pattern));
+  const conditioning = share((e) => e.type === 'conditioning' || e.pattern === 'conditioning');
+  const mobility = share((e) => e.type === 'mobility' || e.pattern === 'mobility');
+  const machine = share((e) => (e.eq || []).flat().some((i) => MACHINE_ITEMS.has(i)));
+  const free = share((e) => (e.eq || []).flat().some((i) => FREE_ITEMS.has(i)));
+  const avgReps = repsFromPrograms(programs);
+
+  const picked = [];
+  const reasons = [];
+  const add = (key, why) => { if (!picked.includes(key) && picked.length < 2) { picked.push(key); reasons.push(why); } };
+
+  if (avgReps !== null && avgReps <= 6 && free >= 0.4) {
+    add('strength', `טווח החזרות בתכניות נמוך (ממוצע ${avgReps.toFixed(1)}) ורוב התרגילים במשקל חופשי.`);
+  }
+  if (isolation >= 0.3 || (machine >= 0.4 && avgReps !== null && avgReps >= 8)) {
+    add('bodybuilding', `${Math.round(isolation * 100)}% מהתרגילים הם תרגילי בידוד`
+      + `${machine >= 0.4 ? ` ו-${Math.round(machine * 100)}% במכונות` : ''}.`);
+  }
+  if (conditioning >= 0.2) {
+    add('conditioning', `${Math.round(conditioning * 100)}% מהתרגילים הם עבודת מאמץ אירובי.`);
+  }
+  if (mobility >= 0.25) {
+    add('mobility', `${Math.round(mobility * 100)}% מהתרגילים הם ניידות.`);
+  }
+  if (!picked.length && avgReps !== null && avgReps >= 8 && avgReps <= 15) {
+    add('bodybuilding', `טווח החזרות בתכניות הוא ${avgReps.toFixed(1)} בממוצע — טווח בניית שריר.`);
+  }
+  if (!picked.length) return null;
+  return { styles: picked, reasons };
+}
+
+/**
+ * ימי השבוע שנרשמו בתכנית — "יום א'" בשם היום הוא מידע ולא קישוט.
+ *
+ * הזיהוי עובד על מילים שלמות ולא על ביטוי רגולרי עם גבול-מילה: ב-JavaScript
+ * אות עברית נחשבת תו שאינו מילה, ולכן \b ו-\W אינם גבול בעברית כלל — הג'
+ * שבתוך "רגליים" היה נקרא כ"יום ג׳".
+ */
+const WEEKDAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
+const WEEKDAY_NAMES = [
+  ['ראשון', 'sunday', 'sun'],
+  ['שני', 'monday', 'mon'],
+  ['שלישי', 'tuesday', 'tue'],
+  ['רביעי', 'wednesday', 'wed'],
+  ['חמישי', 'thursday', 'thu'],
+  ['שישי', 'friday', 'fri'],
+  ['שבת', 'saturday', 'sat'],
+];
+
+function weekdayFromLabel(label) {
+  // פיצול למילים: כל מה שאינו אות עברית או לטינית הוא מפריד
+  // רק אותיות עצמן: גרש וגרשיים עבריים יושבים בתוך הטווח העברי, ובלי
+  // הוצאתם "א׳" היה נשאר מילה אחת שאינה שווה ל"א"
+  const words = String(label).toLowerCase().split(/[^\u05D0-\u05EAa-z]+/).filter(Boolean);
+  for (let i = 0; i < WEEKDAY_NAMES.length; i++) {
+    if (words.some((w) => WEEKDAY_NAMES[i].includes(w))) return i;
+  }
+  // "יום א" — אות בודדת, ורק כשהמילה שלפניה היא "יום"
+  for (let i = 0; i < words.length - 1; i++) {
+    if (words[i] !== 'יום') continue;
+    const n = WEEKDAY_LETTERS.indexOf(words[i + 1]);
+    if (n >= 0) return n;
+  }
+  return null;
+}
+
+function weekdaysFromPrograms(programs) {
+  const days = new Set();
+  for (const program of programs) {
+    for (const day of program.days || []) {
+      const index = weekdayFromLabel(day.dayLabel || day.label || '');
+      if (index !== null) days.add(index);
+    }
+  }
+  return days.size ? [...days].sort((a, b) => a - b) : null;
+}
+
+/** התאריך האחרון שיש עליו עדות כלשהי. */
+function lastSeenFrom(programs, logs) {
+  let last = null;
+  const seen = (d) => { if (d && (!last || d > last)) last = d; };
+  for (const entry of logs) seen(entry.date);
+  for (const program of programs) {
+    for (const day of program.days || []) for (const block of day.blocks || []) seen(block.date);
+  }
+  return last;
+}
+
+/** השרירים שקיבלו הכי הרבה תשומת לב — הבסיס לדגש בתכנית הבאה. */
+function emphasisFrom(performed) {
+  const count = {};
+  for (const p of performed) {
+    for (const m of p.ex.primary || []) count[m] = (count[m] || 0) + (p.count || 1);
+  }
+  const total = Object.values(count).reduce((a, b) => a + b, 0);
+  if (total < 6) return [];
+  return Object.entries(count)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .filter(([, n]) => n / total >= 0.12)
+    .map(([m]) => m);
+}
+
+/**
+ * כל מה שהתכניות מלמדות על המתאמן, מעבר לרמה.
+ *
+ * מופרד מ-inferTraineeProfile כדי שאפשר יהיה לקרוא לו גם על מתאמן קיים
+ * שמייבאים לו תכניות חדשות, בלי לגעת ברמה שהמאמן קבע ידנית.
+ */
+export function inferTrainingPreferences(trainee, { programs = [], logs = [], byId = BY_ID, today = null } = {}) {
+  const performed = collectPerformed(trainee, { programs, logs, byId });
+  const split = splitFromPrograms(programs, byId);
+  const styles = stylesFromTraining(performed, programs);
+  const weekdays = weekdaysFromPrograms(programs);
+  const lastSeen = lastSeenFrom(programs, logs);
+
+  /*
+   * פעיל או לא: מי שלא נרשם לו דבר כבר חודשים אינו מתאמן פעיל, ותכנית
+   * שתופק לו בלחיצת "כל הפעילים" היא בזבוז. הסף רחב בכוונה — גיליון
+   * מתעדכן בעצלתיים, וסימון שגוי של מתאמן פעיל כלא-פעיל גרוע יותר.
+   */
+  let active = null;
+  let inactiveReason = '';
+  if (lastSeen) {
+    const now = today ? new Date(today) : new Date();
+    const days = Math.round((now - new Date(lastSeen)) / 86400000);
+    if (days > 120) {
+      active = false;
+      inactiveReason = `הרישום האחרון בגיליון הוא מ-${lastSeen} (לפני ${Math.round(days / 30)} חודשים).`;
+    } else if (days >= 0) {
+      active = true;
+    }
+  }
+
+  return {
+    preferredSplit: split?.split || null,
+    splitReason: split?.reason || '',
+    trainingStyles: styles?.styles || [],
+    styleReasons: styles?.reasons || [],
+    weekdays,
+    emphasis: emphasisFrom(performed),
+    lastSeen,
+    active,
+    inactiveReason,
   };
 }

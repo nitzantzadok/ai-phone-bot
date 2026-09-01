@@ -12,11 +12,11 @@
 import { BY_ID } from '../exercises.js';
 import { CONSTRAINTS } from '../constraints.js';
 import { EQUIPMENT_LABELS } from '../labels.js';
-import { GOALS, LEVELS } from '../taxonomy.js';
+import { GOALS, LEVELS, TRAINING_STYLES } from '../taxonomy.js';
 import { shClassifyTable, shSheetPersonName } from './classify.js';
 import { shKeyValueTable, shSplitBlocks, shToTable } from './table.js';
 import { shPersonCheck } from './person.js';
-import { inferTraineeProfile } from '../inference.js';
+import { inferTraineeProfile, inferTrainingPreferences } from '../inference.js';
 import { shCell, shFixHeaderless, shMapColumns } from './columns.js';
 import {
   shBool, shDate, shEmpty, shMatch, shMatchAll, shMatchPhrase, shNorm, shNum, shPhone, shEmail,
@@ -43,6 +43,10 @@ const STYLE_CANDS = shCandidates(TRAINING_STYLE_TERMS);
 // לא היה נתפס והשורה הייתה הופכת למתאמן בשם "סה\"כ".
 /** גבול תרגילים ליום אימון אחד. מעבר לזה זה כבר לא יום אימון. */
 const MAX_BLOCKS_PER_DAY = 40;
+
+/** מפתחות ימי השבוע כפי שהמודל מצפה להם, ותוויות לתצוגה למאמן. */
+const WEEK_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const WEEK_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 const SUMMARY_ROW = /^(סה"?כ|סהכ|סיכום|ממוצע|total|sum|average|avg)(\s|:|$)/i;
 
@@ -963,24 +967,64 @@ export function shBuildImport(analysis, {
    * במקום להישאר כטבלה שאיש לא קורא.
    */
   const learned = [];
+  const dormant = [];
   for (const t of trainees) {
     const own = snapshots.filter((s) => s.traineeId === t.id).map((s) => s.program);
     const ownLogs = t.sessionLog || [];
     if (!own.length && !ownLogs.length && !Object.keys(t.history || {}).length) continue;
 
     const profile = inferTraineeProfile(t, { programs: own, logs: ownLogs });
-    if (profile.level.confidence === 'none') continue;
-
-    t.level = profile.level.label;
-    t.levelSource = 'inferred';
-    t.levelConfidence = profile.level.confidence;
-    t.levelReasons = profile.level.reasons;
-    if (profile.trainingAgeMonths) t.trainingAgeMonths = profile.trainingAgeMonths;
+    if (profile.level.confidence !== 'none') {
+      t.level = profile.level.label;
+      t.levelSource = 'inferred';
+      t.levelConfidence = profile.level.confidence;
+      t.levelReasons = profile.level.reasons;
+      if (profile.trainingAgeMonths) t.trainingAgeMonths = profile.trainingAgeMonths;
+      learned.push({ name: t.name, level: t.level, confidence: profile.level.confidence, reasons: profile.level.reasons });
+    }
     if (profile.knownMovements.length) t.knownMovements = profile.knownMovements;
     if (Object.keys(profile.history).length) t.history = { ...profile.history, ...(t.history || {}) };
     if (profile.daysPerWeek && t.daysPerWeek === undefined) t.daysPerWeek = profile.daysPerWeek;
     if (profile.sessionMinutes && t.sessionMinutes === undefined) t.sessionMinutes = profile.sessionMinutes;
-    learned.push({ name: t.name, level: t.level, confidence: profile.level.confidence, reasons: profile.level.reasons });
+
+    /*
+     * מעבר לרמה: איך המתאמן מתאמן בפועל.
+     *
+     * כל שדה נכתב רק אם המאמן לא כתב אותו בעצמו בגיליון — מה שנרשם
+     * במפורש תמיד גובר על מה שהמערכת הסיקה. הנימוקים נשמרים בכרטיס כדי
+     * שהמאמן יראה על סמך מה נקבע כל דבר, ויוכל לשנות.
+     */
+    const prefs = inferTrainingPreferences(t, { programs: own, logs: ownLogs });
+    const why = [];
+    if (prefs.preferredSplit && t.preferredSplit === undefined) {
+      t.preferredSplit = prefs.preferredSplit;
+      why.push(prefs.splitReason);
+    }
+    if (prefs.trainingStyles.length && !(t.trainingStyles || []).length) {
+      t.trainingStyles = prefs.trainingStyles;
+      why.push(...prefs.styleReasons);
+      // הסגנון גורר מטרה: מי שהתאמן שנה בסגנון כוח לא מתחיל מ"כושר כללי"
+      const goal = prefs.trainingStyles.map((k) => TRAINING_STYLES[k]?.goal).find(Boolean);
+      if (goal && t.primaryGoal === undefined && !(t.goals || []).length) t.primaryGoal = goal;
+    }
+    if (prefs.weekdays && !(t.preferredDays || []).length) {
+      t.preferredDays = prefs.weekdays.map((i) => WEEK_KEYS[i]);
+      why.push(`ימי האימון בגיליון: ${prefs.weekdays.map((i) => WEEK_LABELS[i]).join(', ')}.`);
+    }
+    if (prefs.emphasis.length && !(t.focusMuscles || []).length) t.focusMuscles = prefs.emphasis;
+    if (prefs.lastSeen) t.lastSeenInSheet = prefs.lastSeen;
+    if (prefs.active === false && t.active === undefined) {
+      t.active = false;
+      t.inactiveReason = prefs.inactiveReason;
+      t.inactiveAt = prefs.lastSeen;
+      dormant.push({ name: t.name, since: prefs.lastSeen });
+    }
+    if (why.length) t.profileReasons = [...(t.profileReasons || []), ...why];
+  }
+  if (dormant.length) {
+    warnings.push(`${dormant.length} מתאמנים סומנו כלא פעילים — לא נרשם להם דבר בגיליון `
+      + 'כבר יותר מארבעה חודשים. הם לא יקבלו תכנית בהפקה לכל הפעילים, ואפשר להחזיר '
+      + 'אותם לפעילים בלחיצה בכרטיס.');
   }
   if (learned.length) {
     warnings.push(`ל-${learned.length} מתאמנים נלמדה הרמה מהתכניות והמשקלים שבגיליון `
