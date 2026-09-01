@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,6 +27,7 @@ const MODULES = [
   'src/domain/exercises.js',
   'src/domain/constraints.js',
   'src/domain/inference.js',
+  'src/domain/review.js',
   // ייבוא מגיליון: תלוי בטקסונומיה, בתוויות, בתרגילים ובמגבלות — ולכן אחריהם
   'src/domain/sheets/text.js',
   'src/domain/sheets/vocab.js',
@@ -155,3 +156,28 @@ fs.writeFileSync(
 const kb = (f) => (fs.statSync(path.join(HERE, f)).size / 1024).toFixed(0);
 console.log(`נבנה dist/app.html (${kb('dist/app.html')}KB), dist/artifact.html (${kb('dist/artifact.html')}KB)`
   + ` ו-dist/app.page.js (${kb('dist/app.page.js')}KB)`);
+
+/*
+ * שער אחרון: התוצר עצמו חייב להיות קוד תקין.
+ *
+ * הבדיקות מריצות מודולים, לא את הדף הבנוי — ולכן שגיאת תחביר שנוצרת
+ * רק בשלב האיחוד (שם כפול בין שני מודולים, קוד שנפל לתוך אובייקט)
+ * עברה את כל הבדיקות ונחתה בדפדפן של המשתמש כמסך לבן. כאן היא נעצרת.
+ */
+{
+  const html = fs.readFileSync(path.join(HERE, 'dist/app.html'), 'utf8');
+  const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  if (!scripts.length) throw new Error('dist/app.html: לא נמצא קוד בתוצר');
+  for (const code of scripts) {
+    try {
+      // eslint-disable-next-line no-new-func
+      new Function(code);
+    } catch (err) {
+      throw new Error(`dist/app.html: התוצר אינו קוד תקין — ${err.message}`);
+    }
+  }
+  // app.page.js הוא מודול, ולכן נבדק בטעינה אמיתית ולא כפונקציה
+  await import(pathToFileURL(path.join(HERE, 'dist/app.page.js')).href);
+}
+
+console.log('התוצר נבדק: תחביר תקין');

@@ -116,9 +116,17 @@ export function coachLoad(studio) {
 
 /** ברירות מחדל למתאמן + נרמול. */
 export function normalizeTrainee(raw = {}) {
+  /*
+   * addedAt נשמר, ולא במקרה: מגבלה שנוספה אחרי שנבנתה תכנית היא המצב
+   * המסוכן ביותר במערכת — התכנית חוקית לפי מה שהיה ידוע כשנבנתה, ואינה
+   * חוקית לפי מה שידוע היום. בלי התאריך אי אפשר להבחין בכך בכלל.
+   */
   const constraints = (raw.constraints || []).map((c) => (typeof c === 'string'
-    ? { id: c, severity: 'subacute', side: null, notes: '' }
-    : { id: c.id, severity: c.severity || 'subacute', side: c.side || null, notes: c.notes || '' }));
+    ? { id: c, severity: 'subacute', side: null, notes: '', addedAt: null }
+    : {
+      id: c.id, severity: c.severity || 'subacute', side: c.side || null, notes: c.notes || '',
+      addedAt: c.addedAt || null,
+    }));
 
   const goals = (raw.goals && raw.goals.length ? raw.goals : ['general_fitness'])
     .map((g) => (typeof g === 'string' ? { goal: g, weight: 1 } : { goal: g.goal, weight: g.weight ?? 1 }));

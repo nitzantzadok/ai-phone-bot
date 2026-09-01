@@ -19,7 +19,8 @@ import { buildProbes } from '../engine/probe.js';
 import { normalizeCustomExercise } from '../domain/models.js';
 import { EQUIPMENT_CATEGORIES, EQUIPMENT_LABELS, equipmentList } from '../domain/labels.js';
 import { identifyEquipment, visionAvailable } from './vision.js';
-import { assistAvailable, suggestMatches } from './assist.js';
+import { assistAvailable, reviewTrainee, suggestMatches } from './assist.js';
+import { auditProgramFit, auditTrainee, reviewAll } from '../domain/review.js';
 import { Db } from '../store/db.js';
 import {
   clearCookie, hashPassword, isLockedOut, newAccountId, newSessionToken, normalizeUsername,
@@ -268,6 +269,36 @@ const routes = {
    * כשאין מפתח או SDK מוחזרת תשובה מסודרת והמסך ממשיך בלעדיה.
    */
   'GET /api/assist/status': async () => ({ assist: await assistAvailable() }),
+
+  /**
+   * ביקורת על כל הסטודיו: נתונים והתאמת תכניות.
+   *
+   * דטרמיניסטית לחלוטין ולא עולה כלום — אפשר להריץ אותה בכל טעינה של
+   * המסך. השכבה החכמה נקראת בנפרד, למתאמן אחד, ורק כשמבקשים.
+   */
+  'GET /api/review': async (_b, url, ctx) => {
+    const studioId = url.searchParams.get('studioId');
+    const trainees = db.listTraineesFor(ctx.account.id, studioId)
+      .map((t) => normalizeTrainee(t));
+    const byTrainee = new Map(trainees.map((t) => [t.id, db.listSnapshots(t.id)]));
+    return { ok: true, ...reviewAll(trainees, { snapshotsByTrainee: byTrainee }) };
+  },
+
+  /** חוות דעת של המודל על מתאמן אחד — בנוסף לבדיקות, לא במקומן. */
+  'POST /api/review/assist': async (body, _url, ctx) => {
+    const trainee = normalizeTrainee(requireTrainee(ctx, body.traineeId));
+    const snapshot = db.listSnapshots(trainee.id)[0] || null;
+    const known = [
+      ...auditTrainee(trainee, { programs: db.listSnapshots(trainee.id) }).findings,
+      ...auditProgramFit(trainee, snapshot).findings,
+    ];
+    try {
+      const out = await reviewTrainee({ trainee, program: snapshot?.program || null, findings: known });
+      return { ok: true, ...out };
+    } catch (err) {
+      return { ok: false, code: err.code || 'error', error: err.message, fallback: 'checks' };
+    }
+  },
 
   'POST /api/assist/match': async (body) => {
     try {

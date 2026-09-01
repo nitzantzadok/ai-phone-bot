@@ -181,3 +181,24 @@ test('ארכיון: היסטוריה שיובאה אינה נמחקת בגלל �
   assert.deepEqual(sameDay, db.listSnapshots(traineeId).filter((s) => s.reason === 'imported').map((s) => s.id));
   assert.equal(sameDay[0], 'imp_19', 'האחרון שנכנס אינו ראשון ברשימה');
 });
+
+/*
+ * שלמות התוצר.
+ *
+ * הבדיקות מריצות מודולים בודדים, והדפדפן מריץ קובץ אחד מאוחד. שגיאה
+ * שנולדת רק באיחוד — שם שהוגדר פעמיים בשני מודולים, קוד שנפל לתוך
+ * אובייקט — עברה בעבר את כל הבדיקות ונחתה אצל המשתמש כמסך לבן.
+ */
+test('הדף הבנוי הוא קוד תקין ומכיל את כל המודולים', () => {
+  const file = path.join(process.cwd(), 'dist/app.html');
+  const html = fs.readFileSync(file, 'utf8');
+  const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.ok(scripts.length, 'אין קוד בתוצר');
+  for (const code of scripts) {
+    assert.doesNotThrow(() => new Function(code), 'התוצר אינו קוד תקין');
+  }
+  // פונקציות שהמסכים נשענים עליהן חייבות להימצא בתוצר, לא רק במקור
+  for (const name of ['reviewAll', 'auditTrainee', 'auditProgramFit', 'inferTrainingPreferences']) {
+    assert.ok(html.includes(`function ${name}`), `${name} אינו נכלל בתוצר`);
+  }
+});

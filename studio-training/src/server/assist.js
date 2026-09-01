@@ -178,3 +178,128 @@ function parseJson(text) {
     throw err;
   }
 }
+
+
+/* ================================================================
+   הביקורת החכמה.
+
+   הבדיקות הדטרמיניסטיות תופסות סתירות וחוסרים — משקל בלתי אפשרי, מגבלה
+   שנוספה אחרי התכנית, ותק שסותר את הגיל. מה שהן לא יכולות לתפוס הוא
+   שיקול דעת: האם *התכנית הזאת*, למתאמן *הזה*, הגיונית. מאמן ותיק שמסתכל
+   על כרטיס ועל תכנית רואה דברים שאין להם כלל — ושם המודל מוסיף ערך.
+
+   גם כאן: מציע ולא קובע, ומקבל רק את מה שכבר עבר את הבדיקות.
+   ================================================================ */
+
+const REVIEW_SYSTEM = `אתה מאמן כושר ותיק שעובר על כרטיס מתאמן ועל תכנית האימון שנבנתה לו,
+ומחווה דעה מקצועית עבור המאמן שאחראי עליו.
+
+המערכת כבר בדקה לבד את כל מה שניתן לבדוק בכללים: ערכים בלתי אפשריים, סתירות בין
+שדות, מגבלות שלא נלקחו בחשבון, איזון דחיפה/משיכה, נפח שבועי, וציוד חסר. אל תחזור
+על אלה. תפקידך הוא מה שדורש שיקול דעת של אדם.
+
+דוגמאות למה שכן שווה לומר:
+- התכנית לא הגיונית עבור המטרה המוצהרת, גם אם היא חוקית.
+- שילוב של גיל, מגבלה ועצימות שמצדיק זהירות נוספת.
+- פער בין מה שהמתאמן עושה בפועל לבין מה שהוגדר לו.
+- משהו חסר בכרטיס שהיה משנה את התכנית באופן מהותי.
+
+כללים:
+- החזר אך ורק JSON תקין, בלי טקסט לפני או אחרי.
+- לכל הערה: level הוא error | warning | info. השתמש ב-error רק כשמשהו עלול להזיק.
+- אל תמציא נתונים שאינם בקלט. אם חסר לך מידע — זו עצמה יכולה להיות ההערה.
+- עד שש הערות. אם הכול סביר, החזר רשימה ריקה. רשימה ריקה היא תשובה טובה.
+- כתוב בעברית, במשפט אחד או שניים, כפי שמאמן היה אומר לעמית.
+
+מבנה התשובה:
+{"findings":[{"level":"warning","message":"...","fix":"..."}],"summary":"משפט אחד על המתאמן"}`;
+
+/**
+ * חוות דעת על מתאמן ועל התכנית שלו.
+ *
+ * הקלט מצומצם בכוונה למה שנחוץ למקצוע: אין שם, אין טלפון, אין אימייל.
+ * מה שנשלח הוא פרופיל אימון — גיל, מין, משקל, רמה, מטרה, מגבלות ותכנית.
+ *
+ * @param {{trainee: object, program?: object, findings?: object[]}} input
+ */
+export async function reviewTrainee({ trainee, program = null, findings = [] } = {}) {
+  if (!trainee) throw new Error('חסר מתאמן לביקורת');
+
+  const avail = await assistAvailable();
+  if (!avail.ok) {
+    const err = new Error(avail.reason === 'no_sdk'
+      ? 'הביקורת החכמה אינה מותקנת. הבדיקות הרגילות ממשיכות לעבוד.'
+      : 'לא הוגדר מפתח API לביקורת החכמה. הבדיקות הרגילות ממשיכות לעבוד.');
+    err.code = avail.reason;
+    throw err;
+  }
+
+  const { default: Anthropic } = await import(SDK);
+  const client = new Anthropic();
+
+  const payload = JSON.stringify({ trainee: profileFor(trainee), program: programFor(program), knownFindings: findings.map((x) => x.message) }, null, 1);
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 16000,
+    thinking: { type: 'adaptive' },
+    system: [{ type: 'text', text: REVIEW_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: `עבור על הכרטיס והתכנית. החזר JSON בלבד.\n\n${payload}` }],
+  });
+
+  if (response.stop_reason === 'refusal') {
+    const err = new Error('הבקשה נדחתה על ידי המודל.');
+    err.code = 'refusal';
+    throw err;
+  }
+
+  const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const parsed = parseJson(text);
+  const levels = new Set(['error', 'warning', 'info']);
+  return {
+    model: response.model,
+    summary: String(parsed.summary || '').slice(0, 300),
+    findings: (parsed.findings || [])
+      .filter((x) => x && typeof x.message === 'string')
+      .slice(0, 6)
+      .map((x) => ({
+        level: levels.has(x.level) ? x.level : 'info',
+        message: String(x.message).slice(0, 300),
+        fix: String(x.fix || '').slice(0, 300),
+        source: 'assist',
+      })),
+  };
+}
+
+/** פרופיל אימון בלבד — בלי פרטים מזהים. */
+function profileFor(t) {
+  return {
+    age: t.age, sex: t.sex, weightKg: t.weightKg, heightCm: t.heightCm,
+    level: t.level, trainingAgeMonths: t.trainingAgeMonths,
+    primaryGoal: t.primaryGoal, trainingStyles: t.trainingStyles, preferredSplit: t.preferredSplit,
+    daysPerWeek: t.daysPerWeek, sessionMinutes: t.sessionMinutes,
+    sport: t.sport, externalSessions: t.externalSessions, lifestyle: t.lifestyle,
+    constraints: (t.constraints || []).map((c) => ({ id: c.id, severity: c.severity, side: c.side })),
+    sleepQuality: t.sleepQuality, stressLevel: t.stressLevel,
+    workingLoads: Object.entries(t.history || {}).slice(0, 20)
+      .map(([id, h]) => ({ exercise: BY_ID[id]?.name || id, kg: h.load ?? h.loadKg ?? null, reps: h.reps ?? null })),
+  };
+}
+
+/** התכנית כפי שמאמן היה קורא אותה, בלי שדות פנימיים. */
+function programFor(p) {
+  if (!p) return null;
+  return {
+    split: p.meta?.split || null,
+    days: (p.days || []).map((d) => ({
+      label: d.dayLabel || d.label,
+      minutes: d.estimatedMinutes,
+      exercises: (d.blocks || []).map((b) => ({
+        name: b.exercise?.name,
+        role: b.role,
+        sets: b.prescription?.sets,
+        reps: b.prescription?.reps,
+        kg: b.load?.kg ?? null,
+      })),
+    })),
+  };
+}
