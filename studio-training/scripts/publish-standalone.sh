@@ -222,7 +222,40 @@ jobs:
           echo "מסד: $ID"
 
       - name: פריסה
-        run: npx --yes wrangler@4 deploy
+        id: deploy
+        run: |
+          set -o pipefail
+          npx --yes wrangler@4 deploy | tee /tmp/deploy.log
+          URL="$(grep -Eo 'https://[a-z0-9.-]+\.workers\.dev' /tmp/deploy.log | head -1)"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "הכתובת: $URL"
+
+      - name: בדיקה חיה
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -e
+          [ -n "$URL" ] || { echo "לא נמצאה כתובת לפריסה"; exit 1; }
+          for i in 1 2 3 4 5; do
+            CODE="$(curl -s -o /tmp/page.html -w '%{http_code}' "$URL")"
+            [ "$CODE" = "200" ] && break
+            sleep 5
+          done
+          [ "$CODE" = "200" ] || { echo "הדף לא נטען (קוד $CODE)"; exit 1; }
+          grep -q '<html' /tmp/page.html || { echo "הדף שהתקבל אינו HTML"; exit 1; }
+          EMAIL="smoke-$(date +%s)@example.com"
+          PASS="Smoke-Test-$(date +%s)"
+          REG="$(curl -s -c /tmp/a.txt -X POST "$URL/api/register" -H 'content-type: application/json' \
+            --data "{\"studioName\":\"בדיקה אוטומטית\",\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")"
+          echo "$REG" | grep -q 'studio\|account\|ok' || { echo "הרשמה נכשלה: $REG"; exit 1; }
+          NEW="$(curl -s -b /tmp/a.txt -X POST "$URL/api/trainees" -H 'content-type: application/json' \
+            --data '{"name":"מתאמן בדיקה","level":"beginner","goal":"strength","daysPerWeek":3}')"
+          echo "$NEW" | grep -q 'מתאמן בדיקה' || { echo "יצירת מתאמן נכשלה: $NEW"; exit 1; }
+          curl -s -c /tmp/b.txt -X POST "$URL/api/login" -H 'content-type: application/json' \
+            --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" > /dev/null
+          LIST="$(curl -s -b /tmp/b.txt "$URL/api/trainees")"
+          echo "$LIST" | grep -q 'מתאמן בדיקה' || { echo "הנתונים לא משותפים בין חיבורים: $LIST"; exit 1; }
+          echo "הכל עובד: הדף נטען, נשמר מתאמן, וחיבור נוסף רואה אותו."
 YAML
 
 # הבדיקות הן שער בטיחות, אבל אין טעם להיכשל רק כי Node לא מותקן —
