@@ -11,6 +11,7 @@ import { shDate, shEmpty, shMatch, shNorm, shTokens } from './text.js';
 import { HEADER_TERMS, shCandidates } from './vocab.js';
 import { shKeyValueTable, shLooksLikeKeyValue } from './table.js';
 import { shMapColumns } from './columns.js';
+import { shPersonCheck } from './person.js';
 import { equipmentCandidates, exerciseCandidates } from './vocab.js';
 
 /** שמות לשוניות מקובלים לכל תפקיד. */
@@ -197,10 +198,19 @@ export function shSheetPersonName(name, traineeNames = []) {
    * "תכנית של רון" ו"אימון — דנה" הן דרכים נפוצות לקרוא ללשונית אישית.
    * מסירים את המילים שמתארות את הלשונית, ומה שנשאר הוא השם.
    */
-  const stripped = String(name || '')
-    .replace(/^\s*(תכנית|תוכנית|מערך|אימון|אימונים|תכנית אימון|תוכנית אימון|program|workout|plan)\s*/i, '')
-    .replace(/^\s*(של|עבור|ל|for|of)\s+/i, '')
-    .trim();
+  /*
+   * מילות תיאור מוסרות בלולאה ולא בביטוי אחד: "מדידות של רון" מוריד קודם
+   * "מדידות" ואז "של", ו"תכנית אימון דנה" מוריד שתי מילים ברצף. ביטוי
+   * שמסיר מילה אחת בלבד היה משאיר "אימון דנה" — ולא מוצא את דנה.
+   */
+  const DESCRIPTOR = /^\s*(תכנית|תוכנית|מערך|אימון|אימונים|מדידות|מדדים|מדידה|שקילה|שקילות|היקפים|יומן|מעקב|נוכחות|תרגילים|program|workout|plan|log|measurements|tracking)\s+/i;
+  const LINKER = /^\s*(של|עבור|ל|for|of)\s+/i;
+  let stripped = String(name || '').trim();
+  for (let guard = 0; guard < 4; guard++) {
+    const next = stripped.replace(DESCRIPTOR, '').replace(LINKER, '').trim();
+    if (next === stripped) break;
+    stripped = next;
+  }
   const candidate = stripped || String(name || '');
   const n = shNorm(candidate);
   if (!n) return null;
@@ -217,6 +227,11 @@ export function shSheetPersonName(name, traineeNames = []) {
    */
   const byFirstName = traineeNames.filter((t) => shTokens(t)[0] === n);
   if (byFirstName.length === 1) return byFirstName[0];
-  // שתי מילים בעברית בלי מספרים — נראה כמו שם פרטי ומשפחה
-  return /^[\p{L}]+( [\p{L}]+){0,2}$/u.test(candidate) && !/\d/.test(candidate) ? candidate : null;
+  /*
+   * שם חדש שאינו מוכר עובר את אותה בדיקת שמות שכל ערך אחר עובר.
+   * כאן היה החור: "אימוני בוקר" נראה כמו שתי מילים בעברית, ורק בדיקת
+   * השמות יודעת ש"אימוני" ו"בוקר" הן מילים של לשונית ולא של אדם.
+   */
+  const looksLikeName = /^[\p{L}]+( [\p{L}]+){0,2}$/u.test(candidate) && !/\d/.test(candidate);
+  return looksLikeName && shPersonCheck(candidate).ok ? candidate : null;
 }

@@ -413,9 +413,28 @@ function equipmentFromTable(sheet, ctx) {
 
 const REP_RANGE = /(\d{1,3})\s*[-–xX*]\s*(\d{1,3})/;
 
+/*
+ * "4X8", "3x10", "4×6" — סטים וחזרות בתא אחד. דפוס נפוץ מאוד בגיליונות
+ * אמיתיים, שבו קריאה תמימה של המספר הראשון נותנת סטים נכונים וחזרות
+ * שגויות לחלוטין.
+ */
+const SETS_BY_REPS = /^\s*(\d{1,2})\s*[x×*]\s*(\d{1,3})\s*$/i;
+
 function prescriptionFrom(row, byField) {
-  const setsN = shNum(shCell(row, byField, 'sets'));
+  const setsRaw = shCell(row, byField, 'sets');
   const repsRaw = shCell(row, byField, 'reps');
+  const combined = SETS_BY_REPS.exec(setsRaw) || SETS_BY_REPS.exec(repsRaw);
+  if (combined) {
+    const sets = Math.round(+combined[1]);
+    const reps = Math.round(+combined[2]);
+    return {
+      sets: sets > 0 ? sets : 3,
+      reps: String(reps), repsMin: reps, repsMax: reps,
+      restSec: 90, rir: 2, tempo: shCell(row, byField, 'tempo') || '2-0-1-0',
+      unit: 'reps', imported: true,
+    };
+  }
+  const setsN = shNum(setsRaw);
   const range = REP_RANGE.exec(repsRaw);
   const repsMin = range ? +range[1] : (shNum(repsRaw) ?? 10);
   const repsMax = range ? +range[2] : repsMin;
@@ -481,19 +500,89 @@ function sheetOwner(sheet, traineeNames) {
   return shSheetPersonName(tail, traineeNames);
 }
 
+/*
+ * שורת מפריד בתוך טבלת תכנית.
+ *
+ * מאמנים לא כותבים עמודת "יום" — הם כותבים שורה מודגשת "יום א — רגליים"
+ * ומתחתיה את התרגילים, ולפעמים שורה עם שם המתאמן כשכמה אנשים חולקים
+ * לשונית. שורה כזאת מזוהה לפי שני סימנים יחד: אין בה אף מספר, והטקסט
+ * שבה הוא יום או אדם — ולא שם תרגיל. בלעדיה כל התכנית נדחסת ליום אחד,
+ * ובמקרה הרע השורה עצמה הופכת ל"תרגיל" בשם "יום א".
+ */
+const DAY_HEADER = /^(יום|אימון|day|session|workout|week|שבוע)\s*[\u05D0-\u05EA0-9]/i;
+
+function separatorKind(label, traineeNames) {
+  const text = String(label).trim();
+  if (DAY_HEADER.test(text)) return { kind: 'day', value: text };
+  // שם של מתאמן מוכר — גם עם נקודתיים בסוף ("רון:")
+  const clean = text.replace(/[:־–—-]+$/, '').trim();
+  const known = traineeNames.find((t) => shNorm(t) === shNorm(clean));
+  if (known) return { kind: 'person', value: known };
+  /*
+   * אדם שאינו מוכר עדיין: רק שם מלא (שתי מילים ומעלה) שעובר את בדיקת
+   * השמות. מילה בודדת נשארת תרגיל — "מתיחות" איננה בן אדם, וגם שורת
+   * תרגיל בלי מספרים היא דבר לגיטימי.
+   */
+  if (shTokens(clean).length >= 2 && shPersonCheck(clean).ok) return { kind: 'person', value: clean };
+  return null;
+}
+
+/*
+ * קריאת תא משקל.
+ *
+ * "2X12" בעמודת משקל אינו סטים וחזרות — אלה שתי משקולות של 12 ק״ג.
+ * קריאה תמימה של המספר הראשון הפכה את זה ל-2 ק״ג, והמשקל השגוי הזה
+ * נכנס להיסטוריה והוזיל את כל ההערכות. כלל הפענוח: "1X20" הוא כלי אחד
+ * של 20, "2X12" הוא 12 לכל יד; כל מבנה אחר של NxM בעמודת משקל הוא
+ * כנראה טעות הזנה — ועדיף בלי משקל מאשר משקל שגוי.
+ */
+function loadFromCell(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return { kg: null, perSide: false };
+  const pair = /^\s*([12])\s*[x×*]\s*(\d{1,3}(?:\.\d+)?)\s*(?:ק"?ג|kg)?\s*$/i.exec(text);
+  if (pair) return { kg: +pair[2], perSide: pair[1] === '2' };
+  if (/^\s*\d{1,2}\s*[x×*]\s*\d/.test(text)) return { kg: null, perSide: false };
+  return { kg: shNum(text), perSide: false };
+}
+
+/*
+ * ערך מעמודת "שם" נחשב לאדם רק אם הוא באמת נראה כמו אדם.
+ *
+ * זה הלקח היקר ביותר של הייבוא: עמודה ששמה "שם" מכילה לפעמים שמות של
+ * תרגילים ("שם התרגיל" שקוצר ל"שם"), ולקיחה עיוורת של הערך הפכה כל
+ * תרגיל למתאמן — סקוואט, לחיצת חזה ומתח קיבלו כרטיסים משלהם. כל מסלול
+ * שקורא עמודת שם עובר דרך הבדיקה הזאת; מה שנכשל בה יטופל כתרגיל.
+ */
+function personFromCell(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return '';
+  return shPersonCheck(text).ok ? text : '';
+}
+
 /** תכניות: כל שורה היא תרגיל; הקיבוץ הוא לפי מתאמן ולפי יום. */
 function programsFromSheet(sheet, ctx) {
   const byTrainee = new Map();
   const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
+  // מצב רץ שנקבע על ידי שורות המפריד, ומשמש כשאין עמודת יום או שם
+  let currentDay = null;
+  let currentPerson = null;
+  let droppedNoOwner = 0;
 
   for (const row of sheet.table.rows) {
     const rawEx = shCell(row, sheet.byField, 'exercise')
       || row.find((c) => !shEmpty(c) && shNum(c) === null) || '';
     if (shEmpty(rawEx) || SUMMARY_ROW.test(rawEx)) continue;
 
-    const person = shCell(row, sheet.byField, 'name').trim() || sheetPerson;
-    if (!person) continue;
-    const dayLabel = shCell(row, sheet.byField, 'day').trim() || 'אימון';
+    const hasNumbers = row.some((c) => !shEmpty(c) && shNum(c) !== null);
+    if (!hasNumbers) {
+      const sep = separatorKind(rawEx, ctx.traineeNames);
+      if (sep?.kind === 'day') { currentDay = sep.value; continue; }
+      if (sep?.kind === 'person') { currentPerson = sep.value; currentDay = null; continue; }
+    }
+
+    const person = personFromCell(shCell(row, sheet.byField, 'name')) || currentPerson || sheetPerson;
+    if (!person) { droppedNoOwner++; continue; }
+    const dayLabel = shCell(row, sheet.byField, 'day').trim() || currentDay || 'אימון';
     const key = shNorm(person);
 
     if (!byTrainee.has(key)) byTrainee.set(key, { name: person, days: new Map() });
@@ -501,7 +590,7 @@ function programsFromSheet(sheet, ctx) {
     if (!entry.days.has(dayLabel)) entry.days.set(dayLabel, []);
 
     const { block, matched } = exerciseFrom(rawEx, ctx);
-    const loadKg = shNum(shCell(row, sheet.byField, 'load'));
+    const { kg: loadKg, perSide } = loadFromCell(shCell(row, sheet.byField, 'load'));
     entry.days.get(dayLabel).push({
       slotLabel: dayLabel,
       role: 'main',
@@ -510,7 +599,7 @@ function programsFromSheet(sheet, ctx) {
       group: null,
       exercise: block,
       prescription: prescriptionFrom(row, sheet.byField),
-      load: { kg: loadKg !== null ? loadKg : null, perSide: false, source: 'imported' },
+      load: { kg: loadKg !== null ? loadKg : null, perSide, source: 'imported' },
       estimatedMinutes: 0,
       coachingNotes: matched ? [] : ['תרגיל שיובא מהגיליון ולא זוהה במאגר — כדאי לוודא שהוא מתאים.'],
       imported: true,
@@ -518,7 +607,7 @@ function programsFromSheet(sheet, ctx) {
       note: shCell(row, sheet.byField, 'notes').slice(0, 200),
     });
   }
-  return byTrainee;
+  return { byTrainee, droppedNoOwner };
 }
 
 /** יומן ביצועים: מה בוצע בפועל, עם תאריך. */
@@ -529,7 +618,7 @@ function logFromSheet(sheet, ctx) {
     const rawEx = shCell(row, sheet.byField, 'exercise');
     const date = shDate(shCell(row, sheet.byField, 'date'));
     if (shEmpty(rawEx) && !date) continue;
-    const person = shCell(row, sheet.byField, 'name').trim() || sheetPerson;
+    const person = personFromCell(shCell(row, sheet.byField, 'name')) || sheetPerson;
     if (!person) continue;
     const { block } = rawEx ? exerciseFrom(rawEx, ctx) : { block: null };
     out.push({
@@ -540,7 +629,7 @@ function logFromSheet(sheet, ctx) {
         at: date ? `${date}T12:00:00.000Z` : undefined,
         exerciseId: block && !String(block.id).startsWith('imported_') ? block.id : null,
         exerciseName: block ? block.name : String(rawEx).trim(),
-        loadKg: shNum(shCell(row, sheet.byField, 'load')),
+        loadKg: loadFromCell(shCell(row, sheet.byField, 'load')).kg,
         reps: shNum(shCell(row, sheet.byField, 'reps')),
         rpe: shNum(shCell(row, sheet.byField, 'rpe')),
         painLevel: shNum(shCell(row, sheet.byField, 'pain')),
@@ -559,7 +648,7 @@ function measurementsFromSheet(sheet, ctx) {
   const sheetPerson = sheetOwner(sheet, ctx.traineeNames);
   for (const row of sheet.table.rows) {
     const date = shDate(shCell(row, sheet.byField, 'date'));
-    const person = shCell(row, sheet.byField, 'name').trim() || sheetPerson;
+    const person = personFromCell(shCell(row, sheet.byField, 'name')) || sheetPerson;
     if (!person) continue;
     const m = { date: date || undefined };
     const w = shNum(shCell(row, sheet.byField, 'weightKg'));
@@ -592,7 +681,7 @@ function attendanceFromSheet(sheet) {
   const nameIdx = sheet.byField.name ?? 0;
   const out = [];
   for (const row of sheet.table.rows) {
-    const person = String(row[nameIdx] || '').trim();
+    const person = personFromCell(row[nameIdx]);
     if (!person || SUMMARY_ROW.test(person)) continue;
     const dates = [];
     for (const col of dateCols) {
@@ -773,7 +862,11 @@ export function shBuildImport(analysis, {
   // --- תכניות
   const programs = [];
   for (const sheet of analysis.sheets.filter((s) => s.role === 'programs')) {
-    const byTrainee = programsFromSheet(sheet, ctx);
+    const { byTrainee, droppedNoOwner } = programsFromSheet(sheet, ctx);
+    if (droppedNoOwner) {
+      warnings.push(`בלשונית "${sheet.name}" יש ${droppedNoOwner} שורות תרגיל שלא ברור למי הן שייכות — `
+        + 'שם הלשונית אינו שם של מתאמן ואין עמודת שם. שינוי שם הלשונית לשם המתאמן יכניס אותן.');
+    }
     let built = 0;
     for (const entry of byTrainee.values()) {
       const key = shNorm(entry.name);
@@ -879,7 +972,21 @@ export function shBuildImport(analysis, {
     delete t.branchName;
 
     const own = measurements.filter((m) => m.traineeKey === key).map((m) => m.measurement);
-    if (own.length) t.measurements = own;
+    if (own.length) {
+      t.measurements = own;
+      /*
+       * משקל הגוף מהמדידה האחרונה נכנס לכרטיס כבר כאן, בזמן הייבוא —
+       * ולא רק בטעינה. הסקת הרמה רצה מיד אחרי השלב הזה, והיא זקוקה
+       * למשקל הגוף כדי למדוד כוח יחסי; בלעדיו מתאמן עם מדידות מלאות
+       * היה מוערך לפי טווחים מוחלטים, כאילו לא מסר שום נתון.
+       */
+      if (!t.weightKg) {
+        const latest = [...own].filter((m) => m.weightKg)
+          .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+          .pop();
+        if (latest) t.weightKg = latest.weightKg;
+      }
+    }
     const days = attendance.find((a) => a.traineeKey === key);
     if (days) {
       t.sessions = days.dates.map((d, i) => ({

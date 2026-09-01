@@ -1335,3 +1335,103 @@ test('כינוי שהמאמן אישר נכנס לזיהוי הרגיל ומשנ
   const reset = shBuildImport(shAnalyzeWorkbook([{ name: 'עידו', rows }]), { studioName: 'ס' });
   assert.ok(reset.report.unmatched.exercises.includes('הדחיפה של יוסי'));
 });
+
+/* ================================================================
+   גיליונות כמו שמאמנים באמת כותבים אותם.
+   כל בדיקה כאן נולדה מכשל אמיתי שנמצא מול דפוס אמיתי — לא מנוסחת
+   סביב הקוד אלא סביב מה שמאמן היה מצפה שיקרה.
+   ================================================================ */
+
+test('שורות "יום א" ו"שם מתאמן" כמפרידים בתוך טבלת תכנית', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([{ name: 'תכניות', rows: [
+    ['תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['רון כהן', '', '', ''],
+    ['יום א — רגליים', '', '', ''],
+    ['סקוואט מוט על הגב', '4', '6', '100'],
+    ['יום ב — עליון', '', '', ''],
+    ['לחיצת חזה במוט', '4', '6', '80'],
+    ['דנה לוי', '', '', ''],
+    ['לחיצת רגליים', '3', '12', '60']]}]), { studioName: 'ס' });
+
+  const names = b.trainees.map((t) => t.name).sort();
+  assert.deepEqual(names, ['דנה לוי', 'רון כהן'], `אנשים שגויים: ${names}`);
+  const ron = b.snapshots.find((s) => s.traineeName === 'רון כהן');
+  assert.equal(ron.program.days.length, 2, 'שורות היום לא פיצלו ימים');
+  const allEx = b.snapshots.flatMap((s) => s.program.days.flatMap((d) => d.blocks.map((x) => x.exercise.name)));
+  assert.ok(!allEx.some((n) => /^יום/.test(n)), `שורת יום הפכה לתרגיל: ${allEx}`);
+  const dana = b.snapshots.find((s) => s.traineeName === 'דנה לוי');
+  assert.ok(!dana.program.days.flatMap((d) => d.blocks).some((x) => x.exercise.id === 'bb_back_squat'),
+    'התרגילים של רון נכנסו לדנה');
+});
+
+test('עמודת "שם" שמכילה תרגילים אינה מייצרת מתאמנים, והמאמן מקבל הסבר', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([{ name: 'אימוני בוקר', rows: [
+    ['שם', 'סטים', 'חזרות', 'משקל'],
+    ['סקוואט מוט על הגב', '4', '8', '80'],
+    ['לחיצת חזה במוט', '4', '8', '55'],
+    ['מתח', '4', '6', '0']]}]), { studioName: 'ס' });
+  assert.deepEqual(b.trainees, [], `תרגילים או שם קבוצה הפכו לאנשים: ${b.trainees.map((t) => t.name)}`);
+  assert.ok(b.report.warnings.some((w) => w.includes('שייכות')), 'אין אזהרה שמסבירה מה קרה');
+});
+
+test('"4X8" בתא אחד הוא ארבעה סטים של שמונה', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([{ name: 'יואב לב', rows: [
+    ['תרגיל', 'סטים וחזרות', 'משקל'],
+    ['סקוואט מוט על הגב', '4X8', '80'],
+    ['לחיצת חזה במוט', '3x10', '55']]}]), { studioName: 'ס' });
+  const sq = b.snapshots[0].program.days[0].blocks.find((x) => x.exercise.id === 'bb_back_squat');
+  assert.equal(sq.prescription.sets, 4);
+  assert.equal(sq.prescription.repsMin, 8);
+});
+
+test('"2X12" בעמודת משקל הוא 12 לכל יד, ו"משקל גוף" אינו מספר', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([{ name: 'שרון טל', rows: [
+    ['תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['מתח', '4', '6', 'משקל גוף'],
+    ['לחיצת חזה בשיפוע 0 עם משקולות', '4', '8', '2X12'],
+    ['סקוואט מוט על הגב', '4', '8', '60']]}]), { studioName: 'ס' });
+  const t2 = b.trainees.find((x) => x.name === 'שרון טל');
+  const press = b.snapshots[0].program.days[0].blocks.find((x) => x.exercise.id === 'db_bench_press');
+  assert.equal(press.load.kg, 12, `"2X12" נקרא שגוי: ${JSON.stringify(press.load)}`);
+  assert.equal(press.load.perSide, true);
+  assert.ok(!t2.history?.pullup?.load, '"משקל גוף" קיבל מספר');
+  assert.equal(b.snapshots[0].program.days[0].blocks.find((x) => x.exercise.id === 'bb_back_squat').load.kg, 60);
+});
+
+test('לשונית "מדידות גיא בר" משויכת לגיא, והמשקל העדכני נכנס לכרטיס', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([
+    { name: 'מתאמנים', rows: [['שם'], ['גיא בר']] },
+    { name: 'מדידות גיא בר', rows: [
+      ['תאריך', 'משקל', 'היקף מותן'],
+      ['01/05/2026', '92', '98'],
+      ['01/06/2026', '90', '96']]}]), { studioName: 'ס' });
+  const guy = b.trainees.find((x) => x.name === 'גיא בר');
+  assert.equal((guy.measurements || []).length, 2, 'המדידות לא שויכו');
+  assert.equal(guy.weightKg, 90, 'משקל הגוף מהמדידה האחרונה לא נכנס לכרטיס בזמן הייבוא');
+});
+
+test('ספריית תרגילים עם עמודת "שם" ועמודת "מאמן" ברשימה — אף אחד מהם אינו מתאמן', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([
+    { name: 'מתאמנים', rows: [['שם', 'גיל', 'מאמן'], ['רון כהן', '30', 'עידן שגב']] },
+    { name: 'רשימת תרגילים', rows: [
+      ['שם', 'קבוצת שרירים'],
+      ['סקוואט', 'רגליים'], ['לחיצת חזה', 'חזה'], ['עליות מתח', 'גב']]}]), { studioName: 'ס' });
+  assert.deepEqual(b.trainees.map((t) => t.name), ['רון כהן'],
+    `נוצרו אנשים מיותרים: ${b.trainees.map((t) => t.name)}`);
+});
+
+test('עמודת 1RM לצד משקל עבודה — נלקח משקל העבודה', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([{ name: 'נדב אור', rows: [
+    ['תרגיל', 'סטים', 'חזרות', 'משקל עבודה', '1RM משוער'],
+    ['סקוואט מוט על הגב', '4', '5', '100', '125']]}]), { studioName: 'ס' });
+  assert.equal(b.trainees[0].history.bb_back_squat.load, 100);
+});
+
+test('שורת-על ממוזגת מעל הכותרות אינה משבשת את המיפוי', () => {
+  const b = shBuildImport(shAnalyzeWorkbook([{ name: 'נטע רם', rows: [
+    ['שבוע 1', '', '', ''],
+    ['תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['סקוואט מוט על הגב', '4', '8', '70']]}]), { studioName: 'ס' });
+  assert.equal(b.trainees[0]?.history?.bb_back_squat?.load, 70,
+    `המיפוי השתבש: ${JSON.stringify(b.trainees[0]?.history)}`);
+});
