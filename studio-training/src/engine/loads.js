@@ -99,6 +99,9 @@ export function loadFamily(ex) {
     if (eq.has('dumbbell')) return 'isolation_small';
     if (eq.has('barbell') || eq.has('ez_bar') || eq.has('fixed_barbell')
         || eq.has('cable_crossover') || eq.has('lat_pulldown')) return 'cable_isolation';
+    // מכונת בידוד עובדת על מחסנית, בדיוק כמו כבל — בלי השורה הזאת
+    // פרפר אחורי במכונה היה מוצג בלי משקל עבודה בכלל
+    if ([...eq].some((i) => i.endsWith('_machine') || i === 'pec_deck')) return 'cable_isolation';
     return null;
   }
 

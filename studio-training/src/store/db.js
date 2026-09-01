@@ -19,6 +19,16 @@ function defaultDbFile() {
 export const SCHEMA_VERSION = 5;
 
 /**
+ * סדר הארכיון: מהחדש לישן, ובתוך אותו תאריך לפי סדר הכניסה.
+ * בלי השובר-שוויון הזה, תכניות שיובאו יחד מאותו גיליון היו מופיעות בכל
+ * טעינה בסדר אחר — והמאמן לא יכול לסמוך על מה שהוא רואה.
+ */
+export function snapshotOrder(a, b) {
+  if (a.at !== b.at) return a.at < b.at ? 1 : -1;
+  return (b.seq || 0) - (a.seq || 0);
+}
+
+/**
  * מיגרציה בין גרסאות סכימה.
  * מסד ישן נטען ומתעדכן בשקט, בלי לאבד נתונים ובלי לדרוש מהמשתמש כלום.
  */
@@ -443,25 +453,45 @@ export class Db {
    * להישמר. שנים-עשר האחרונים הם רבעון שלם של היסטוריה, וזה מה שמאמן
    * באמת מסתכל עליו.
    */
-  putSnapshot(snap, keep = 12) {
+  /**
+   * שמירת צילום של תכנית בארכיון.
+   *
+   * הגיזום מבחין בין שני סוגים, ובכוונה: תכנית שהמערכת בנתה נבנית מחדש
+   * בכל שבוע ואפשר להפיק אותה שוב, ולכן שומרים ממנה את האחרונות בלבד.
+   * תכנית שיובאה מהגיליון היא הרישום ההיסטורי של הסטודיו — אין לה מקור
+   * אחר, ומחיקה שלה מוחקת שנים של עבודה. לכן היא נשמרת בנפרד ובכמות
+   * גדולה בהרבה.
+   */
+  putSnapshot(snap, keep = 12, keepImported = 60) {
     const last = this.listSnapshots(snap.traineeId)[0];
     if (last && sameSnapshotContent(last, snap)) return last;
-    this.data.snapshots[snap.id] = snap;
-    for (const old of this.listSnapshots(snap.traineeId).slice(keep)) delete this.data.snapshots[old.id];
+
+    // מספר רץ: שתי תכניות שיובאו באותו רגע חייבות סדר יציב, אחרת
+    // הארכיון מתערבב בכל טעינה מחדש
+    this.data.meta = this.data.meta || {};
+    this.data.meta.snapSeq = (this.data.meta.snapSeq || 0) + 1;
+    this.data.snapshots[snap.id] = { ...snap, seq: snap.seq ?? this.data.meta.snapSeq };
+
+    const mine = this.listSnapshots(snap.traineeId);
+    const isImported = (x) => x.reason === 'imported' || x.program?.meta?.imported;
+    const prune = (arr, limit) => { for (const old of arr.slice(limit)) delete this.data.snapshots[old.id]; };
+    prune(mine.filter((x) => !isImported(x)), keep);
+    prune(mine.filter(isImported), keepImported);
+
     this.save();
-    return snap;
+    return this.data.snapshots[snap.id];
   }
   getSnapshot(id) { return this.data.snapshots[id] || null; }
   /** הצילומים של מתאמן, מהחדש לישן. */
   listSnapshots(traineeId) {
     return Object.values(this.data.snapshots)
       .filter((s) => s.traineeId === traineeId)
-      .sort((a, b) => (a.at < b.at ? 1 : -1));
+      .sort(snapshotOrder);
   }
   snapshotsForStudio(studioId) {
     return Object.values(this.data.snapshots)
       .filter((s) => s.studioId === studioId)
-      .sort((a, b) => (a.at < b.at ? 1 : -1));
+      .sort(snapshotOrder);
   }
 
   // --- יומן אימונים

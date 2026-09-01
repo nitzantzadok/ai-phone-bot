@@ -1036,14 +1036,45 @@ const store = {
 
   /* ---- היסטוריה: ארכיון תכניות ויומן אימונים */
 
+/*
+ * גיזום הארכיון נעשה לכל מתאמן בנפרד, ולא כתקרה אחת לכל המערכת.
+ * תקרה גלובלית של 400 נשמעת גדולה, אבל בסטודיו עם מאה מתאמנים היא
+ * ארבע תכניות לאדם — וייבוא של גיליון שלם היה מוחק בשקט את ההיסטוריה
+ * של מי שיובא ראשון. תכנית שיובאה נשמרת בכמות גדולה יותר מתכנית
+ * שנבנתה, כי אין לה מקור אחר להפיק ממנו.
+ */
+const SNAP_KEEP_GENERATED = 12;
+const SNAP_KEEP_IMPORTED = 60;
+
+let snapSeq = 0;
+function nextSnapSeq() {
+  snapSeq = Math.max(snapSeq, ...state.snapshots.map((x) => x.seq || 0)) + 1;
+  return snapSeq;
+}
+
+const snapshotOrder = (a, b) => (a.at !== b.at ? (a.at < b.at ? 1 : -1) : (b.seq || 0) - (a.seq || 0));
+const isImportedSnap = (x) => x.reason === 'imported' || x.program?.meta?.imported;
+const traineeSnapshots = (traineeId) => state.snapshots
+  .filter((x) => x.traineeId === traineeId).sort(snapshotOrder);
+
+function pruneSnapshots(all) {
+  const keep = new Set();
+  for (const traineeId of new Set(all.map((x) => x.traineeId))) {
+    const mine = all.filter((x) => x.traineeId === traineeId).sort(snapshotOrder);
+    for (const x of mine.filter((s) => !isImportedSnap(s)).slice(0, SNAP_KEEP_GENERATED)) keep.add(x.id);
+    for (const x of mine.filter(isImportedSnap).slice(0, SNAP_KEEP_IMPORTED)) keep.add(x.id);
+  }
+  return all.filter((x) => keep.has(x.id));
+}
+
+
   /** צילום מצב של תכנית. תוכן זהה לאחרון אינו נשמר שוב. */
   async archive(program, reason = 'generated') {
     if (state.server) return; // השרת מארכב לבד בכל בנייה
     const snap = programSnapshot(program, { reason });
-    const last = state.snapshots.filter((x) => x.traineeId === program.traineeId)
-      .sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+    const last = traineeSnapshots(program.traineeId)[0];
     if (last && sameContent(last, snap)) return;
-    state.snapshots = [...state.snapshots, snap].slice(-400);
+    state.snapshots = pruneSnapshots([...state.snapshots, { ...snap, seq: nextSnapSeq() }]);
     this.persistLocal();
   },
 
@@ -1054,7 +1085,8 @@ const store = {
       return;
     }
     const known = new Set(state.snapshots.map((x) => x.id));
-    state.snapshots = [...state.snapshots, ...snapshots.filter((x) => !known.has(x.id))].slice(-400);
+    const fresh = snapshots.filter((x) => !known.has(x.id)).map((x) => ({ ...x, seq: nextSnapSeq() }));
+    state.snapshots = pruneSnapshots([...state.snapshots, ...fresh]);
     this.persistLocal();
   },
 
@@ -1065,8 +1097,7 @@ const store = {
     }
     const t = traineeById(traineeId);
     const log = t?.sessionLog || [];
-    const snaps = state.snapshots.filter((x) => x.traineeId === traineeId)
-      .sort((a, b) => (a.at < b.at ? 1 : -1));
+    const snaps = traineeSnapshots(traineeId);
     return {
       ok: true,
       traineeId,
@@ -2528,13 +2559,24 @@ function sessionRow(s) {
 const REASON_LABEL = {
   registered: 'נבנתה ברישום', generated: 'נבנתה מחדש', generated_batch: 'בנייה קבוצתית',
   next_week: 'מעבר לשבוע הבא', exercise_swapped: 'הוחלף תרגיל', edited: 'נערכה',
+  imported: 'יובאה מהגיליון',
 };
 
+/*
+ * שורה בארכיון. תכנית שיובאה מהגיליון אינה "שבוע 0 · ציון —": אין לה
+ * שבוע ואין לה ציון איכות, כי המערכת לא בנתה אותה. הצגתה ככה נראתה
+ * כמו תקלה. במקום זה היא מוצגת לפי מה שהיא באמת — רישום מהגיליון,
+ * עם שם הלשונית שממנה הגיעה.
+ */
 function programRow(p) {
+  const imported = p.reason === 'imported';
+  const sheet = p.program?.meta?.sheet || p.sheetName || '';
   return `<div class="hprog">
-    <b>שבוע ${p.week}</b>
-    <span class="chip ${p.qaPassed ? 'ok' : 'warn'}">ציון ${p.qaScore ?? '—'}</span>
-    <span class="hint">${esc(REASON_LABEL[p.reason] || p.reason)} · ${fmtDate(p.at)}</span>
+    <b>${imported ? 'מהגיליון' : `שבוע ${p.week}`}</b>
+    ${imported
+      ? `<span class="chip">${esc(sheet || 'ייבוא')}</span>`
+      : `<span class="chip ${p.qaPassed ? 'ok' : 'warn'}">ציון ${p.qaScore ?? '—'}</span>`}
+    <span class="hint">${esc(REASON_LABEL[p.reason] || p.reason)}${p.at ? ` · ${fmtDate(p.at)}` : ''}</span>
     <span class="hint">${p.daysPerWeek} ימים · ${p.totalExercises} תרגילים</span>
     <span class="spacer"></span>
     <button data-open-snap="${esc(p.id)}">פתח תכנית</button>

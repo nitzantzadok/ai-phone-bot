@@ -111,25 +111,48 @@ function levelFromLoads(performed, trainee) {
 /**
  * אורך האימון בפועל, מתוך מה שהיה כתוב בתכנית.
  *
- * מאמן שרשם שמונה תרגילים של ארבעה סטים לא התכוון לאימון של 30 דקות.
- * ההערכה גסה — סט עבודה ומנוחה הם כדקה וחצי בממוצע — אבל היא קרובה
- * הרבה יותר מברירת המחדל, ואורך האימון קובע כמה תרגילים בכלל נכנסים.
+ * הזמן של סט אינו קבוע, והוא נגזר מטווח החזרות: חמישה סטים של שלוש חזרות
+ * בסקוואט כבד הם שלוש דקות מנוחה בין סט לסט, ושנים-עשר חזרות בבידוד הם
+ * דקה. הערכה אחידה של דקה וחצי לסט הייתה מקצרת אימון כוח לחצי מאורכו —
+ * ואז המנוע היה דוחס את התכנית הבאה לסט אחד לתרגיל, שזו כבר לא תכנית.
  */
+function setMinutes(reps) {
+  if (reps === null) return 2.5;
+  if (reps <= 5) return 3.8;   // כוח: מנוחה של 3 דקות ומעלה
+  if (reps <= 8) return 2.6;
+  if (reps <= 12) return 2.0;
+  return 1.5;                  // סיבולת ובידוד: מנוחה קצרה
+}
+
 function minutesFromPrograms(programs) {
   const perDay = [];
   for (const program of programs) {
     for (const day of program.days || []) {
       const blocks = day.blocks || [];
       if (blocks.length < 3) continue;
-      const sets = blocks.reduce((n, b) => n + (b.prescription?.sets || 3), 0);
-      // סט + מנוחה ≈ 90 שניות, ועוד חימום קצר בתחילת האימון
-      perDay.push(Math.round((sets * 1.5) + 8));
+      let minutes = 0;
+      for (const b of blocks) {
+        const sets = b.prescription?.sets || 3;
+        const min = b.prescription?.repsMin;
+        const max = b.prescription?.repsMax;
+        const reps = Number.isFinite(min) && Number.isFinite(max) ? (min + max) / 2
+          : (Number.isFinite(min) ? min : null);
+        minutes += sets * setMinutes(reps);
+      }
+      perDay.push(Math.round(minutes + 8)); // חימום בתחילת האימון
     }
   }
   if (!perDay.length) return null;
   const sorted = perDay.sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
-  return Math.max(20, Math.min(120, Math.round(median / 5) * 5));
+  /*
+   * רצפה של 45 דקות, כי גיליון של סטודיו מתעד את עבודת הליבה של האימון
+   * ולא את האימון כולו: חימום, מתיחות, תרגיל שהוסיפו בשטח ומעברים בין
+   * מכשירים אינם נרשמים בו כמעט אף פעם. בלי הרצפה, שלושה תרגילים
+   * שנרשמו הפכו ל"אימון של 25 דקות", והמנוע היה בונה לפי זה תכנית
+   * מקוצצת — ההפך הגמור ממה שהגיליון מלמד.
+   */
+  return Math.max(45, Math.min(120, Math.round(median / 5) * 5));
 }
 
 /** תדירות אמיתית מתוך התכניות שיובאו. */

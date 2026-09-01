@@ -245,6 +245,14 @@ export function scoreCandidate(cand, slot, ctx) {
 
   // 11. גיוון: אותו תרגיל פעמיים באותו יום — פסול. פעמיים בשבוע — תלוי בהעדפה.
   if (usedToday.has(ex.id)) return { score: -Infinity, detail: { duplicate: 'כבר באימון הזה' } };
+  /*
+   * גם תרגיל אחר יכול להיות אותו תרגיל: רומנית במוט ורומנית עם משקולות
+   * הן אותו דפוס ואותם שרירים, ואימון שמכיל את שתיהן נראה למאמן כמו
+   * טעות. חסימה מלאה הייתה מקצינה — יש ימים שבהם וריאציה שנייה מוצדקת —
+   * ולכן זהו קנס כבד: הן ייבחרו רק כשאין באמת חלופה.
+   */
+  const shape = `${ex.pattern}|${[...ex.primary].sort().join('+')}`;
+  if (ctx.usedTodayShapes?.has(shape)) { score -= 25; detail.sameMovement = -25; }
   const weekUses = usedThisWeek.get(ex.id) || 0;
   if (weekUses > 0) {
     const varietyPenalty = { low: 0, balanced: 4, high: 9 }[trainee.varietyPreference] ?? 4;

@@ -706,3 +706,73 @@ test('תרגיל שיובא ולא זוהה במאגר אינו ראיה לרמ�
   assert.equal(profile.level.confidence, 'none');
   assert.equal(profile.level.label, 'beginner');
 });
+
+/* ------------------------------------------------- נפח אמיתי, לא מילוי */
+
+test('אף תרגיל אינו נכנס לתכנית כסט בודד רק כדי למלא מקום', () => {
+  // אימון קצר יחסית לרמה גבוהה — בדיוק המצב שבו המנוע התפתה לקצץ הכול
+  for (const level of ['intermediate', 'advanced']) {
+    for (const minutes of [40, 50, 60]) {
+      const t = {
+        id: 'v', name: 'נפח', level, age: 30, weightKg: 80, daysPerWeek: 3,
+        sessionMinutes: minutes, primaryGoal: 'strength', goals: ['strength'],
+        trainingStyles: ['strength'],
+      };
+      const program = buildProgram(t, STUDIOS[0]).program;
+      for (const b of allBlocks(program)) {
+        if (b.role === 'warmup' || b.role === 'cooldown') continue;
+        if (b.prescription.unit === 'seconds') continue;
+        assert.ok(b.prescription.sets >= 2,
+          `${level}/${minutes}דק — ${b.exercise.name}: ${b.prescription.sets} סטים`);
+      }
+    }
+  }
+});
+
+test('תרגיל עיקרי מקבל שלושה סטים לפחות, גם באימון לחוץ בזמן', () => {
+  const t = { id: 'm', name: 'עיקרי', level: 'advanced', age: 28, weightKg: 90,
+    daysPerWeek: 4, sessionMinutes: 45, primaryGoal: 'strength', goals: ['strength'] };
+  const program = buildProgram(t, STUDIOS[0]).program;
+  const mains = allBlocks(program).filter((b) => b.role === 'main');
+  assert.ok(mains.length >= 4, 'אין מספיק תרגילים עיקריים בתכנית');
+  for (const b of mains) {
+    assert.ok(b.prescription.sets >= 3, `${b.exercise.name}: ${b.prescription.sets} סטים בלבד`);
+  }
+});
+
+test('מתאמן מתקדם אינו מקבל תכנית של תרגילים קלים בלבד', () => {
+  const t = { id: 'a', name: 'מתקדם', level: 'advanced', age: 30, weightKg: 85,
+    daysPerWeek: 3, sessionMinutes: 60, primaryGoal: 'strength', goals: ['strength'] };
+  const program = buildProgram(t, STUDIOS[0]).program;
+  for (const day of program.days) {
+    const working = day.blocks.filter((b) => b.role === 'main' || b.role === 'secondary');
+    assert.ok(working.length >= 2, `${day.label}: פחות משני תרגילי עבודה`);
+    // "דרישה" היא כמה גירוי התרגיל מסוגל לתת. אימון שכולו תרגילים
+    // בדרישה נמוכה הוא אימון שלא עושה כלום למתאמן ברמה הזאת.
+    assert.ok(working.some((b) => b.exercise.demand >= 4),
+      `${day.label}: אין אף תרגיל תובעני — ${working.map((b) => b.exercise.name).join(', ')}`);
+  }
+});
+
+test('אותה תנועה אינה מופיעה פעמיים באימון אחד בשם אחר', () => {
+  for (const goal of ['hypertrophy', 'strength', 'general_fitness', 'fat_loss']) {
+    const t = { id: 'd', name: 'כפילות', level: 'novice', age: 30, weightKg: 70,
+      daysPerWeek: 3, sessionMinutes: 60, primaryGoal: goal, goals: [goal] };
+    const program = buildProgram(t, STUDIOS[0]).program;
+    for (const day of program.days) {
+      const shapes = new Map();
+      for (const b of day.blocks) {
+        if (b.role === 'warmup' || b.role === 'cooldown') continue;
+        const ex = b.exercise;
+        // עבודת ליבה היא יוצאת דופן מוצדקת: פלאנק ודד-באג עובדים על אותו
+        // דפוס ובכל זאת משלימים זה את זה, וכך מאמנים באמת בונים מקטע ליבה
+        if (ex.pattern.startsWith('core_')) continue;
+        const shape = `${ex.pattern}|${[...ex.primary].sort().join('+')}`;
+        if (shapes.has(shape)) {
+          assert.fail(`${goal}/${day.label}: ${shapes.get(shape)} ו-${ex.name} הם אותה תנועה`);
+        }
+        shapes.set(shape, ex.name);
+      }
+    }
+  }
+});

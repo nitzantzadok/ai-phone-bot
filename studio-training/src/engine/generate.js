@@ -106,10 +106,18 @@ function compressDay(day, plannedMinutes) {
   const limit = plannedMinutes * 1.05;
   if (total() <= limit) { day.estimatedMinutes = total(); return null; }
 
-  // 1. הורדת סטים מהתרגיל הארוך ביותר, עד מינימום של סט אחד
+  /*
+   * 1. הורדת סטים — אבל לא מתחת לרצפה שבה התרגיל מפסיק לעשות משהו.
+   *
+   * סט בודד בתרגיל עיקרי אינו גירוי אימון, הוא שורה בטבלה. מאמן שנלחץ
+   * בזמן מוותר על התרגיל השולי ומשאיר את העיקרי שלם — ולא מקצץ את כולם
+   * לסט אחד עד שהאימון כולו חסר משמעות. הרצפה מגנה על העיקרי, והוויתור
+   * על השוליים קורה בשלב 3.
+   */
+  const setFloor = (b) => (b.role === 'main' || b.role === 'secondary' ? 3 : 2);
   let guard = 40;
   while (total() > limit && guard-- > 0) {
-    const candidates = day.blocks.filter((b) => b.prescription.sets > 1 && b.role !== 'warmup');
+    const candidates = day.blocks.filter((b) => b.prescription.sets > setFloor(b) && b.role !== 'warmup');
     if (!candidates.length) break;
     const worst = candidates.sort((a, b) => b.estimatedMinutes - a.estimatedMinutes)[0];
     worst.prescription.sets -= 1;
@@ -127,14 +135,34 @@ function compressDay(day, plannedMinutes) {
     note = 'המנוחות קוצרו כדי להתאים את האימון לזמן שהוקצה — אם המטרה היא כוח, עדיף להאריך את האימון על פני קיצור המנוחות.';
   }
 
-  // 3. אם עדיין ארוך מדי — מוותרים על התרגיל השולי ביותר
+  /*
+   * 3. ויתור על תרגילים שוליים — מהשולי ביותר כלפי מעלה. שלושה תרגילים
+   * שנעשים כמו שצריך שווים יותר משישה שנחתכו עד שאין בהם כלום.
+   */
   guard = 10;
   while (total() > limit && day.blocks.length > 3 && guard-- > 0) {
-    const order = ['cooldown', 'conditioning', 'accessory', 'core'];
+    // 'secondary' נמצא ברשימה בכוונה: עדיף אימון כוח של שני תרגילים
+    // עיקריים שלמים על פני ארבעה תרגילים שקוצצו לסט אחד כל אחד
+    const order = ['cooldown', 'conditioning', 'accessory', 'core', 'secondary'];
     let at = -1;
     for (const role of order) { at = day.blocks.map((b) => b.role).lastIndexOf(role); if (at >= 0) break; }
     if (at < 0) break;
     day.blocks.splice(at, 1);
+  }
+
+  /*
+   * 4. רק כשלא נשאר ממה לוותר — יורדים אל מתחת לרצפה. זה קורה כשהאימון
+   * שהוקצב קצר מכדי להכיל אפילו את הבסיס, והמאמן צריך לדעת את זה.
+   */
+  guard = 20;
+  while (total() > limit && guard-- > 0) {
+    const candidates = day.blocks.filter((b) => b.prescription.sets > 1 && b.role !== 'warmup');
+    if (!candidates.length) break;
+    const worst = candidates.sort((a, b) => b.estimatedMinutes - a.estimatedMinutes)[0];
+    worst.prescription.sets -= 1;
+    worst.estimatedMinutes = estimateMinutes(getExercise(worst.exercise.id), worst.prescription);
+    note = 'האימון קצר מכדי להכיל את התרגילים שנבחרו — מספר הסטים ירד מתחת למומלץ. '
+      + 'הארכת האימון או הורדת מספר ימי האימון בשבוע יחזירו נפח אמיתי.';
   }
 
   day.estimatedMinutes = total();
@@ -228,6 +256,8 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
         .map((x) => x.slot);
     }
     const usedToday = new Set();
+    // וריאציות של אותה תנועה, כדי לא לתת פעמיים את אותו דבר בשם אחר
+    const usedTodayShapes = new Set();
     let dayFatigue = 0;
     let minutes = 0;
     const blocks = [];
@@ -235,7 +265,7 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
 
     /** מוסיף משבצת לאימון אם היא נכנסת בתקציב הזמן והעייפות. */
     const tryFill = (slot, { allowRelax = true, segmentCap = null, requireLevelFit = false } = {}) => {
-      const ctx = { trainee, studio, volume, usedThisWeek, usedToday, prescribed, rng, dayFatigue, fatigueBudget: budget, resolvedLevel };
+      const ctx = { trainee, studio, volume, usedThisWeek, usedToday, usedTodayShapes, prescribed, rng, dayFatigue, fatigueBudget: budget, resolvedLevel };
       let best = pickForSlot(eligible, slot, ctx);
       let usedSlot = slot;
       /*
@@ -256,11 +286,18 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
       const rx = prescribe(ex, trainee, { goal: trainee.primaryGoal });
       let mins = estimateMinutes(ex, rx);
 
-      // התאמה לתקציב הזמן: מצמצמים סטים לפני שמוותרים על התרגיל.
-      while (rx.sets > 1 && minutes + mins > timeBudget) {
+      /*
+       * התאמה לתקציב הזמן: מצמצמים סטים — אבל רק עד הרצפה שבה התרגיל
+       * עדיין עושה משהו. תרגיל שנכנס לאימון רק בתור סט בודד אינו "עוד
+       * תרגיל", הוא שורה שגוזלת זמן מהתרגילים שכן עובדים; במקום זה
+       * מוותרים עליו, והזמן נשאר אצל העיקריים.
+       */
+      const floor = slot.role === 'main' || slot.role === 'secondary' ? 3 : 2;
+      while (rx.sets > floor && minutes + mins > timeBudget) {
         rx.sets -= 1;
         mins = estimateMinutes(ex, rx);
       }
+      if (rx.sets <= floor && minutes + mins > timeBudget) return { dropped: 'time' };
       // עודף נפח: שריר שכבר מעל היעד השבועי מקבל סט אחד פחות.
       if (rx.sets > 2 && ex.primary.some((m) => (volume.sets[m] || 0) >= volume.target.max)) {
         rx.sets -= 1;
@@ -306,6 +343,7 @@ export function generateWeeklyProgram(rawTrainee, studio, opts = {}) {
       });
 
       usedToday.add(ex.id);
+      usedTodayShapes.add(`${ex.pattern}|${[...ex.primary].sort().join('+')}`);
       usedThisWeek.set(ex.id, (usedThisWeek.get(ex.id) || 0) + 1);
       dayFatigue += FATIGUE_COST[ex.fatigue] || 2;
       minutes += mins;

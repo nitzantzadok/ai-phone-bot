@@ -146,3 +146,38 @@ test('יומן השינויים מתעד כל פעולה ואינו גדל בל�
   for (let i = 0; i < 5200; i++) db.log('noise', {});
   assert.ok(db.data.changelog.length <= 5000, `היומן גדל ל-${db.data.changelog.length}`);
 });
+
+test('ארכיון: היסטוריה שיובאה אינה נמחקת בגלל תכניות שנבנו', () => {
+  const db = new Db(tmpFile('archive.json'));
+  const traineeId = 'trainee_hist';
+
+  // עשרים תכניות מהגיליון — ההיסטוריה האמיתית של הסטודיו
+  for (let i = 0; i < 20; i++) {
+    db.putSnapshot({
+      id: `imp_${i}`, traineeId, studioId: 's', week: 0, at: '2025-01-01T00:00:00.000Z',
+      reason: 'imported', sheetName: `לשונית ${i}`, daysPerWeek: 2, totalExercises: 6,
+      program: { id: `p_imp_${i}`, traineeId, meta: { imported: true, sheet: `לשונית ${i}` },
+        days: [{ index: 1, blocks: [{ exercise: { id: `ex_${i}` }, prescription: { sets: 3 } }] }] },
+    });
+  }
+  // ואז עשרים בנייה שוטפת, שאמורות לגזום רק את עצמן
+  for (let i = 0; i < 20; i++) {
+    db.putSnapshot({
+      id: `gen_${i}`, traineeId, studioId: 's', week: i + 1, at: `2025-02-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
+      reason: 'generated', daysPerWeek: 3, totalExercises: 9,
+      program: { id: `p_gen_${i}`, traineeId,
+        days: [{ index: 1, blocks: [{ exercise: { id: `gen_ex_${i}` }, prescription: { sets: 4 } }] }] },
+    });
+  }
+
+  const all = db.listSnapshots(traineeId);
+  const imported = all.filter((s) => s.reason === 'imported');
+  const generated = all.filter((s) => s.reason === 'generated');
+  assert.equal(imported.length, 20, 'היסטוריה שיובאה נמחקה');
+  assert.equal(generated.length, 12, 'תכניות שנבנו לא נגזמו');
+
+  // סדר יציב: אותו תאריך בדיוק, ובכל זאת סדר קבוע לפי סדר הכניסה
+  const sameDay = imported.map((s) => s.id);
+  assert.deepEqual(sameDay, db.listSnapshots(traineeId).filter((s) => s.reason === 'imported').map((s) => s.id));
+  assert.equal(sameDay[0], 'imp_19', 'האחרון שנכנס אינו ראשון ברשימה');
+});

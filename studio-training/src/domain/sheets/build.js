@@ -947,6 +947,9 @@ export function shBuildImport(analysis, {
       week: 0,
       at,
       reason: 'imported',
+      // שם הלשונית נשמר גם על הצילום עצמו: מסך ההיסטוריה מציג את רשימת
+      // התכניות בלי גוף התכנית, ובלעדיו לא היה אפשר לומר מאיפה היא באה
+      sheetName: p.sheetName,
       qaScore: null,
       qaPassed: null,
       split: null,
