@@ -9,8 +9,12 @@ import { fileURLToPath } from 'node:url';
 
 import { sameContent as sameSnapshotContent } from '../domain/history.js';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_FILE = path.resolve(HERE, '../../data/db.json');
+// נתיב ברירת המחדל מחושב רק כשצריך אותו: בסביבת קצה (Workers) אין קבצים,
+// וחישוב בזמן טעינת המודול היה מפיל את העלייה של ה-Worker.
+function defaultDbFile() {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, '../../data/db.json');
+}
 
 export const SCHEMA_VERSION = 5;
 
@@ -90,7 +94,7 @@ export class Db {
    * טעון ופונקציית שמירה. כל שאר הקוד — הנתיבים, ההרשאות, המנוע — אינו
    * יודע ולא צריך לדעת מאיפה הנתונים הגיעו.
    */
-  constructor(source = process.env.STUDIO_DB_FILE || DEFAULT_FILE) {
+  constructor(source = process.env.STUDIO_DB_FILE || defaultDbFile()) {
     if (source && typeof source === 'object') {
       this.file = null;
       this.persist = source.persist || null;
