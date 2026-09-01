@@ -135,42 +135,45 @@ jobs:
 
       # שגיאת האימות של wrangler מגיעה רק בשלב מאוחר ובניסוח טכני. כאן היא
       # נבדקת מראש, והתשובה אומרת בדיוק מה לא בסדר ומה לעשות.
-      - name: האסימון תקף?
+      # אימות מול נקודת הקצה של החשבון ולא של המשתמש.
+      #
+      # אסימון שנוצר בעמוד "Account API tokens" שייך לחשבון ולא למשתמש,
+      # ולכן /user/tokens/verify מחזיר עליו "Invalid API Token" גם כשהוא
+      # תקין לחלוטין. הבדיקה שמעניינת אותנו היא ממילא אחרת: האם יש גישה
+      # לחשבון, והאם יש הרשאת D1 — בלעדיה הפריסה תיפול בשלב הבא.
+      - name: בדיקת גישה
         run: |
-          # מה נשמר בסוד — בלי להדפיס אותו. אורך וצורה מספיקים כדי לדעת אם
-          # הודבק ערך אחר לגמרי, וזו הטעות הנפוצה כאן.
           LEN=${#CLOUDFLARE_API_TOKEN}
           echo "אורך הערך שנשמר: $LEN תווים"
           case "$CLOUDFLARE_API_TOKEN" in
-            cfat_*) echo "צורה: מתחיל ב-cfat_ — נראה כמו אסימון" ;;
-            v1.0-*) echo "צורה: פורמט אסימון ישן" ;;
-            *) echo "צורה: אינו מתחיל ב-cfat_ — ככל הנראה הודבק ערך אחר" ;;
+            cfat_*|v1.0-*) echo "צורה: תקינה" ;;
+            *) echo "צורה: אינו נראה כמו אסימון — ייתכן שהודבק ערך אחר" ;;
           esac
-          if [ "$LEN" -eq 32 ]; then
-            echo "שים לב: 32 תווים בדיוק — זה האורך של Account ID, לא של אסימון."
-          fi
           if printf '%s' "$CLOUDFLARE_API_TOKEN" | grep -q '[[:space:]]'; then
-            echo "שים לב: יש רווח או שורה חדשה בתוך הערך — זה לבדו מפיל את האימות."
-          fi
-
-          RESP="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            https://api.cloudflare.com/client/v4/user/tokens/verify || true)"
-          if ! printf '%s' "$RESP" | grep -q '"success":true'; then
-            echo "::error::Cloudflare אינו מזהה את האסימון. כמעט תמיד הועתק ערך שגוי (מזהה האסימון במקום הערך עצמו) או שנכנס רווח/שורה נוספת. יוצרים אסימון חדש, מעתיקים מהתיבה שמופיעה מיד אחרי Create Token, ומעדכנים את הסוד."
-            echo "תשובת Cloudflare: $RESP"
+            echo "::error::יש רווח או שורה חדשה בתוך הערך — זה לבדו מפיל את האימות."
             exit 1
           fi
-          echo "האסימון תקף."
-
-          if [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            ACC="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID" || true)"
-            if ! printf '%s' "$ACC" | grep -q '"success":true'; then
-              echo "::error::האסימון תקף אבל אין לו גישה לחשבון שהוגדר ב-CLOUDFLARE_ACCOUNT_ID. בעמוד יצירת האסימון, תחת Account Resources, צריך לכלול את החשבון הזה."
-              exit 1
-            fi
-            echo "הגישה לחשבון תקינה."
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::חסר CLOUDFLARE_ACCOUNT_ID. מוסיפים אותו כסוד נוסף — הוא מופיע בכתובת של לוח הבקרה."
+            exit 1
           fi
+
+          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
+          ACC="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$API" || true)"
+          if ! printf '%s' "$ACC" | grep -q '"success":true'; then
+            echo "::error::אין גישה לחשבון עם האסימון הזה. אם האסימון נמחק — יוצרים חדש; אם הוא קיים — בעמוד היצירה, תחת Account Resources, צריך לכלול את החשבון."
+            echo "תשובת Cloudflare: $ACC"
+            exit 1
+          fi
+          echo "הגישה לחשבון תקינה."
+
+          D1="$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$API/d1/database?per_page=1" || true)"
+          if ! printf '%s' "$D1" | grep -q '"success":true'; then
+            echo "::error::לאסימון אין הרשאת D1. בעמוד יצירת האסימון: + Add more → Account → D1 → Edit, ואז יוצרים אסימון חדש ומעדכנים את הסוד."
+            echo "תשובת Cloudflare: $D1"
+            exit 1
+          fi
+          echo "הרשאת D1 קיימת."
 
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
