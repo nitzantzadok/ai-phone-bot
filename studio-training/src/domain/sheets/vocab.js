@@ -335,14 +335,48 @@ const EXERCISE_EXTRA = {
   jump_rope: ['קפיצה בחבל', 'חבל'],
   farmer_carry: ['הליכת חקלאי', 'נשיאה'],
   shrug: ['משיכת כתפיים', 'שראגים'],
+  // "לחיצה צרפתית" הוא השם המקובל בעברית לסקאל-קראשר, ושייך למילון עצמו
+  skullcrusher: ['לחיצה צרפתית', 'לחיצת צרפתית', 'סקאל קראשר', 'פשיטת מרפקים בשכיבה'],
 };
+
+/*
+ * כינויים שהמאמן אישר בייבוא הזה.
+ *
+ * כשהשכבה החכמה מציעה ש"לחיצה צרפתית" היא skullcrusher והמאמן מאשר,
+ * ההתאמה נכנסת לכאן ומשם למילון הרגיל — והניתוח רץ שוב באותו מסלול
+ * דטרמיניסטי כמו תמיד. המודל אינו כותב לנתונים; הוא רק הוסיף מילה
+ * למילון, ומה שקורה אחריה נשאר בדיוק אותו קוד שאפשר לבדוק.
+ */
+const LEARNED_ALIASES = new Map();
+
+/**
+ * לימוד כינוי לתרגיל. מאפס את המטמון כדי שהניתוח הבא ישתמש בו.
+ * @param {string} alias הטקסט כפי שהופיע בגיליון
+ * @param {string} exerciseId מזהה מהמאגר
+ */
+export function shLearnAlias(alias, exerciseId) {
+  const text = String(alias || '').trim();
+  if (!text || !exerciseId) return false;
+  const list = LEARNED_ALIASES.get(exerciseId) || [];
+  if (!list.includes(text)) list.push(text);
+  LEARNED_ALIASES.set(exerciseId, list);
+  exCache = null;
+  return true;
+}
+
+/** שכחת כל מה שנלמד — משמש בבדיקות ובהתחלת ייבוא חדש. */
+export function shForgetAliases() {
+  LEARNED_ALIASES.clear();
+  exCache = null;
+}
 
 /** מועמדי תרגילים: השם בעברית, השם באנגלית, והמזהה. */
 export function exerciseCandidates() {
   if (exCache) return exCache;
   exCache = EXERCISES.map((ex) => ({
     key: ex.id,
-    terms: [ex.name, ex.nameEn, ex.id.replace(/_/g, ' '), ...(EXERCISE_EXTRA[ex.id] || [])].filter(Boolean),
+    terms: [ex.name, ex.nameEn, ex.id.replace(/_/g, ' '),
+      ...(EXERCISE_EXTRA[ex.id] || []), ...(LEARNED_ALIASES.get(ex.id) || [])].filter(Boolean),
     value: ex,
   }));
   return exCache;

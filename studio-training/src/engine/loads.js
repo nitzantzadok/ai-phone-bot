@@ -156,8 +156,10 @@ export function startingLoad(ex, trainee, studio) {
   const acuteNearby = trainee.constraints.some((c) => c.severity === 'acute');
   if (acuteNearby) kg *= 0.75;
 
-  // ותק אימונים קצר מאוד — הרמה לבדה לא מספיקה
-  if ((trainee.trainingAgeMonths ?? 0) < 3) kg *= 0.9;
+  // ותק אימונים קצר מאוד — הרמה לבדה לא מספיקה.
+  // רק כשהוותק באמת מולא: שדה ריק אינו "פחות משלושה חודשים".
+  const months = trainee.trainingAgeMonths;
+  if (Number.isFinite(months) && months > 0 && months < 3) kg *= 0.9;
 
   // "לכל יד" נכון רק כשבאמת מחזיקים כלי בכל יד, או כשעובדים צד-צד.
   const usesDumbbells = ex.eq.flat().includes('dumbbell');

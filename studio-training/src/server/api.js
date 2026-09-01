@@ -19,6 +19,7 @@ import { buildProbes } from '../engine/probe.js';
 import { normalizeCustomExercise } from '../domain/models.js';
 import { EQUIPMENT_CATEGORIES, EQUIPMENT_LABELS, equipmentList } from '../domain/labels.js';
 import { identifyEquipment, visionAvailable } from './vision.js';
+import { assistAvailable, suggestMatches } from './assist.js';
 import { Db } from '../store/db.js';
 import {
   clearCookie, hashPassword, isLockedOut, newAccountId, newSessionToken, normalizeUsername,
@@ -259,6 +260,22 @@ const routes = {
     })),
     vision: await visionAvailable(),
   }),
+
+  /**
+   * השכבה החכמה: הצעות התאמה לשמות ולהערות שהזיהוי הרגיל לא פענח.
+   *
+   * נקראת אחרי הניתוח ולא במקומו, ומחזירה הצעות בלבד — המאמן מאשר כל אחת.
+   * כשאין מפתח או SDK מוחזרת תשובה מסודרת והמסך ממשיך בלעדיה.
+   */
+  'GET /api/assist/status': async () => ({ assist: await assistAvailable() }),
+
+  'POST /api/assist/match': async (body) => {
+    try {
+      return { ok: true, ...(await suggestMatches({ exercises: body.exercises, notes: body.notes })) };
+    } catch (err) {
+      return { ok: false, code: err.code || 'error', error: err.message, fallback: 'manual' };
+    }
+  },
 
   /** זיהוי ציוד מתמונה — הצעה בלבד, בעל הסטודיו מאשר. */
   'POST /api/equipment/identify': async (body) => {

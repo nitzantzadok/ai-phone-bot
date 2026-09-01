@@ -258,3 +258,28 @@ test('כל התכניות עדיין עוברות בקרת איכות אחרי �
     assert.ok(p.days.every((d) => d.blocks.length >= 3), `${level}: יום כמעט ריק`);
   }
 });
+
+test('ותק שלא מולא אינו מוריד את הרמה שהמאמן קבע', () => {
+  const declared = { id: 't', name: 'ללא ותק', level: 'intermediate', age: 30, weightKg: 80 };
+  const resolved = resolveLevel(normalizeTrainee(declared));
+  assert.equal(resolved.label, 'intermediate',
+    `היעדר נתון הוריד את הרמה: ${resolved.reasons.join(' | ')}`);
+
+  // אבל ותק שמולא במפורש כן מגביל — זו הצהרה, לא שדה ריק
+  const junior = resolveLevel(normalizeTrainee({ ...declared, trainingAgeMonths: 2 }));
+  assert.equal(junior.label, 'beginner');
+  assert.ok(junior.reasons.some((r) => r.includes('ותק')), junior.reasons.join(' | '));
+});
+
+test('מתאמן בינוני מקבל משקלי עבודה של בינוני ולא של מתחיל', () => {
+  const studio = normalizeStudio({ id: 's', name: 'ס',
+    equipment: ['barbell', 'power_rack', 'bench_flat', 'dumbbell', 'lat_pulldown'] });
+  const t = normalizeTrainee({ id: 't', name: 'בינוני', level: 'intermediate', age: 30,
+    weightKg: 80, daysPerWeek: 3, sessionMinutes: 60, primaryGoal: 'strength', goals: ['strength'] });
+  const program = generateWeeklyProgram(t, studio, { week: 1 });
+  const squat = program.days.flatMap((d) => d.blocks).find((b) => b.exercise.id === 'bb_back_squat');
+  assert.ok(squat, 'אין סקוואט בתכנית של מתאמן בינוני');
+  // 0.75 ממשקל הגוף הוא היחס לבינוני; מתחיל היה מקבל 0.40 — כלומר 32 ק״ג
+  assert.ok(squat.load.kg >= 50,
+    `סקוואט ${squat.load.kg} ק״ג למתאמן בינוני של 80 ק״ג — זו הצעה של מתחיל`);
+});

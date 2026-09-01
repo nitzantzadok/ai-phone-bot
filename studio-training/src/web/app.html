@@ -1001,6 +1001,14 @@ const store = {
     if (state.server) {
       state.studios = await api('/api/studios');
       state.trainees = await api('/api/trainees');
+      /*
+       * זמינות השכבה החכמה נבדקת פעם אחת בטעינה. כשאין מפתח מוגדר בשרת
+       * הכפתור פשוט לא מוצג — אין הבטחה שנשברת בלחיצה.
+       */
+      if (state.assist === undefined) {
+        try { state.assist = (await api('/api/assist/status')).assist; }
+        catch { state.assist = { ok: false, reason: 'unavailable' }; }
+      }
       return;
     }
     // מפתח האחסון כולל את מזהה החשבון, ולכן שני סטודיואים באותו דפדפן
@@ -2880,7 +2888,42 @@ function importUnmatchedHtml(unmatched) {
     </div>`).join('')}
     <p class="hint">תרגילים שלא זוהו נשמרים כתרגילים של הסטודיו ואפשר להשתמש בהם.
        ציוד ומגבלות שלא זוהו אפשר להוסיף ידנית במסך הסטודיו או בכרטיס המתאמן.</p>
+    ${assistBlockHtml(unmatched)}
   </fieldset></div>`;
+}
+
+/*
+ * השכבה החכמה, במקום היחיד שבו היא שייכת: מה שהזיהוי הרגיל לא פענח.
+ *
+ * היא אינה רצה לבד ואינה משנה דבר — המאמן לוחץ, רואה הצעות עם נימוק,
+ * ומאשר אחת-אחת. כשאין מפתח מוגדר, הכפתור פשוט אינו מוצג והמסך נשאר
+ * כפי שהיה.
+ */
+function assistBlockHtml(unmatched) {
+  if (!state.assist?.ok) return '';
+  const pending = (unmatched.exercises || []).length;
+  if (!pending) return '';
+  if (!impState.assist) {
+    return `<div class="row" style="margin-top:.6rem; gap:.5rem; align-items:center">
+      <button id="assistRun" class="ghost">נסה לזהות את ${pending} השמות האלה</button>
+      <span class="hint">שולח למודל את השמות שלא זוהו בלבד — בלי שמות מתאמנים ובלי נתונים אישיים.</span>
+    </div>`;
+  }
+  if (impState.assist.loading) return `<p class="hint" style="margin-top:.6rem">מנסה לזהות…</p>`;
+  if (impState.assist.error) return `<p class="hint warn" style="margin-top:.6rem">${esc(impState.assist.error)}</p>`;
+
+  const found = impState.assist.exercises.filter((e) => e.match);
+  if (!found.length) return `<p class="hint" style="margin-top:.6rem">לא נמצאה התאמה בטוחה לאף אחד מהשמות. הם יישמרו כתרגילים של הסטודיו.</p>`;
+  return `<div class="invgroup" style="margin-top:.6rem">
+    <b>הצעות התאמה — כל אחת דורשת אישור</b>
+    ${found.map((e, i) => `<label class="f row" style="gap:.5rem; align-items:center">
+      <input type="checkbox" data-assist-pick="${i}" ${e.confidence >= 0.75 ? 'checked' : ''}>
+      <span>«${esc(e.input)}» → <b>${esc(e.name)}</b></span>
+      <span class="chip${e.confidence >= 0.75 ? ' ok' : ' warn'}">${Math.round(e.confidence * 100)}%</span>
+      <span class="hint">${esc(e.reason)}</span>
+    </label>`).join('')}
+    <button id="assistApply" style="margin-top:.4rem">החל את המסומנים</button>
+  </div>`;
 }
 
 function importDoneHtml() {
@@ -3086,6 +3129,46 @@ function impPasteFromBox() {
 
 function wireImport() {
   const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
+
+  /*
+   * השכבה החכמה. נשלחים אליה שמות תרגילים שלא זוהו בלבד — לא שמות
+   * מתאמנים, לא מדידות ולא הערות אישיות. ההצעות שחוזרות אינן משנות דבר
+   * עד שהמאמן מסמן ולוחץ "החל".
+   */
+  on('#assistRun', 'click', async () => {
+    const names = impState.preview?.report?.unmatched?.exercises || [];
+    impState.assist = { loading: true };
+    renderImportView();
+    try {
+      const r = await api('/api/assist/match', { exercises: names });
+      impState.assist = r.ok
+        ? { exercises: r.exercises || [] }
+        : { error: r.error || 'הזיהוי לא הצליח. הייבוא ממשיך כרגיל.' };
+    } catch (err) {
+      impState.assist = { error: `הזיהוי לא הצליח: ${err.message}. הייבוא ממשיך כרגיל.` };
+    }
+    renderImportView();
+  });
+
+  on('#assistApply', 'click', () => {
+    const picked = [...document.querySelectorAll('[data-assist-pick]')]
+      .filter((el) => el.checked)
+      .map((el) => impState.assist.exercises.filter((e) => e.match)[+el.dataset.assistPick])
+      .filter(Boolean);
+    if (!picked.length) { flash('לא סומנה אף הצעה.', 'warn'); return; }
+    /*
+     * ההתאמות שאושרו נשמרות כשמות נרדפים לייבוא הזה. הן נכנסות לזיהוי
+     * הרגיל, כך שהניתוח מתבצע שוב באותו מסלול דטרמיניסטי — המודל לא
+     * כותב לנתונים, הוא רק הוסיף מילון.
+     */
+    for (const e of picked) shLearnAlias(e.input, e.match);
+    impState.assist = null;
+    impState.analysis = shAnalyzeWorkbook(impState.sheets, {
+      overrides: impState.roleOverrides, columnOverrides: impState.columnOverrides,
+    });
+    flash(`${picked.length} התאמות הוחלו. הניתוח רץ מחדש.`, 'ok');
+    renderImportView();
+  });
 
   on('#impPasteAdd', 'click', () => {
     impPasteFromBox();

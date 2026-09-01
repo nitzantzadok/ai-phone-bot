@@ -183,14 +183,32 @@ export function levelFromMovements(exercises) {
  */
 export function resolveLevel(trainee, byId = {}) {
   const claimed = levelIndex(trainee.level);
-  const months = trainee.trainingAgeMonths ?? 0;
   const reasons = [];
+
+  /*
+   * ותק שלא מולא אינו "אפס חודשים".
+   *
+   * זו הייתה התקלה החמורה ביותר במערכת: מאמן שסימן «בינוני» ולא מילא
+   * ותק — שדה שאין לו ערך ברירת מחדל אמיתי — קיבל מתאמן שהורד ל«מתחיל»,
+   * ומשם גם הצעות משקל של מתחיל. מתאמן בינוני במשקל 80 ק״ג קיבל סקוואט
+   * של 30 ק״ג, וזה נראה בדיוק כמו "המערכת נותנת תרגילים קלים וסתמיים".
+   *
+   * היעדר נתון אינו ראיה נגד ההצהרה. כשהוותק לא ידוע מכבדים את מה שהמאמן
+   * קבע; כשהוא מולא במפורש הוא ממשיך להגביל כמו קודם.
+   */
+  const monthsKnown = Number.isFinite(trainee.trainingAgeMonths) && trainee.trainingAgeMonths > 0;
+  const months = monthsKnown ? trainee.trainingAgeMonths : null;
 
   // 1. תקרה לפי ותק — אי אפשר להצהיר על רמה שהזמן לא מאפשר
   let capped = claimed;
-  while (capped > 0 && months < TRAINING_AGE_MIN_MONTHS[capped]) capped -= 1;
-  if (capped < claimed) {
-    reasons.push(`הוצהר «${he(claimed)}» אך הוותק ${months} חודשים — נלקחה רמת «${he(capped)}».`);
+  if (monthsKnown) {
+    while (capped > 0 && months < TRAINING_AGE_MIN_MONTHS[capped]) capped -= 1;
+    if (capped < claimed) {
+      reasons.push(`הוצהר «${he(claimed)}» אך הוותק ${months} חודשים — נלקחה רמת «${he(capped)}».`);
+    }
+  } else if (claimed >= 2) {
+    reasons.push(`הוותק לא מולא, ולכן ההצהרה «${he(claimed)}» נשמרה כפי שהיא. `
+      + 'מילוי הוותק בכרטיס המתאמן יחדד את הצעות המשקל.');
   }
 
   /*
@@ -273,7 +291,7 @@ export function resolveLevel(trainee, byId = {}) {
       strengthLevel !== null ? `כוח יחסי שנרשם ב-${proven.length} דפוסים` : null,
     ].filter(Boolean);
     reasons.push(`הרמה «${he(resolved)}» נתמכת במה שנרשם: ${support.join('; ')}.`);
-  } else if (!proven.length && !byMovement && months >= TRAINING_AGE_MIN_MONTHS[2] && claimed <= 1) {
+  } else if (!proven.length && !byMovement && monthsKnown && months >= TRAINING_AGE_MIN_MONTHS[2] && claimed <= 1) {
     // ותק ארוך עם הצהרה נמוכה: כנראה צניעות, לא חוסר יכולת
     reasons.push('ותק ארוך עם הצהרה נמוכה — יש לאמת בשטח; בינתיים נשמרת ההצהרה.');
   }

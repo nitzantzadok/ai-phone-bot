@@ -67,6 +67,13 @@ export const LEVEL_DEMAND_FLOOR = { beginner: 1, novice: 1, intermediate: 2, adv
 /**
  * @param {object} d
  */
+/** ציוד שאינו נושא משקל מדיד — נוכחותו לבדה אינה הופכת תרגיל למועמס. */
+const UNLOADED_EQUIPMENT = new Set([
+  'bodyweight', 'mat', 'chair', 'wall', 'stable_support', 'parallel_bars',
+  'resistance_band', 'mini_band', 'trx', 'suspension_anchor', 'foam_roller',
+  'pilates_mat', 'pilates_ring', 'jump_rope', 'bosu', 'stability_ball',
+]);
+
 function ex(d) {
   return {
     id: d.id,
@@ -103,7 +110,14 @@ function ex(d) {
     // טווחי חזרות שהתרגיל "אוהב" — מגביל אבסורדים כמו דדליפט לסט של 30
     repMin: d.repMin ?? 5,
     repMax: d.repMax ?? 20,
-    loadable: d.loadable !== false,       // האם ניתן להעמיס משקל מדיד (לצורך פרוגרסיה)
+    /*
+     * האם ניתן להעמיס משקל מדיד (לצורך פרוגרסיה).
+     *
+     * ברירת המחדל נגזרת מהציוד ולא מהצהרה: תרגיל שכל אפשרויות הציוד שלו
+     * הן משקל גוף, מזרן, גומייה או כיסא אינו ניתן להעמסה — הכיסא הוא היעד
+     * ולא ההתנגדות. סימון ידני עדיין גובר, למקרים כמו מתח בתוספת משקל.
+     */
+    loadable: d.loadable ?? (d.eq || []).some((set) => set.some((i) => !UNLOADED_EQUIPMENT.has(i))),
     tags: d.tags || [],
     cues: d.cues || [],
   };
@@ -332,8 +346,9 @@ export const EXERCISES = [
     stress: { knee: 2, lumbar: 2 }, flags: F('spinal_loading', 'deep_knee_flexion') }),
   ex({ id: 'box_squat', name: 'סקוואט לספסל', nameEn: 'Box Squat',
     pattern: 'squat', primary: ['quads', 'glutes'],
+    // הספסל מגדיר את העומק, לא את ההתנגדות — זו גרסת משקל גוף
     eq: [['bench_flat'], ['plyo_box'], ['step']], skill: 1, fatigue: 'moderate', repMin: 8, repMax: 20,
-    stress: { knee: 1, lumbar: 1 }, tags: ['regression', 'beginner_friendly', 'knee_friendly'] }),
+    loadable: false, stress: { knee: 1, lumbar: 1 }, tags: ['regression', 'beginner_friendly', 'knee_friendly'] }),
   ex({ id: 'wall_sit', name: 'ישיבת קיר', nameEn: 'Wall Sit',
     type: 'isolation', pattern: 'squat', primary: ['quads'],
     eq: [['bodyweight']], skill: 1, fatigue: 'low', repMin: 20, repMax: 60, loadable: false,
@@ -356,8 +371,10 @@ export const EXERCISES = [
     tags: ['knee_friendly'] }),
   ex({ id: 'step_up', name: 'עלייה על סטפ', nameEn: 'Step-up',
     pattern: 'lunge', primary: ['quads', 'glutes'],
+    // הסטפ הוא המשטח, לא ההתנגדות. עלייה על סטפ עם משקולות מיוצגת
+    // בתרגילים נפרדים (מכרעים, סקוואט בולגרי) שיש להם ציוד מעמיס
     eq: [['step'], ['plyo_box'], ['bench_flat']], unilateral: true, skill: 2, fatigue: 'moderate',
-    repMin: 8, repMax: 20, stress: { knee: 1, hip: 1 }, flags: F('balance') }),
+    repMin: 8, repMax: 20, loadable: false, stress: { knee: 1, hip: 1 }, flags: F('balance') }),
   ex({ id: 'lateral_lunge', name: 'מכרע צידי', nameEn: 'Lateral Lunge',
     pattern: 'lunge', primary: ['adductors', 'glutes'], secondary: ['quads'],
     eq: [['bodyweight'], ['dumbbell'], ['kettlebell']], plane: 'frontal', unilateral: true,
@@ -675,7 +692,9 @@ export const EXERCISES = [
   // ---------------------------------------------------------------- כיסא, תמיכה ונגישות
   ex({ id: 'sit_to_stand', name: 'קימה מכיסא', nameEn: 'Sit-to-Stand',
     pattern: 'squat', primary: ['quads', 'glutes'],
-    eq: [['chair'], ['bench_flat'], ['plyo_box']], skill: 1, fatigue: 'low', repMin: 5, repMax: 20,
+    // תרגיל משקל גוף: הכיסא הוא היעד, לא ההתנגדות. סימונו כ"ניתן להעמסה"
+    // גרם להצגתו בלי משקל עבודה, כאילו חסר נתון
+    eq: [['chair'], ['bench_flat'], ['plyo_box']], skill: 1, fatigue: 'low', repMin: 5, repMax: 20, loadable: false,
     stress: { knee: 1 }, tags: ['regression', 'beginner_friendly', 'knee_friendly', 'functional', 'active_aging'],
     cues: ['אף כף רגל מתחת לברך', 'לדחוף דרך העקבים', 'לשבת בשליטה, לא ליפול'] }),
   ex({ id: 'power_sit_to_stand', name: 'קימה מהירה מכיסא', nameEn: 'Power Sit-to-Stand',
@@ -714,7 +733,7 @@ export const EXERCISES = [
     stress: { ankle: 1 }, tags: ['regression', 'beginner_friendly', 'active_aging', 'rehab_friendly'] }),
   ex({ id: 'hinge_to_chair', name: 'הינג׳ אל הכיסא', nameEn: 'Hip Hinge to Chair',
     pattern: 'hinge', primary: ['glutes', 'hamstrings'],
-    eq: [['chair'], ['bench_flat']], skill: 1, fatigue: 'low', repMin: 8, repMax: 15,
+    eq: [['chair'], ['bench_flat']], skill: 1, fatigue: 'low', repMin: 8, repMax: 15, loadable: false,
     stress: { lumbar: 1 }, tags: ['regression', 'beginner_friendly', 'back_friendly', 'active_aging'],
     cues: ['לדחוף אגן אחורה אל הכיסא', 'גב ניטרלי לאורך כל התנועה'] }),
   ex({ id: 'arm_ergometer', name: 'ארגומטר ידיים', nameEn: 'Arm Ergometer',

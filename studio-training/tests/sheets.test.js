@@ -26,6 +26,7 @@ import { shClassifyTable } from '../src/domain/sheets/classify.js';
 import { shAnalyzeWorkbook, shBuildImport } from '../src/domain/sheets/build.js';
 import {
   constraintCandidates, equipmentCandidates, exerciseCandidates, HEADER_TERMS, shCandidates,
+  shForgetAliases, shLearnAlias,
 } from '../src/domain/sheets/vocab.js';
 import { shGvizToMatrix, shGvizUrl, shParseSheetUrl } from '../src/domain/sheets/google.js';
 import {
@@ -1307,4 +1308,30 @@ test('מה שהמאמן כתב בגיליון גובר על מה שהמערכת 
   const t = built.trainees.find((x) => x.name === 'נועה שמש');
   assert.deepEqual(t.trainingStyles, ['bodybuilding'], 'ההצהרה בגיליון נדרסה');
   assert.notEqual(t.active, false);
+});
+
+test('כינוי שהמאמן אישר נכנס לזיהוי הרגיל ומשנה את תוצאת הייבוא', () => {
+  const rows = [['תרגיל', 'סטים', 'חזרות', 'משקל'],
+    ['הדחיפה של יוסי', '3', '10', '25']];
+
+  // לפני הלימוד: שם עממי שאינו במאגר נשמר כתרגיל חופשי ואינו מלמד כלום
+  const before = shBuildImport(shAnalyzeWorkbook([{ name: 'עידו', rows }]), { studioName: 'ס' });
+  assert.ok(before.report.unmatched.exercises.includes('הדחיפה של יוסי'),
+    JSON.stringify(before.report.unmatched));
+  assert.ok(!before.trainees[0].history?.skullcrusher);
+
+  // המאמן אישר את ההצעה
+  assert.equal(shLearnAlias('הדחיפה של יוסי', 'skullcrusher'), true);
+  try {
+    const after = shBuildImport(shAnalyzeWorkbook([{ name: 'עידו', rows }]), { studioName: 'ס' });
+    assert.ok(!after.report.unmatched.exercises.includes('הדחיפה של יוסי'), 'הכינוי לא נלמד');
+    assert.equal(after.trainees[0].history.skullcrusher.load, 25,
+      'המשקל לא נרשם לתרגיל הנכון אחרי הלימוד');
+  } finally {
+    shForgetAliases();
+  }
+
+  // ואחרי שכחה — חוזרים למצב ההתחלתי, בלי דליפה בין ייבואים
+  const reset = shBuildImport(shAnalyzeWorkbook([{ name: 'עידו', rows }]), { studioName: 'ס' });
+  assert.ok(reset.report.unmatched.exercises.includes('הדחיפה של יוסי'));
 });
